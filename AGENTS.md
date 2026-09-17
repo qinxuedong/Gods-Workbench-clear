@@ -46,8 +46,11 @@
    - `401 Unauthorized`：未认证或会话失效。
    - `403 Forbidden`：权限不足（只读降级）。
    - `409 Conflict`：CAS 版本冲突。
-   - `202 Accepted`：智能画布长任务必须返回 `202`，并携带稳定 `job_id` 与 `poll_hint`。
+   - `202 Accepted`：`god-canvas` 智能任务必须返回 `202`，并携带稳定 `job_id` 与 `poll_hint`。
    - 错误响应外层结构必须统一封装为 `{"detail": {"code": "...", "message": "...", ...}}`。
+4. **god-canvas 统一架构**：
+   - 画布引擎统一命名为 **`god-canvas`**，包含普通画布拓扑交互与智能画布任务编排双重能力。
+   - 严禁拆分为互不兼容的平行体系，统一使用 CAS 乐观锁版本与稳定 ID 体系。
 
 ---
 

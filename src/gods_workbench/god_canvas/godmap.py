@@ -7,7 +7,7 @@ import json
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
-from gods_workbench.canvas.models import CanvasConnection, CanvasNode, CanvasTopology
+from gods_workbench.god_canvas.models import CanvasConnection, CanvasNode, CanvasTopology
 
 
 class GodmapPayload(BaseModel):

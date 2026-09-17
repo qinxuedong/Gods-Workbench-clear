@@ -1,12 +1,14 @@
-"""画布与智能画布 API 路由实现。
+"""god-canvas API 路由实现。
 
-严格对齐 docs/contracts/CANVAS-INTERFACE-CATALOG.yaml 定义的端点，接驳 CanvasService。
+涵盖普通画布拓扑管理与智能画布异步任务流转。
+端点路径保持契约一致（/api/canvases 与 /api/jobs），服务由 GodCanvasService 提供。
 """
 
 from typing import Optional
 from fastapi import APIRouter, Header, Query, Request, Response, status
 
-from gods_workbench.canvas.models import (
+from gods_workbench.core.errors import UnauthorizedException
+from gods_workbench.god_canvas.models import (
     CanvasCreateRequest,
     CanvasExportRequest,
     CanvasExportResponse,
@@ -17,13 +19,17 @@ from gods_workbench.canvas.models import (
     CanvasTopology,
     CanvasTopologyUpdateRequest,
 )
-from gods_workbench.canvas.service import default_canvas_service
-from gods_workbench.canvas.tasks import SmartCanvasTaskRequest, SmartCanvasTaskResponse
-from gods_workbench.core.errors import UnauthorizedException
+from gods_workbench.god_canvas.service import default_god_canvas_service
+from gods_workbench.god_canvas.tasks import SmartCanvasTaskRequest, SmartCanvasTaskResponse
 from gods_workbench.projects_hub.models import CasVersionRequest
 
-router = APIRouter(prefix="/api/canvases", tags=["canvas"])
+router = APIRouter(prefix="/api/canvases", tags=["god-canvas"])
+jobs_router = APIRouter(prefix="/api/jobs", tags=["god-canvas-jobs"])
 
+
+# ----------------------------------------------------------------------
+# 普通画布拓扑端点
+# ----------------------------------------------------------------------
 
 @router.get(
     "",
@@ -38,7 +44,7 @@ def list_canvases(
     """仅返回当前项目可见的画布集合。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    canvases = default_canvas_service.list_canvases(project_id=project_id)
+    canvases = default_god_canvas_service.list_canvases(project_id=project_id)
     return CanvasListResponse(canvases=canvases)
 
 
@@ -55,7 +61,7 @@ def create_canvas(
     """创建画布实体并返回稳定 canvas_id。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    result = default_canvas_service.create_canvas(payload)
+    result = default_god_canvas_service.create_canvas(payload)
     return CanvasMutationResponse(canvas=result)
 
 
@@ -72,7 +78,7 @@ def get_canvas_topology(
     """获取指定画布的完整拓扑结构（节点与连线）。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return default_canvas_service.get_topology(canvas_id)
+    return default_god_canvas_service.get_topology(canvas_id)
 
 
 @router.patch(
@@ -89,7 +95,7 @@ def update_canvas_topology(
     """根据 expected_version 更新拓扑；版本不一致严格返回 409 CANVAS_VERSION_CONFLICT。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    result = default_canvas_service.update_topology(canvas_id, payload)
+    result = default_god_canvas_service.update_topology(canvas_id, payload)
     return CanvasMutationResponse(canvas=result)
 
 
@@ -108,7 +114,7 @@ def restore_canvas(
     if authorization == "invalid":
         raise UnauthorizedException()
     expected_v = payload.expected_version if payload else None
-    result = default_canvas_service.restore_canvas(canvas_id, expected_version=expected_v)
+    result = default_god_canvas_service.restore_canvas(canvas_id, expected_version=expected_v)
     return CanvasMutationResponse(canvas=result)
 
 
@@ -131,7 +137,7 @@ async def import_canvas_workflow(
         raise UnauthorizedException()
     body_bytes = await request.body()
     content_str = body_bytes.decode("utf-8")
-    return default_canvas_service.import_workflow(
+    return default_god_canvas_service.import_workflow(
         canvas_id=canvas_id,
         content=content_str,
         file_format=format,
@@ -153,14 +159,17 @@ def export_canvas_workflow(
     """将画布拓扑导出为指定格式内容。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    data_str = default_canvas_service.export_workflow(
+    data_str = default_god_canvas_service.export_workflow(
         canvas_id=canvas_id,
         export_format=payload.format,
         include_resources=payload.include_resources,
     )
-    media_type = "application/json"
-    return Response(content=data_str, media_type=media_type)
+    return Response(content=data_str, media_type="application/json")
 
+
+# ----------------------------------------------------------------------
+# 智能画布异步任务端点
+# ----------------------------------------------------------------------
 
 @router.post(
     "/{canvas_id}/tasks",
@@ -172,12 +181,23 @@ def run_smart_canvas_task(
     canvas_id: str,
     payload: SmartCanvasTaskRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """发起异步执行任务并返回 202 Accepted 及 job_id。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
-    return SmartCanvasTaskResponse(
-        job_id="job-0001",
-        state="accepted",
-        poll_hint="/api/jobs/job-0001",
+    """发起异步执行任务并返回 202 Accepted 及稳定 job_id。"""
+    return default_god_canvas_service.submit_smart_task(
+        canvas_id=canvas_id,
+        payload=payload,
+        authorization=authorization,
+        user_role=x_user_role,
     )
+
+
+@jobs_router.get(
+    "/{job_id}",
+    response_model=SmartCanvasTaskResponse,
+    summary="查询异步任务状态",
+    status_code=status.HTTP_200_OK,
+)
+def get_smart_job_status(job_id: str):
+    """根据 job_id 查询智能画布任务状态。"""
+    return default_god_canvas_service.get_job(job_id)

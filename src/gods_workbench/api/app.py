@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from gods_workbench.api.routes_canvas import router as canvas_router
+from gods_workbench.api.routes_god_canvas import jobs_router, router as god_canvas_router
 from gods_workbench.api.routes_projects import router as projects_router
 from gods_workbench.core.errors import CleanroomException
 
@@ -41,7 +41,8 @@ def create_app() -> FastAPI:
 
     # 挂载 API 路由
     app.include_router(projects_router)
-    app.include_router(canvas_router)
+    app.include_router(god_canvas_router)
+    app.include_router(jobs_router)
 
     # 挂载静态文件目录
     if STATIC_DIR.exists():

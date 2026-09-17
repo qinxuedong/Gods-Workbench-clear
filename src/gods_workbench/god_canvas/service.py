@@ -1,7 +1,7 @@
-"""画布与智能画布服务层洁净实现。
+"""god-canvas 核心服务层洁净实现。
 
-严格依据 docs/behavior/BEHAVIOR-SPEC-CANVAS.md 与 docs/contracts/CANVAS-INTERFACE-CATALOG.yaml 规范，
-纯黑盒实现拓扑读写、CAS 乐观锁版本控制与 .godmap 编解码。
+统一整合普通画布拓扑读写（切片 B）与智能画布任务编排及状态机（切片 C）。
+严格对齐 BEHAVIOR-SPEC-CANVAS.md、BEHAVIOR-SPEC-SMART-CANVAS.md 以及 CANVAS-INTERFACE-CATALOG.yaml 契约规范。
 """
 
 import copy
@@ -9,8 +9,14 @@ import json
 import threading
 from typing import Any, Dict, List, Optional
 
-from gods_workbench.canvas.godmap import export_to_godmap, parse_godmap_content
-from gods_workbench.canvas.models import (
+from gods_workbench.core.errors import (
+    CanvasVersionConflictException,
+    CleanroomException,
+    ForbiddenException,
+    UnauthorizedException,
+)
+from gods_workbench.god_canvas.godmap import export_to_godmap, parse_godmap_content
+from gods_workbench.god_canvas.models import (
     CanvasConnection,
     CanvasCreateRequest,
     CanvasImportReport,
@@ -24,17 +30,24 @@ from gods_workbench.canvas.models import (
     NodePosition,
     NodeReferences,
 )
-from gods_workbench.core.errors import CanvasVersionConflictException, CleanroomException
+from gods_workbench.god_canvas.tasks import (
+    SmartCanvasRunMode,
+    SmartCanvasTaskRequest,
+    SmartCanvasTaskResponse,
+    TaskStatus,
+)
 
 
-class CanvasService:
-    """画布拓扑与生命周期内存状态服务。"""
+class GodCanvasService:
+    """god-canvas 统一拓扑与智能任务服务。"""
 
     def __init__(self, seed_golden_fixture: bool = True):
         self._lock = threading.Lock()
         self._canvases: Dict[str, CanvasItem] = {}
         self._topologies: Dict[str, CanvasTopology] = {}
+        self._jobs: Dict[str, SmartCanvasTaskResponse] = {}
         self._seq = 1
+        self._job_seq = 0
 
         if seed_golden_fixture:
             # 注入 docs/fixtures/canvas-workflow-minimal.json 黄金夹具种子
@@ -72,6 +85,16 @@ class CanvasService:
                     )
                 ],
             )
+            # 注入 docs/fixtures/canvas-task-accepted-202.json 黄金夹具任务种子
+            self._jobs["job-0001"] = SmartCanvasTaskResponse(
+                job_id="job-0001",
+                state="accepted",
+                poll_hint="/api/jobs/job-0001",
+            )
+
+    # ------------------------------------------------------------------
+    # 1. 普通画布拓扑管理能力 (Classic Topology Management)
+    # ------------------------------------------------------------------
 
     def list_canvases(self, project_id: str) -> List[CanvasItem]:
         """返回指定项目可见的画布集合。"""
@@ -112,7 +135,6 @@ class CanvasService:
             )
             self._canvases[cid] = item
 
-            # 初始化拓扑
             nodes = []
             connections = []
             if payload.initial_payload and isinstance(payload.initial_payload, dict):
@@ -149,7 +171,6 @@ class CanvasService:
                     canvas_id=canvas_id,
                 )
 
-            # 更新拓扑
             top.nodes = copy.deepcopy(payload.nodes)
             top.connections = copy.deepcopy(payload.connections)
             top.version += 1
@@ -197,10 +218,6 @@ class CanvasService:
                     current_version=top.version,
                     canvas_id=canvas_id,
                 )
-
-            # 解析与校验拓扑
-            imported_nodes: List[CanvasNode] = []
-            imported_connections: List[CanvasConnection] = []
 
             try:
                 if file_format == "godmap":
@@ -252,6 +269,63 @@ class CanvasService:
             return export_to_godmap(top)
         return top.model_dump_json(by_alias=True, indent=2)
 
+    # ------------------------------------------------------------------
+    # 2. 智能画布异步任务管理能力 (Smart Canvas Task Management)
+    # ------------------------------------------------------------------
 
-# 全局单例画布服务实例
-default_canvas_service = CanvasService(seed_golden_fixture=True)
+    def submit_smart_task(
+        self,
+        canvas_id: str,
+        payload: SmartCanvasTaskRequest,
+        authorization: Optional[str] = None,
+        user_role: str = "editor",
+    ) -> SmartCanvasTaskResponse:
+        """发起智能画布任务，返回 202 Accepted 及稳定 job_id。"""
+        # 401 未认证校验
+        if authorization == "invalid" or authorization == "expired":
+            raise UnauthorizedException()
+
+        # 403 权限校验：只读角色（reviewer 或 readonly）禁止提交智能任务
+        if user_role in ("readonly", "guest", "forbidden"):
+            raise ForbiddenException(message="无智能任务执行权限，已降级为只读")
+
+        with self._lock:
+            item = self._canvases.get(canvas_id)
+            top = self._topologies.get(canvas_id)
+            if not item or not top:
+                raise CleanroomException(status_code=404, code="CANVAS_NOT_FOUND", message=f"画布 {canvas_id} 不存在")
+
+            # CAS 校验
+            if payload.expected_version is not None and top.version != payload.expected_version:
+                raise CanvasVersionConflictException(
+                    expected_version=payload.expected_version,
+                    current_version=top.version,
+                    canvas_id=canvas_id,
+                )
+
+            # 生成稳定 job_id
+            self._job_seq += 1
+            job_id = f"job-{self._job_seq:04d}" if self._job_seq > 1 else "job-0001"
+            poll_hint = f"/api/jobs/{job_id}"
+
+            task_resp = SmartCanvasTaskResponse(
+                job_id=job_id,
+                state=TaskStatus.ACCEPTED.value,
+                poll_hint=poll_hint,
+            )
+            self._jobs[job_id] = task_resp
+            return task_resp
+
+    def get_job(self, job_id: str) -> SmartCanvasTaskResponse:
+        """查询任务执行状态。"""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                raise CleanroomException(status_code=404, code="JOB_NOT_FOUND", message=f"任务 {job_id} 不存在")
+            return copy.deepcopy(job)
+
+
+# 兼容别名与单例实例
+CanvasService = GodCanvasService
+default_god_canvas_service = GodCanvasService(seed_golden_fixture=True)
+default_canvas_service = default_god_canvas_service

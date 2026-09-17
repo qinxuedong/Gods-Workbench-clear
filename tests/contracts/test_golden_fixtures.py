@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from gods_workbench.canvas.godmap import parse_godmap_content, export_to_godmap
-from gods_workbench.canvas.models import CanvasTopology
-from gods_workbench.canvas.tasks import SmartCanvasTaskResponse
+from gods_workbench.god_canvas.godmap import parse_godmap_content, export_to_godmap
+from gods_workbench.god_canvas.models import CanvasTopology
+from gods_workbench.god_canvas.tasks import SmartCanvasTaskResponse
 from gods_workbench.core.errors import (
     ErrorEnvelope,
     UnauthorizedException,
@@ -178,7 +178,7 @@ def test_api_contract_routes(client: TestClient):
 
     # 测试智能画布 202
     resp_202 = client.post(
-        "/api/canvases/cv-test/tasks",
+        "/api/canvases/cv-0001/tasks",
         json={"entry_nodes": ["nd-0001"], "run_mode": "single"},
     )
     assert resp_202.status_code == 202
