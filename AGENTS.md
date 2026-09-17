@@ -28,6 +28,7 @@
    - **严禁事项**：不引入 React、Vue、Webpack、Vite 等沉重构建链或前端框架，保持随时可在浏览器直接打开运行的高效性。
 2. **后端技术栈**：
    - Python 3.11 + FastAPI + Pydantic v2，目录位于 `src/gods_workbench/`。
+   - **默认运行端口**：统一固定为 `2077`（快速启动入口：`python run.py`）。
 3. **语言与注释要求**：
    - 所有代码注释、文档、Commit Message 和解释说明**必须使用中文**。
 
