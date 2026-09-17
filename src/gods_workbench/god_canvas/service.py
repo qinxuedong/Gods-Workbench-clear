@@ -324,6 +324,37 @@ class GodCanvasService:
                 raise CleanroomException(status_code=404, code="JOB_NOT_FOUND", message=f"任务 {job_id} 不存在")
             return copy.deepcopy(job)
 
+    def update_job_state(
+        self,
+        job_id: str,
+        state: str,
+        result: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+    ) -> SmartCanvasTaskResponse:
+        """推进任务状态机状态（线程安全）。"""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                raise CleanroomException(status_code=404, code="JOB_NOT_FOUND", message=f"任务 {job_id} 不存在")
+
+            # 终端状态不可再变更
+            terminal_states = {"completed", "failed", "cancelled"}
+            if job.state in terminal_states:
+                raise CleanroomException(
+                    status_code=400,
+                    code="ILLEGAL_STATE_TRANSITION",
+                    message=f"任务 {job_id} 当前已处于终端状态 {job.state}，不可流转至 {state}",
+                )
+
+            job.state = state
+            if state in terminal_states:
+                job.poll_hint = None
+            return copy.deepcopy(job)
+
+    def cancel_job(self, job_id: str) -> SmartCanvasTaskResponse:
+        """取消未进入终端状态的任务。"""
+        return self.update_job_state(job_id, state="cancelled")
+
 
 # 兼容别名与单例实例
 CanvasService = GodCanvasService
