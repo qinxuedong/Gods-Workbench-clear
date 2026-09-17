@@ -4,9 +4,9 @@
 
 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**
 
-当前仓库处于 **Phase 5（最小垂直切片实现）** 阶段：
+当前仓库处于 **Phase 5（最小垂直切片实现）** 推进阶段：
 - **切片 A（项目中心最小链路与 V2 前端自有切片）**：已完成净化移植、服务层对接与端到端页面点亮。
-- **切片 B（普通画布最小链路）**：待实现。
+- **切片 B（普通画布最小链路）**：已完成拓扑服务（`CanvasService`）、CAS 乐观锁校验、`.godmap` 读写编解码与 API 契约闭环。
 - **切片 C（智能画布错误与异步边界）**：待实现。
 
 ## 已完成
@@ -17,22 +17,20 @@
 - 完成 Phase 3 独立审查登记与签署（4 类独立角色全票通过，契约正式冻结）。
 - 完成 Phase 4 工程脚手架与核心数据模型定义（Pydantic 契约模型、FastAPI 路由骨架）。
 - 确立并发布新仓专属《AGENTS.md》智能代理作业宪章。
-- **完成切片 A 前端点亮与端到端联调**：
-  - 净化移植纯自有 V2 前端（`projects.html`、`hardware-design-system.css`、`projects-controller.js`、`v2-shell.js`、`hardware-telemetry.js`、`project-date-range.js`）；
-  - 彻底排除上游画布代码 `static/js/canvas/` 与本地二进制字体，工作台入口设置洁净重构中友好占位；
-  - 实现真实内存服务层（`ProjectsService`），接通 7 个项目中心 REST 端点与 CAS 乐观锁逻辑；
-  - 挂载 FastAPI 静态资源目录并配置根路由重定向；
-  - 自动化测试套件扩展至 16 项全绿通过（`16 passed in 0.10s`），防污染自检持续 100% PASS。
+- 完成切片 A 前端点亮与端到端联调（默认运行端口统一为 2077）。
+- **完成切片 B 普通画布最小链路**：
+  - 实现纯洁净内存服务层 `CanvasService`，绑定黄金夹具 `cv-0001` 基准拓扑；
+  - 严格支持基于 `expected_version` 的 CAS 乐观锁拓扑更新与 `CANVAS_VERSION_CONFLICT`（409）错误映射；
+  - 实现基于 `godmap.py` 的工作流导入导出与拓扑完整性校验；
+  - 接驳 6 个画布契约端点并全面通过自动化契约测试。
+- 自动化测试套件扩展至 19 项全绿通过（`19 passed in 0.12s`），防污染自检持续 100% PASS。
 
 ## Phase 5 后续切片计划
 
-1. **切片 B：普通画布最小链路**
-   - 实现画布拓扑内存读写与 CAS 保存；
-   - 对接 `.godmap` 与 JSON 编解码契约；
-   - 验证 `canvas-workflow-minimal.json` 与 `canvas-save-conflict-409.json` 真实端点行为。
-2. **切片 C：智能画布错误与异步边界**
+1. **切片 C：智能画布错误与异步边界**
    - 实现智能画布异步任务受理状态机；
-   - 验证 `202 Accepted` 携 `job_id` 返回与 `401/403` 权限拒绝降级。
+   - 验证 `202 Accepted` 携 `job_id` 与 `poll_hint` 返回；
+   - 覆盖鉴权失效（401）与权限拒绝（403）降级路径。
 
 ## 门禁
 

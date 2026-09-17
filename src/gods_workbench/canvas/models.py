@@ -45,7 +45,7 @@ class CanvasNode(BaseModel):
 class CanvasConnection(BaseModel):
     """画布拓扑连线实体。"""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     connection_id: str = Field(..., description="稳定连线标识")
     from_node: str = Field(..., alias="from", description="源节点 entity_id")

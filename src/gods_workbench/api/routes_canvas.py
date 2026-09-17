@@ -1,29 +1,25 @@
-"""画布与智能画布 API 路由骨架。
+"""画布与智能画布 API 路由实现。
 
-严格对齐 docs/contracts/CANVAS-INTERFACE-CATALOG.yaml 定义的 7 个端点。
+严格对齐 docs/contracts/CANVAS-INTERFACE-CATALOG.yaml 定义的端点，接驳 CanvasService。
 """
 
 from typing import Optional
-from fastapi import APIRouter, File, Form, Header, Query, UploadFile, status
+from fastapi import APIRouter, Header, Query, Request, Response, status
 
 from gods_workbench.canvas.models import (
     CanvasCreateRequest,
     CanvasExportRequest,
     CanvasExportResponse,
-    CanvasImportReport,
     CanvasImportResponse,
     CanvasItem,
     CanvasListResponse,
     CanvasMutationResponse,
-    CanvasMutationResult,
+    CanvasTopology,
     CanvasTopologyUpdateRequest,
 )
+from gods_workbench.canvas.service import default_canvas_service
 from gods_workbench.canvas.tasks import SmartCanvasTaskRequest, SmartCanvasTaskResponse
-from gods_workbench.core.errors import (
-    CanvasVersionConflictException,
-    ForbiddenException,
-    UnauthorizedException,
-)
+from gods_workbench.core.errors import UnauthorizedException
 from gods_workbench.projects_hub.models import CasVersionRequest
 
 router = APIRouter(prefix="/api/canvases", tags=["canvas"])
@@ -42,7 +38,8 @@ def list_canvases(
     """仅返回当前项目可见的画布集合。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return CanvasListResponse(canvases=[])
+    canvases = default_canvas_service.list_canvases(project_id=project_id)
+    return CanvasListResponse(canvases=canvases)
 
 
 @router.post(
@@ -58,9 +55,24 @@ def create_canvas(
     """创建画布实体并返回稳定 canvas_id。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return CanvasMutationResponse(
-        canvas=CanvasMutationResult(canvas_id="cv-new", version=1)
-    )
+    result = default_canvas_service.create_canvas(payload)
+    return CanvasMutationResponse(canvas=result)
+
+
+@router.get(
+    "/{canvas_id}",
+    response_model=CanvasTopology,
+    summary="获取画布当前拓扑",
+    status_code=status.HTTP_200_OK,
+)
+def get_canvas_topology(
+    canvas_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    """获取指定画布的完整拓扑结构（节点与连线）。"""
+    if authorization == "invalid":
+        raise UnauthorizedException()
+    return default_canvas_service.get_topology(canvas_id)
 
 
 @router.patch(
@@ -74,12 +86,11 @@ def update_canvas_topology(
     payload: CanvasTopologyUpdateRequest,
     authorization: Optional[str] = Header(None),
 ):
-    """根据 expected_version 更新拓扑；冲突返回 409。"""
+    """根据 expected_version 更新拓扑；版本不一致严格返回 409 CANVAS_VERSION_CONFLICT。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return CanvasMutationResponse(
-        canvas=CanvasMutationResult(canvas_id=canvas_id, version=payload.expected_version + 1)
-    )
+    result = default_canvas_service.update_topology(canvas_id, payload)
+    return CanvasMutationResponse(canvas=result)
 
 
 @router.post(
@@ -93,13 +104,12 @@ def restore_canvas(
     payload: Optional[CasVersionRequest] = None,
     authorization: Optional[str] = Header(None),
 ):
-    """恢复已删除或只读的画布。"""
+    """恢复画布。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    version = (payload.expected_version + 1) if payload else 1
-    return CanvasMutationResponse(
-        canvas=CanvasMutationResult(canvas_id=canvas_id, version=version)
-    )
+    expected_v = payload.expected_version if payload else None
+    result = default_canvas_service.restore_canvas(canvas_id, expected_version=expected_v)
+    return CanvasMutationResponse(canvas=result)
 
 
 @router.post(
@@ -108,24 +118,30 @@ def restore_canvas(
     summary="导入工作流（JSON/.godmap）",
     status_code=status.HTTP_200_OK,
 )
-def import_canvas_workflow(
+async def import_canvas_workflow(
     canvas_id: str,
-    merge_mode: str = Form("replace"),
-    expected_version: Optional[int] = Form(None),
+    request: Request,
+    format: str = Query("json", description="文件格式: json | godmap"),
+    merge_mode: str = Query("replace", description="合并模式: replace | insert"),
+    expected_version: Optional[int] = Query(None, description="期望 CAS 版本"),
     authorization: Optional[str] = Header(None),
 ):
-    """导入工作流拓扑文件并进行结构校验。"""
+    """导入工作流拓扑文件并进行严格结构校验。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return CanvasImportResponse(
-        canvas=CanvasMutationResult(canvas_id=canvas_id, version=1),
-        import_report=CanvasImportReport(nodes_imported=2, connections_imported=1, warnings=[]),
+    body_bytes = await request.body()
+    content_str = body_bytes.decode("utf-8")
+    return default_canvas_service.import_workflow(
+        canvas_id=canvas_id,
+        content=content_str,
+        file_format=format,
+        merge_mode=merge_mode,
+        expected_version=expected_version,
     )
 
 
 @router.post(
     "/{canvas_id}/workflow/export",
-    response_model=CanvasExportResponse,
     summary="导出工作流",
     status_code=status.HTTP_200_OK,
 )
@@ -134,13 +150,16 @@ def export_canvas_workflow(
     payload: CanvasExportRequest,
     authorization: Optional[str] = Header(None),
 ):
-    """将画布拓扑导出为指定格式。"""
+    """将画布拓扑导出为指定格式内容。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return CanvasExportResponse(
-        file_url=f"/downloads/{canvas_id}.{payload.format}",
-        content_type="application/json",
+    data_str = default_canvas_service.export_workflow(
+        canvas_id=canvas_id,
+        export_format=payload.format,
+        include_resources=payload.include_resources,
     )
+    media_type = "application/json"
+    return Response(content=data_str, media_type=media_type)
 
 
 @router.post(
