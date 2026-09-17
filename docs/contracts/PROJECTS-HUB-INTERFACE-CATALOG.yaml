@@ -1,0 +1,181 @@
+meta:
+  source: "旧仓库只读研究（main=31371df）与公开文档"
+  review_status: "pending_independent_review"
+  distribution: "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
+  cleanroom_notice: "本目录仅记录接口语义，不包含旧源码结构或实现细节。"
+
+service: projects_hub
+version: draft-0
+
+interfaces:
+  - name: list_projects
+    method: GET
+    path: /api/asset-registry/projects
+    body: null
+    status:
+      - 200
+      - 401
+      - 403
+    schema:
+      request_query:
+        archived: "boolean | optional"
+        deleted: "boolean | optional"
+      response_200:
+        projects:
+          - project_id: string
+            name: string
+            project_type: "enum(film|series|other)"
+            stage: string
+            progress: number
+            start_at: "integer | null"
+            due_at: "integer | null"
+            version: integer
+            archived_at: "string(datetime) | null"
+            deleted_at: "string(datetime) | null"
+    errors:
+      401: "未认证，需重新登录"
+      403: "无读取权限"
+    acceptance: "按查询条件返回对应生命周期集合，空结果返回空数组。"
+
+  - name: create_project
+    method: POST
+    path: /api/asset-registry/projects
+    body:
+      name: string
+      project_type: "enum(film|series|other)"
+      description: "string | optional"
+      start_at: "integer | null | optional"
+      due_at: "integer | null | optional"
+    status:
+      - 200
+      - 201
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200_201:
+        project:
+          project_id: string
+          version: integer
+    errors:
+      400: "请求体不合法或缺少必填字段"
+      401: "未认证"
+      403: "无创建权限"
+    acceptance: "创建成功后返回稳定 project_id，且可立即用于跨页面上下文。"
+
+  - name: update_project
+    method: PATCH
+    path: /api/asset-registry/projects/{project_id}
+    body:
+      name: "string | optional"
+      stage: "string | optional"
+      scenes: "integer | optional"
+      shots: "integer | optional"
+      progress: "integer(0..100) | optional"
+      description: "string | optional"
+      start_at: "integer | null | optional"
+      due_at: "integer | null | optional"
+      expected_version: integer
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 409
+    schema:
+      response_200:
+        project:
+          project_id: string
+          version: integer
+    errors:
+      409: "CAS 版本冲突"
+      403: "无编辑权限"
+      401: "未认证"
+    acceptance: "expected_version 匹配时更新成功并返回新版本；冲突必须返回 409。"
+
+  - name: archive_project
+    method: DELETE
+    path: /api/asset-registry/projects/{project_id}
+    body:
+      expected_version: integer
+    status:
+      - 200
+      - 401
+      - 403
+      - 404
+      - 409
+    schema:
+      response_200:
+        project:
+          project_id: string
+          version: integer
+          archived_at: "string(datetime)"
+    errors:
+      409: "CAS 冲突"
+      403: "无治理权限"
+    acceptance: "归档成功后项目进入只读生命周期。"
+
+  - name: unarchive_project
+    method: POST
+    path: /api/asset-registry/governance/projects/{project_id}/restore
+    body:
+      expected_version: integer
+    status:
+      - 200
+      - 401
+      - 403
+      - 404
+      - 409
+    schema:
+      response_200:
+        project:
+          project_id: string
+          version: integer
+          archived_at: null
+    errors:
+      409: "CAS 冲突"
+      403: "无治理权限"
+    acceptance: "恢复后项目返回活跃集合。"
+
+  - name: move_project_to_trash
+    method: POST
+    path: /api/asset-registry/projects/{project_id}/trash
+    body:
+      expected_version: integer
+    status:
+      - 200
+      - 401
+      - 403
+      - 404
+      - 409
+    schema:
+      response_200:
+        project:
+          project_id: string
+          version: integer
+          deleted_at: "string(datetime)"
+    errors:
+      409: "CAS 冲突或生命周期不满足前置条件"
+    acceptance: "仅允许治理流程下的逻辑删除（回收站隔离）。"
+
+  - name: restore_project_from_trash
+    method: POST
+    path: /api/asset-registry/projects/{project_id}/trash/restore
+    body:
+      expected_version: integer
+    status:
+      - 200
+      - 401
+      - 403
+      - 404
+      - 409
+    schema:
+      response_200:
+        project:
+          project_id: string
+          version: integer
+          deleted_at: null
+    errors:
+      409: "CAS 冲突"
+    acceptance: "恢复成功后项目可再次参与导航与编辑。"

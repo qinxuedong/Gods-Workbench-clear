@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "version": "phase-2-draft-1",
+    "source": "old-repo-readonly-research-main-31371df",
+    "review_status": "pending_independent_review",
+    "distribution": "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
+  },
+  "fixtures": [
+    {
+      "id": "projects-hub-list-active-v1",
+      "file": "projects-hub-list-active.json",
+      "kind": "api-response",
+      "purpose": "项目中心活跃列表最小返回样本"
+    },
+    {
+      "id": "projects-hub-create-request-v1",
+      "file": "projects-hub-create-request.json",
+      "kind": "api-request",
+      "purpose": "项目创建最小请求体样本"
+    },
+    {
+      "id": "projects-hub-update-conflict-409-v1",
+      "file": "projects-hub-update-conflict-409.json",
+      "kind": "api-response",
+      "purpose": "项目编辑 CAS 冲突错误样本"
+    },
+    {
+      "id": "canvas-workflow-minimal-json-v1",
+      "file": "canvas-workflow-minimal.json",
+      "kind": "workflow",
+      "purpose": "普通/智能画布可共享的最小拓扑样本"
+    },
+    {
+      "id": "canvas-workflow-minimal-godmap-v1",
+      "file": "canvas-workflow-minimal.godmap",
+      "kind": "workflow",
+      "purpose": ".godmap 最小读写样本"
+    },
+    {
+      "id": "canvas-save-conflict-409-v1",
+      "file": "canvas-save-conflict-409.json",
+      "kind": "api-response",
+      "purpose": "画布保存冲突样本"
+    },
+    {
+      "id": "canvas-task-accepted-202-v1",
+      "file": "canvas-task-accepted-202.json",
+      "kind": "api-response",
+      "purpose": "智能画布异步任务受理样本"
+    },
+    {
+      "id": "canvas-auth-401-v1",
+      "file": "canvas-auth-401.json",
+      "kind": "api-response",
+      "purpose": "未认证错误样本"
+    },
+    {
+      "id": "canvas-forbidden-403-v1",
+      "file": "canvas-forbidden-403.json",
+      "kind": "api-response",
+      "purpose": "权限不足错误样本"
+    }
+  ]
+}
