@@ -1,0 +1,18 @@
+# Local and generated artifacts
+.env
+.env.*
+*.log
+*.tmp
+*.cache
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build and test outputs
+dist/
+build/
+coverage/
+node_modules/
