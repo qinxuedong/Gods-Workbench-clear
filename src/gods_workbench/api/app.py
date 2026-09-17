@@ -1,11 +1,15 @@
 """FastAPI 洁净室应用工厂与核心中间件。"""
 
+from pathlib import Path
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from gods_workbench.api.routes_canvas import router as canvas_router
 from gods_workbench.api.routes_projects import router as projects_router
 from gods_workbench.core.errors import CleanroomException
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 def create_app() -> FastAPI:
@@ -30,8 +34,18 @@ def create_app() -> FastAPI:
         """健康检查端点。"""
         return {"status": "ok", "mode": "cleanroom", "frozen_contracts": True}
 
+    @app.get("/", include_in_schema=False)
+    def index_redirect():
+        """根路径重定向至 V2 项目中心。"""
+        return RedirectResponse(url="/static/v2/projects.html", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    # 挂载 API 路由
     app.include_router(projects_router)
     app.include_router(canvas_router)
+
+    # 挂载静态文件目录
+    if STATIC_DIR.exists():
+        app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
     return app
 

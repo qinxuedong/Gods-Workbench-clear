@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full overflow-hidden">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工作台 (洁净重构中) · Gods' Workbench v2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/hardware-design-system.css">
+  <link rel="stylesheet" href="/static/v2/css/project-date-range.css">
+</head>
+<body class="h-full bg-[#050608] text-slate-200 flex flex-col font-sans select-none overflow-hidden">
+
+  <!-- 顶部拟物主控台 Deck -->
+  <header class="topbar-master-deck h-14 bg-[#090b10] border-b border-white/10 flex items-center justify-between px-4 z-40 shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#dfc384] to-[#947a57] p-0.5 shadow-lg">
+          <div class="w-full h-full bg-[#08090d] rounded-[6px] flex items-center justify-center font-bold text-xs text-[#eddab3]">GW</div>
+        </div>
+        <span class="font-bold tracking-wider text-sm text-slate-100 font-mono">GODS' WORKBENCH <span class="text-[10px] px-1.5 py-0.5 rounded bg-[#dfc384]/15 text-[#dfc384] border border-[#dfc384]/30 ml-1">CLEANROOM</span></span>
+      </div>
+
+      <!-- 顶栏导航胶囊 -->
+      <nav class="flex items-center space-x-1 ml-4 bg-[#06070a] p-1 rounded-full border border-white/5">
+        <a href="/static/v2/projects.html" class="nav-pill-btn px-3 py-1 text-xs rounded-full text-slate-300 hover:text-white transition">项目中心</a>
+        <a href="/static/v2/workshop.html" class="nav-pill-btn pill-capsule-active px-3 py-1 text-xs rounded-full text-black font-bold bg-[#dfc384] shadow-sm transition">工作台</a>
+      </nav>
+    </div>
+
+    <div class="recessed-deck-slot flex items-center space-x-3">
+      <div class="text-xs font-mono text-slate-400" id="masterDeckClock">--:--:--</div>
+      <div class="gw-shell-right flex items-center space-x-2">
+        <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">Phase 5 Cleanroom Active</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 工作区占位卡片 -->
+  <main class="flex-1 flex items-center justify-center p-6">
+    <div class="max-w-xl w-full bay-inset p-8 rounded-2xl border border-white/10 text-center space-y-5 bg-[#090b10]/80 shadow-2xl">
+      <div class="w-16 h-16 rounded-2xl bg-[#dfc384]/10 border border-[#dfc384]/30 flex items-center justify-center mx-auto text-[#dfc384]">
+        <i data-lucide="cpu" class="w-8 h-8"></i>
+      </div>
+      <div>
+        <div class="text-xs font-mono text-[#dfc384] tracking-widest uppercase mb-1">Architecture Boundary Guard</div>
+        <h1 class="text-xl font-bold text-slate-100">无限画布与智能画布 · 洁净重构中</h1>
+        <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+          根据《AGENTS.md》与洁净室铁律，旧仓上游画布代码已彻底排除。<br>
+          普通画布与智能画布正在基于 Phase 3 冻结的 <code>CANVAS-INTERFACE-CATALOG.yaml</code> 与黄金夹具进行纯黑盒重写。
+        </p>
+      </div>
+
+      <div class="p-3.5 rounded-xl bg-black/50 border border-white/5 text-left text-xs font-mono space-y-1.5 text-slate-400">
+        <div class="flex justify-between"><span>当前阶段</span><span class="text-[#dfc384]">Phase 5：切片 A (项目中心前端点亮)</span></div>
+        <div class="flex justify-between"><span>画布契约状态</span><span class="text-emerald-400">FROZEN (401/403/409/202 黄金夹具锁定)</span></div>
+        <div class="flex justify-between"><span>上游代码隔离</span><span class="text-cyan-400">100% 洁净无污染</span></div>
+      </div>
+
+      <div class="pt-2 flex justify-center space-x-3">
+        <a href="/static/v2/projects.html" class="tactile-keycap px-5 py-2 rounded-xl text-xs font-bold text-[#eddab3] flex items-center space-x-1.5">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          <span>返回项目中心</span>
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/js/hardware-telemetry.js"></script>
+  <script src="/static/v2/js/v2-shell.js"></script>
+  <script>
+    if (window.lucide) window.lucide.createIcons();
+  </script>
+</body>
+</html>

@@ -1,22 +1,20 @@
-"""项目中心 API 路由骨架。
+"""项目中心 API 路由实现。
 
-严格对齐 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml 定义的 7 个端点。
+严格对齐 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml 定义的 7 个端点，接驳 ProjectsService。
 """
 
 from typing import Optional
 from fastapi import APIRouter, Header, Query, status
 
-from gods_workbench.core.errors import ForbiddenException, UnauthorizedException, VersionConflictException
+from gods_workbench.core.errors import UnauthorizedException
 from gods_workbench.projects_hub.models import (
     CasVersionRequest,
     ProjectCreateRequest,
-    ProjectItem,
     ProjectListResponse,
     ProjectMutationResponse,
-    ProjectMutationResult,
-    ProjectType,
     ProjectUpdateRequest,
 )
+from gods_workbench.projects_hub.service import default_projects_service
 
 router = APIRouter(prefix="/api/asset-registry", tags=["projects-hub"])
 
@@ -35,8 +33,8 @@ def list_projects(
     """根据查询条件返回项目集合。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    # 洁净骨架占位返回
-    return ProjectListResponse(projects=[])
+    projects = default_projects_service.list_projects(archived=archived, deleted=deleted)
+    return ProjectListResponse(projects=projects)
 
 
 @router.post(
@@ -49,9 +47,8 @@ def create_project(payload: ProjectCreateRequest, authorization: Optional[str] =
     """创建新项目。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return ProjectMutationResponse(
-        project=ProjectMutationResult(project_id="prj-new", version=1)
-    )
+    result = default_projects_service.create_project(payload)
+    return ProjectMutationResponse(project=result)
 
 
 @router.patch(
@@ -68,9 +65,8 @@ def update_project(
     """更新项目元信息，要求 expected_version 匹配。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return ProjectMutationResponse(
-        project=ProjectMutationResult(project_id=project_id, version=payload.expected_version + 1)
-    )
+    result = default_projects_service.update_project(project_id, payload)
+    return ProjectMutationResponse(project=result)
 
 
 @router.delete(
@@ -87,13 +83,8 @@ def archive_project(
     """将项目移入只读归档状态。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return ProjectMutationResponse(
-        project=ProjectMutationResult(
-            project_id=project_id,
-            version=payload.expected_version + 1,
-            archived_at="2026-09-17T00:00:00Z",
-        )
-    )
+    result = default_projects_service.archive_project(project_id, payload.expected_version)
+    return ProjectMutationResponse(project=result)
 
 
 @router.post(
@@ -110,13 +101,8 @@ def unarchive_project(
     """将已归档项目恢复为活跃状态。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return ProjectMutationResponse(
-        project=ProjectMutationResult(
-            project_id=project_id,
-            version=payload.expected_version + 1,
-            archived_at=None,
-        )
-    )
+    result = default_projects_service.unarchive_project(project_id, payload.expected_version)
+    return ProjectMutationResponse(project=result)
 
 
 @router.post(
@@ -133,13 +119,8 @@ def move_project_to_trash(
     """仅允许已归档项目移入回收站。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return ProjectMutationResponse(
-        project=ProjectMutationResult(
-            project_id=project_id,
-            version=payload.expected_version + 1,
-            deleted_at="2026-09-17T00:00:00Z",
-        )
-    )
+    result = default_projects_service.move_to_trash(project_id, payload.expected_version)
+    return ProjectMutationResponse(project=result)
 
 
 @router.post(
@@ -156,10 +137,5 @@ def restore_project_from_trash(
     """从回收站恢复项目至可用集合。"""
     if authorization == "invalid":
         raise UnauthorizedException()
-    return ProjectMutationResponse(
-        project=ProjectMutationResult(
-            project_id=project_id,
-            version=payload.expected_version + 1,
-            deleted_at=None,
-        )
-    )
+    result = default_projects_service.restore_from_trash(project_id, payload.expected_version)
+    return ProjectMutationResponse(project=result)
