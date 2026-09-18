@@ -257,6 +257,21 @@
 - D5 遗留 R1（P2，非阻塞）：`patch.object(main, "update_allowed_file")` 补丁面在 D5 断裂；
   当前无生产代码/测试使用该补丁点。
 
+### 9.9 Phase D 收口后的台账更新（2026-09-19）
+
+> 回填：§9.1 “54/60（实测时点 HEAD = `2d2a8a59`）”为 D6-C 时点值，已过时。
+
+- **D5b 已提交 `d80b33f4`**：迁出 `restart.py::schedule_self_restart` 与 `assets.py::safe_static_dir`（依赖注入批）。
+- **最终口径**：60 个候选中 **56 已迁出**（分布：versioning 9、remote 20、notes 3、staging 9、assets 7、static_pages 6、check 1、restart 1），
+  **4 为设计保留**：`UPDATE_LOCK`、`update_from_github`、`rollback_update`、`UPDATE_API_DEPENDENCIES`；无孤儿符号（60 全覆盖）。
+- **约束回正**：§9.1 任务书“55/60”口径已被主控实测取代；以后统一用“56 迁出 + 4 保留”。
+- **行数口径**：`main.py` 21152 → 20583（`split("\n")`）。
+- **两处文档口径瑕疵已修正**（release 仓 `c53c19d7`）：
+  「20661 → 20583」改为「21152 → 20583」；§5.1 补记 `update_allowed_file` 例外（69a24418）。
+- **独立审核**：Carver（Phase D 真伪，`VERIFIED COMPLETE`）、
+  Euclid（文档修正复核，`ACCEPT`）、
+  Ramanujan（更新分发白名单审核，`ACCEPT`）。
+
 ### 9.8 台账只留单条 task 的原因
 
 `TASKS.md` 按用户裁决仅为「单条 task + 1-2 行简短说明」；所有哈希、门禁数字、批次边界、
