@@ -693,7 +693,7 @@
                 </div>
               </a>
 
-              <a href="/static/settings.html" target="_blank" class="bay-inset p-2.5 rounded-xl flex flex-col justify-between group hover:border-amber-400/50 transition border border-white/5">
+              <a href="/static/v2/settings.html" target="_blank" class="bay-inset p-2.5 rounded-xl flex flex-col justify-between group hover:border-amber-400/50 transition border border-white/5">
                 <div class="flex items-center space-x-1.5 mb-1 text-slate-100 group-hover:text-amber-300 transition">
                   <i data-lucide="sliders" class="w-3.5 h-3.5 text-amber-400"></i>
                   <span class="font-bold text-[11px]">通用偏好</span>

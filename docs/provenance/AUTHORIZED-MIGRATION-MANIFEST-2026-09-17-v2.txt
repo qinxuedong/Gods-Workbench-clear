@@ -1,0 +1,134 @@
+# 自有代码迁移清单 v2
+
+记录日期：2026-09-17
+来源根目录：D:\Working\Code Pro\Gods-Workbench-release
+目标根目录：当前洁净仓库
+授权范围：仅用户授权的非画布代码
+发布状态：NOT AUTHORIZED FOR PUBLIC DISTRIBUTION
+
+## 接受的文件
+
+以下两个文件经依赖复核，接受为用户自有非画布切片。它们不含图片、字体、音频、视频、用户数据、插件协议、画布引擎、智能任务、资产注册或外部生成依赖。
+
+来源：static/v2/js/project-date-range.js
+来源 SHA-256：3607B19926040C0F40590781451964003616AA3BC436D7E8674E055C5378A593
+目标：src/gods_workbench/static/v2/js/project-date-range.js
+目标 SHA-256：3607B19926040C0F40590781451964003616AA3BC436D7E8674E055C5378A593
+决定：ACCEPTED_MIGRATION
+
+来源：static/v2/css/project-date-range.css
+来源 SHA-256：794B0E20B8DAC4A48BD1E3ACEE1C1F4D7087B1EAC412B9F34D69DE5F0563197A
+目标：src/gods_workbench/static/v2/css/project-date-range.css
+目标 SHA-256：794B0E20B8DAC4A48BD1E3ACEE1C1F4D7087B1EAC412B9F34D69DE5F0563197A
+决定：ACCEPTED_MIGRATION
+
+## 拒绝或隔离的文件
+
+static/v2/projects.html
+static/v2/js/projects-controller.js
+static/v2/js/v2-shell.js
+static/css/hardware-design-system.css
+static/js/hardware-telemetry.js
+static/v2/workshop.html
+backend/generation_api/providers/*.py
+tools/route_permissions.py
+asset_registry/canvas_engine/
+asset_registry/storage_bridge/
+backend/comfyui/
+tools/chrome-local-asset-importer/
+tools/photoshop-asset-connector/
+main.py
+data/
+assets/
+tests/
+docs/
+.git/
+
+所有拒绝或隔离路径的决定：DO_NOT_MIGRATE。洁净目标实现必须依据已复核的行为、契约和夹具边界编写。
+
+## 复核边界
+
+本清单记录用户指示的范围和可复现文件哈希；它不是独立法律意见，不批准排除的 Infinite-Canvas 实现，也不授予生产或公开分发授权。
+
+## 设计文档文字迁移登记（2026-09-17 追加）
+
+本节仅追加记录本次 V2 设计文档的纯文字迁移，不改动上方原有任何一行内容。
+迁移范围：仅迁入 Markdown 文本；图片、截图、字体、音视频等二进制资源一律未迁入。
+改写说明：旧仓绝对路径已替换为仓库相对路径或迁移说明；旧字体名已统一改写为思源黑体 Source Han Sans CN（Bold/Medium/Normal 三档，本地 static/vendor/fonts/，经 static/vendor/css/fonts.css 声明）；Markdown 图片语法与图片路径已全部删除。
+
+目标文件：docs/design/README.md
+SHA256：9118CE0AFCEE4DE1848DB1FC2E496090B0F60C79AF70DD79714FBAC0F749E10B
+来源：重写自旧仓 docs/design-proposals/README.md，转为 docs/design 目录索引
+字节数：3027
+决定：ACCEPTED_DOC_MIGRATION
+
+目标文件：docs/design/UI-DESIGN-V2-BASELINE.md
+SHA256：552F7588D28370A04CC97EFB610499EB496586559C994567BB419426CA6AB0CF
+来源：迁移自旧仓 DESIGN.md
+字节数：4445
+决定：ACCEPTED_DOC_MIGRATION
+
+目标文件：docs/design/DESIGN-SYSTEM-INDEX.md
+SHA256：5A03CB022EC84240343B13C720C28E390F5B37A368B1D9BCF4FF574096C39CCE
+来源：迁移自旧仓 docs/DESIGN-SYSTEM-INDEX.md
+字节数：3594
+决定：ACCEPTED_DOC_MIGRATION
+
+目标文件：docs/design/UI-DESIGN-V2-HARDWARE-WORKBENCH.md
+SHA256：7ABAB39FDBD54ED81E294784743B5ED6916E842BA49032892FAC960FF49C4813
+来源：迁移自旧仓 0908 拟物科技工作台完整设计文档.md
+字节数：4257
+决定：ACCEPTED_DOC_MIGRATION
+
+目标文件：docs/design/UI-SKILLS-AND-DESIGN-ENGINEERING-GUIDE.md
+SHA256：C4C9DDD9A17C1226184123ED63951E789541A72FDB59B0017CACB5732015EF08
+来源：迁移自旧仓 docs/UI-SKILLS-AND-DESIGN-ENGINEERING-GUIDE.md
+字节数：1703
+决定：ACCEPTED_DOC_MIGRATION
+
+目标文件：docs/design/UI-DESIGN-V2-STITCH-TOKENS.md
+SHA256：FF9FE2AF64FA00DBD94385D9DBF428CF3A811DB1F95B91B87651A0BEE5B7851D
+来源：合并提炼自旧仓四份同源 Stitch 稿 DESIGN.md
+字节数：5175
+决定：ACCEPTED_DOC_MIGRATION
+
+目标文件：docs/design/UI-DESIGN-V2-0908-ASSET-INDEX.md
+SHA256：099544535B1475EE5F3A2B458B9334D6B061FC0A18BE830A6BDAEA284AFAB42F
+来源：迁移自旧仓 0908 README.md
+字节数：2640
+决定：ACCEPTED_DOC_MIGRATION
+
+目标文件：docs/design/UI-DESIGN-V2-WALKTHROUGH.md
+SHA256：BA5D8F1D718ED8147B25EC134BCD6ED6B3E4ADAF6C3290D013B637D64A8D99E2
+来源：迁移自旧仓 0908 walkthrough.md
+字节数：6762
+决定：ACCEPTED_DOC_MIGRATION
+
+目标文件：docs/design/archive/UI-DESIGN-V2-0908-ARCHIVE.md
+SHA256：9892D7326EC0144568170B97E11D8FA532C37A57EA183FF9E989157BF119CE06
+来源：迁移自旧仓 0908 完整设计系统与 UI 规范文档.md
+字节数：15310
+决定：ACCEPTED_DOC_MIGRATION
+
+## 经典版（V1）页面删除登记（2026-09-18 追加）
+
+本节仅追加记录 2026-09-18 经典版（V1）页面批量删除；不改动上文任何一行内容。
+删除原因为「经典版专属」：上述文件仅被经典版页面自身或已移除的「经典版」入口引用，V2 运行时不再需要；判定依据为 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md 第二、三节。
+哈希与字节数取自删除前工作区快照，逐字节与删除执行者本人的备份副本交叉校验一致。
+
+| # | 原相对路径 | 删除前 SHA-256 | 字节数 | 判定依据 |
+| --- | --- | --- | --- | --- |
+| 1 | src/gods_workbench/static/index.html | 7EF94532EAE30A055565C9C83795294A259E118C28AE1020AC0CB5BD04104919 | 211141 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 2 | src/gods_workbench/static/home.html | 3A9BA3D5CFBEF7812C085DF468414A5929C7527925BC54690DAD20D5F5F75009 | 8198 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 3 | src/gods_workbench/static/gpt-chat.html | 06461B5DDE195460877EB41A5D71043A8FEC9FD4AE4E04B0E9C6553C4083CEC8 | 130143 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 4 | src/gods_workbench/static/project-board.html | 4BA7FF1C3A1FCAE96D19ED38B5F34F1BCA0C84EEFC8D4D7AD5869A2CBD7B2A3D | 11516 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 5 | src/gods_workbench/static/settings.html | BE7F5E6C64A51DC3149E6A5A92DE7470F0F9D5933FD574A8DDE06C208A3825BA | 31903 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 6 | src/gods_workbench/static/js/home.js | 6EAB27EF0A9815D86743D4A5DC6206ECB7262C9535E4A8B4DF42638B855D7B8B | 30585 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 7 | src/gods_workbench/static/js/project-board.js | AFECF881142DD38C2376C747C6A6BA1B2D1F49241D5A201A9D1748D08C4CB0E7 | 142679 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 8 | src/gods_workbench/static/js/i18n/home.js | A1A20917B6E02773BACDD0F84EEFF57635A5ED664962DA7F0649B6F639D602D9 | 9331 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 9 | src/gods_workbench/static/js/i18n/project-board.js | 31BA627B026DB4958293BB471BC4981A12192C7B720568CC543A0BD2804663AE | 19856 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 10 | src/gods_workbench/static/css/home-project-preview.css | 07A2829F5C063F2585CD424AF75869E21AEECC496CCE9F6A2694F26165973925 | 5886 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+| 11 | src/gods_workbench/static/images/gods-workbench-wordmark.svg | BD40AAA124F43F38D2419CF651551267C16D48BCC84E282785748C53E2FC0EA8 | 4396 | 经典版专属（见 docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md） |
+
+**保留声明**：`static/episode-pipeline.html` 与 `static/v2/settings.html` 因被 V2 运行时引用而保留，不在本次删除范围内。
+

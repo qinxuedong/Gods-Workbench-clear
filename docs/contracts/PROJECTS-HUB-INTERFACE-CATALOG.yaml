@@ -1,11 +1,11 @@
 meta:
   source: "旧仓库只读研究（main=31371df）与公开文档"
-  review_status: "pending_independent_review"
+  review_status: "user_directed_remediation_input_pending_independent_release_review"
   distribution: "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
   cleanroom_notice: "本目录仅记录接口语义，不包含旧源码结构或实现细节。"
 
 service: projects_hub
-version: draft-0
+version: remediation-1
 
 interfaces:
   - name: list_projects

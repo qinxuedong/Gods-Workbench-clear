@@ -1,8 +1,10 @@
-# Phase 3 契约冻结审查登记
+# Phase 3 契约冻结审查登记（历史声明，当前不构成冻结）
+
+> 说明：本文件保留历史流程记录。由于机器可读契约和黄金夹具当前标记为 `user_directed_remediation_input_pending_independent_release_review`，且签署身份不可验证，本文件不得作为当前实现或发布授权依据。当前输入边界以修订后的独立审计报告和逐文件分类表为准。
 
 ## 审查目标
 
-冻结行为规范、接口契约、错误语义和黄金夹具的第一版可实现输入。审查完成前，所有 Phase 2 材料均为**不可实现输入**。本次审查完成后，输入基线正式冻结，授权进入 Phase 4（空历史洁净实现准备）。
+历史审查目标是冻结行为规范、接口契约、错误语义和黄金夹具的第一版可实现输入。本轮修复已重开该门禁，不能依据本段历史目标认定输入已冻结或已授权进入后续阶段。
 
 ## 审查日期
 
@@ -10,7 +12,7 @@
 
 ## 审查范围与输入基线绑定
 
-本审查结论与 `docs/provenance/PHASE-2-INPUT-SHA256.txt`（生成于 2026-09-17）所列 16 项输入材料严格绑定（全量 SHA-256 核算一致）：
+本历史审查结论曾与 `docs/provenance/PHASE-2-INPUT-SHA256.txt`（生成于 2026-09-17）所列 16 项输入材料绑定；本轮修复已重新生成输入状态，以下历史结论不覆盖当前工作树：
 
 - `docs/behavior/BEHAVIOR-SPEC-PRODUCTION-PROJECTS-HUB.md` (`f675864e...`)
 - `docs/behavior/BEHAVIOR-SPEC-CANVAS.md` (`e18d6d91...`)
@@ -81,8 +83,8 @@
 
 ## 最终结论
 
-**APPROVED — 契约正式冻结。**
+**历史声明：曾声称 APPROVED；当前不构成契约冻结。**
 
-1. Phase 2 所列行为规范、接口契约与黄金夹具通过独立审查，状态由 `pending_independent_review` 升级为 `FROZEN`。
-2. 批准进入 **Phase 4：空历史洁净实现准备** 与 **Phase 5：最小垂直切片实现**。
-3. 仓库整体发布状态继续保持：**NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**（待后续测试与审计阶段闭环）。
+1. 本文件只记录历史审查过程，不改变机器可读材料的 `user_directed_remediation_input_pending_independent_release_review` 状态。
+2. 当前实现必须重新依据契约、夹具和新分类门禁进行。
+3. 仓库整体发布状态保持：**NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

@@ -1,9 +1,11 @@
-# Phase 7 最终发布审计与就绪授权证明书 (Final Release Authorization)
+# Phase 7 最终发布审计与就绪授权证明书（历史声明，已撤销）
+
+> 撤销说明：本文件中的正式发布授权与当前独立审计、来源分类、机器可读状态和工作树事实冲突。它只保留为历史材料，不得用于生产、部署、公开分发或对外声称授权。
 
 ## 记录日期与签发时间
 
 - **签署日期**：**2026-09-17**
-- **当前发布授权状态**：**AUTHORIZED FOR PRODUCTION & DISTRIBUTION (正式发布与就绪授权)**
+- **当前发布授权状态**：**REVOKED / NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**
 
 ---
 
@@ -19,13 +21,13 @@
 
 | 阶段 | 审查项目 | 核心准出要求 | 证据文件索引 | 独立终审结论 |
 | :--- | :--- | :--- | :--- | :--- |
-| **Phase 1** | 洁净章程确立 | 确立信息边界与防污染红线，零旧仓历史复用 | `CLEANROOM-CHARTER.md` | **PASSED (已归档)** |
-| **Phase 2** | 脱源码规范与夹具 | 16 项规范与夹具注册，生成唯一 SHA-256 校验链 | `docs/provenance/PHASE-2-INPUT-REGISTER.md` | **PASSED (校验通过)** |
-| **Phase 3** | 契约冻结独立审查 | 4 类独立角色全票签署，契约与黄金夹具正式冻结 | `attestations/reviews/PHASE-3-CONTRACT-FREEZE-REVIEW.md` | **PASSED (全票通过)** |
-| **Phase 4** | 工程脚手架与契约骨架 | Pydantic v2 模型与 FastAPI 骨架严格对齐接口 | `attestations/reviews/PHASE-4-SCAFFOLDING-RECORD-2026-09-17.md` | **PASSED (骨架完备)** |
-| **Phase 5** | 最小垂直切片实现 | 前端点亮、`god-canvas` 统一服务层闭环、2077 端口确立 | `attestations/reviews/PHASE-5-VERTICAL-SLICE-RECORD-2026-09-17.md` | **PASSED (切片闭环)** |
-| **Phase 6** | 全面测试与质量门禁 | 10 线程并发 CAS 压测、拓扑边界自愈、零二进制审计 | `attestations/reviews/PHASE-6-TESTING-AUDIT-RECORD-2026-09-17.md` | **PASSED (29项通过)** |
-| **Phase 7** | 交付文档与生产冒烟 | 交付级 `README.md`、端到端业务主链路冒烟全绿 | `tests/smoke/test_production_smoke.py` | **PASSED (32项通过)** |
+| **Phase 1** | 洁净章程确立 | 确立信息边界与防污染红线，零旧仓历史复用 | `CLEANROOM-CHARTER.md` | **历史快照，已重开** |
+| **Phase 2** | 脱源码规范与夹具 | 16 项规范与夹具注册，生成唯一 SHA-256 校验链 | `docs/provenance/PHASE-2-INPUT-REGISTER.md` | **历史快照，已重开** |
+| **Phase 3** | 契约冻结独立审查 | 4 类独立角色全票签署，契约与黄金夹具正式冻结 | `attestations/reviews/PHASE-3-CONTRACT-FREEZE-REVIEW.md` | **历史快照，已重开** |
+| **Phase 4** | 工程脚手架与契约骨架 | Pydantic v2 模型与 FastAPI 骨架严格对齐接口 | `attestations/reviews/PHASE-4-SCAFFOLDING-RECORD-2026-09-17.md` | **历史快照，已重开** |
+| **Phase 5** | 最小垂直切片实现 | 前端点亮、`god-canvas` 统一服务层闭环、2077 端口确立 | `attestations/reviews/PHASE-5-VERTICAL-SLICE-RECORD-2026-09-17.md` | **历史快照，已重开** |
+| **Phase 6** | 全面测试与质量门禁 | 10 线程并发 CAS 压测、拓扑边界自愈、零二进制审计 | `attestations/reviews/PHASE-6-TESTING-AUDIT-RECORD-2026-09-17.md` | **历史快照，已重开** |
+| **Phase 7** | 交付文档与生产冒烟 | 交付级 `README.md`、端到端业务主链路冒烟全绿 | `tests/smoke/test_production_smoke.py` | **历史快照，已撤销** |
 
 ---
 
@@ -76,15 +78,15 @@ tests/smoke/test_production_smoke.py::test_production_smoke_end_to_end_business_
 
 ---
 
-## 4. 独立终审结论与正式发布授权
+## 4. 历史独立终审结论（已撤销）
 
 1. **洁净合规性**：仓库全量代码完全由契约驱动编写，零旧仓源码污染，零受限本地二进制文件，插件协议严格隔离，知识产权彻底解耦。
 2. **架构一致性**：统一命名为 `god-canvas` 拓扑与智能双引擎，统一固定默认端口为 `2077`，统一稳定 ID 规范严密生效。
 3. **健壮与并发安全**：高并发多线程 CAS 乐观锁防冲突机制验证完善，智能任务状态机终端保护无死锁与越权风险。
 4. **交付就绪性**：一键启动脚本 `run.py`、生产冒烟健康检查与交付文档 `README.md` 均已就绪。
 
-基于上述不可争议的事实与完备证据链，**本终审代理人正式解除“NOT AUTHORIZED”限制，签署全仓正式发布授权！**
+历史文本曾解除“NOT AUTHORIZED”限制；该结论已由修订后的独立审计报告撤销，当前不得据此发布。
 
 - **签署人**：`Independent Final Gatekeeper (独立终审签署与授权代理人)`
-- **最终裁定**：**RELEASE AUTHORIZED & READY FOR PRODUCTION (正式就绪授权)**
+- **最终裁定**：**HISTORICAL CLAIM REVOKED (历史声明撤销)**
 - **签发时间戳**：`2026-09-17T17:06:00+08:00`

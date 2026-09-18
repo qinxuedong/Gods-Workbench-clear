@@ -1,19 +1,17 @@
-# Authorized migration manifest
+# 自有代码迁移清单（历史记录，已由 v2 取代）
 
-Source root: D:\Working\Code Pro\Gods-Workbench-release
-Target root: current clean repository
-Scope: user-authorized non-canvas code only
+来源根目录：D:\Working\Code Pro\Gods-Workbench-release
+目标根目录：当前洁净仓库
+范围：仅用户授权的非画布代码
 
-No files migrated in this pass. Candidate files below were rejected after dependency inspection:
+本记录反映早期审查；当前结论以 v2 清单为准。早期候选经依赖检查被拒绝：
 
 backend/generation_api/providers/*.py
 tools/route_permissions.py
 
-Reason: candidates contain direct canvas routes, canvas protocol/resource semantics,
-or Infinite Canvas prompt and adapter behavior. They remain shared dependencies
-until split and independently reviewed.
+原因：候选包含画布路由、画布协议/资源语义，或 Infinite-Canvas 提示词和适配行为。在拆分并独立复核前继续作为共享依赖隔离。
 
-Excluded from this migration:
+本记录明确排除：
 main.py
 static/
 data/

@@ -18,6 +18,7 @@ class GodmapPayload(BaseModel):
     canvas_id: str
     nodes: List[CanvasNode] = Field(default_factory=list)
     connections: List[CanvasConnection] = Field(default_factory=list)
+    references: Optional[Dict[str, Any]] = None
 
 
 class GodmapDocument(BaseModel):
@@ -52,6 +53,7 @@ def export_to_godmap(topology: CanvasTopology, version: str = "1.0") -> str:
             canvas_id=topology.canvas_id,
             nodes=topology.nodes,
             connections=topology.connections,
+            references=topology.references,
         ),
     )
     return doc.model_dump_json(by_alias=True, indent=2)

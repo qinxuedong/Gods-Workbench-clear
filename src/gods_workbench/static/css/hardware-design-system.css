@@ -1,7 +1,5 @@
 /* Gods Workbench - 曜石香槟金拟物科技设计系统 (Hardware Design System) */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
-
 /* GW-TYPE-01: fixed product type ramp. Keep UI geometry predictable and readable. */
 :root {
   --gw-type-title: 24px;
@@ -46,7 +44,7 @@
       background-image:
         radial-gradient(circle at 50% 0%, rgba(223, 195, 132, 0.05) 0%, transparent 65%),
         linear-gradient(180deg, #0b0d11 0%, #07080a 100%);
-      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: "Source Han Sans CN", -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       color: #e5e7eb;
       overflow: hidden;
       width: 100%;
@@ -56,7 +54,7 @@
     }
 
     .font-mono {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: "Source Han Sans CN", monospace;
     }
 
     /* 参考图2：细致斜向碳纤维/金属网孔微纹理 (Diagonal Micro Twill) */
@@ -127,7 +125,6 @@
 .topbar-master-deck .master-deck-upper-right { gap: 7px !important; }
 .topbar-master-deck #masterDeckDate { display: inline-flex !important; visibility: visible !important; position: relative; z-index: 60; }
 @media (max-width: 1450px) {
-  .topbar-master-deck .master-deck-upper-right > a[href="/static/home.html"] { display: none !important; }
   .topbar-master-deck .master-deck-upper-right { margin-left: auto; }
 }
 @media (max-width: 1320px) {
@@ -138,40 +135,40 @@
 .gw-project-calendar-dialog::backdrop { background: rgba(1,3,7,.78); backdrop-filter: blur(5px); }
 .gw-project-calendar-shell { max-height: inherit; display:flex; flex-direction:column; padding: 24px; background: linear-gradient(170deg,#151923 0%,#090b10 100%); border-radius: inherit; }
 .gw-project-calendar-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; padding-bottom:18px; border-bottom:1px solid rgba(255,255,255,.10); }
-.gw-project-calendar-kicker { color:#dfc384; font:700 11px/1.2 'JetBrains Mono',monospace; letter-spacing:.14em; text-transform:uppercase; }
-.gw-project-calendar-head h2 { margin:7px 0 4px; color:#f8fafc; font:700 28px/1.1 'Outfit',sans-serif; }
-.gw-project-calendar-head p { margin:0; color:#94a3b8; font:500 12px/1.4 'JetBrains Mono',monospace; }
+.gw-project-calendar-kicker { color:#dfc384; font:700 11px/1.2 "Source Han Sans CN",monospace; letter-spacing:.14em; text-transform:uppercase; }
+.gw-project-calendar-head h2 { margin:7px 0 4px; color:#f8fafc; font:700 28px/1.1 "Source Han Sans CN",sans-serif; }
+.gw-project-calendar-head p { margin:0; color:#94a3b8; font:500 12px/1.4 "Source Han Sans CN",monospace; }
 .gw-project-calendar-close { width:36px; height:36px; display:grid; place-items:center; border:1px solid rgba(223,195,132,.35); border-radius:9px; background:#080a0e; color:#dfc384; cursor:pointer; font-size:24px; line-height:1; }
 .gw-project-calendar-close:hover, .gw-project-calendar-close:focus-visible { border-color:#dfc384; outline:2px solid rgba(223,195,132,.25); outline-offset:2px; }
 .gw-project-calendar-body { margin-top:18px; min-height:250px; max-height:calc(100vh - 190px); overflow:auto; }
-.gw-calendar-loading, .gw-calendar-empty { min-height:220px; display:grid; place-items:center; align-content:center; gap:10px; color:#94a3b8; font:500 13px/1.4 'JetBrains Mono',monospace; text-align:center; }
+.gw-calendar-loading, .gw-calendar-empty { min-height:220px; display:grid; place-items:center; align-content:center; gap:10px; color:#94a3b8; font:500 13px/1.4 "Source Han Sans CN",monospace; text-align:center; }
 .gw-calendar-empty strong { color:#eddab3; font-size:16px; }
 .gw-calendar-empty button { padding:7px 13px; border:1px solid rgba(223,195,132,.45); border-radius:7px; background:#10141c; color:#eddab3; cursor:pointer; }
-.gw-calendar-axis { display:grid; grid-template-columns:190px minmax(620px,1fr); gap:14px; align-items:end; padding:0 0 9px; color:#dfc384; font:700 10px/1.2 'JetBrains Mono',monospace; letter-spacing:.08em; }
+.gw-calendar-axis { display:grid; grid-template-columns:190px minmax(620px,1fr); gap:14px; align-items:end; padding:0 0 9px; color:#dfc384; font:700 10px/1.2 "Source Han Sans CN",monospace; letter-spacing:.08em; }
 .gw-calendar-axis > div { display:grid; grid-template-columns:repeat(8,1fr); color:#64748b; font-weight:500; letter-spacing:0; }
 .gw-calendar-axis > div span { text-align:center; }
 .gw-calendar-grid { position:relative; display:grid; gap:8px; padding:11px 0 8px; border-top:1px solid rgba(223,195,132,.18); background:repeating-linear-gradient(90deg, rgba(255,255,255,.045) 0, rgba(255,255,255,.045) 1px, transparent 1px, transparent 12.5%); }
 .gw-calendar-row { display:grid; grid-template-columns:190px minmax(620px,1fr); gap:14px; min-height:48px; align-items:center; }
-.gw-calendar-row > strong { overflow:hidden; padding-left:8px; color:#cbd5e1; font:600 12px/1.25 'Manrope',sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.gw-calendar-row > strong { overflow:hidden; padding-left:8px; color:#cbd5e1; font:600 12px/1.25 "Source Han Sans CN",sans-serif; text-overflow:ellipsis; white-space:nowrap; }
 .gw-calendar-track { position:relative; height:34px; }
 .gw-calendar-bar { position:absolute; top:1px; min-width:42px; height:32px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 10px; overflow:hidden; border-radius:10px; cursor:pointer; text-align:left; white-space:nowrap; }
-.gw-calendar-bar span { overflow:hidden; text-overflow:ellipsis; font:700 11px/1 'Manrope',sans-serif; }
-.gw-calendar-bar b { flex:0 0 auto; font:700 9px/1 'JetBrains Mono',monospace; opacity:.9; }
+.gw-calendar-bar span { overflow:hidden; text-overflow:ellipsis; font:700 11px/1 "Source Han Sans CN",sans-serif; }
+.gw-calendar-bar b { flex:0 0 auto; font:700 9px/1 "Source Han Sans CN",monospace; opacity:.9; }
 .gw-calendar-bar-ivory { background:linear-gradient(180deg,#fff 0%,#e1e5eb 100%); border:1px solid #fff; color:#101318; box-shadow:0 4px 12px rgba(0,0,0,.6), inset 0 1px 1px #fff; }
 .gw-calendar-bar-obsidian { background:linear-gradient(180deg,#2a3040 0%,#10131a 100%); border:1px solid rgba(223,195,132,.55); border-top-color:#fae2c8; color:#f8fafc; box-shadow:0 4px 12px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.18); }
 .gw-calendar-bar-emerald { background:linear-gradient(90deg,#0b3b30,#1b956f,#35d59f); border:1px solid #34d399; color:#fff; box-shadow:0 4px 14px rgba(16,185,129,.3), inset 0 1px 1px rgba(255,255,255,.45); }
 .gw-calendar-bar-gold { background:radial-gradient(ellipse at 50% 50%,#fff7e8 0%,#f5cf92 58%,#b8823f 100%); border:1px solid #fff; color:#1a1308; box-shadow:0 5px 16px rgba(223,195,132,.4), inset 0 1px 1px #fff; }
 .gw-calendar-bar:hover, .gw-calendar-bar:focus-visible { transform:translateY(-1px); filter:brightness(1.08); outline:2px solid rgba(223,195,132,.55); outline-offset:2px; }
 .gw-calendar-now { position:absolute; top:0; bottom:0; width:1px; z-index:3; background:#f0b45d; box-shadow:0 0 8px rgba(240,180,93,.8); pointer-events:none; }
-.gw-calendar-now b { position:absolute; top:-14px; left:4px; color:#f0b45d; font:700 8px/1 'JetBrains Mono',monospace; }
+.gw-calendar-now b { position:absolute; top:-14px; left:4px; color:#f0b45d; font:700 8px/1 "Source Han Sans CN",monospace; }
 .gw-calendar-unscheduled { margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,.10); }
-.gw-calendar-unscheduled h3 { margin:0 0 9px; color:#dfc384; font:700 11px/1.2 'JetBrains Mono',monospace; letter-spacing:.08em; text-transform:uppercase; }
+.gw-calendar-unscheduled h3 { margin:0 0 9px; color:#dfc384; font:700 11px/1.2 "Source Han Sans CN",monospace; letter-spacing:.08em; text-transform:uppercase; }
 .gw-calendar-unscheduled > div { display:flex; flex-wrap:wrap; gap:8px; }
 .gw-calendar-unscheduled button { min-width:220px; max-width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:9px 11px; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:#0c1017; color:#cbd5e1; cursor:pointer; text-align:left; }
 .gw-calendar-unscheduled button:hover, .gw-calendar-unscheduled button:focus-visible { border-color:rgba(223,195,132,.65); color:#eddab3; outline:2px solid rgba(223,195,132,.2); outline-offset:1px; }
-.gw-calendar-unscheduled button span { overflow:hidden; width:100%; font:600 12px/1.25 'Manrope',sans-serif; text-overflow:ellipsis; white-space:nowrap; }
-.gw-calendar-unscheduled button small { color:#64748b; font:500 9px/1 'JetBrains Mono',monospace; }
-.gw-project-calendar-foot { display:flex; justify-content:space-between; gap:14px; padding-top:15px; color:#64748b; font:500 10px/1.2 'JetBrains Mono',monospace; }
+.gw-calendar-unscheduled button span { overflow:hidden; width:100%; font:600 12px/1.25 "Source Han Sans CN",sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.gw-calendar-unscheduled button small { color:#64748b; font:500 9px/1 "Source Han Sans CN",monospace; }
+.gw-project-calendar-foot { display:flex; justify-content:space-between; gap:14px; padding-top:15px; color:#64748b; font:500 10px/1.2 "Source Han Sans CN",monospace; }
 @media (max-width: 760px) {
   .gw-project-calendar-dialog { width:calc(100vw - 18px); }
   .gw-project-calendar-shell { padding:16px; }
@@ -181,10 +178,10 @@
 .gw-shell-trash { position:relative; width:36px; height:42px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#dfc384; flex:0 0 36px; }
 .gw-shell-trash .hw-mini-knob { width:30px; height:30px; }
 .gw-shell-trash .hw-mini-knob-inner { width:20px; height:20px; }
-.gw-shell-trash .gw-shell-trash-badge { position:absolute; top:0; right:-2px; min-width:13px; height:13px; padding:0 3px; border-radius:99px; background:#ef4444; color:#fff; border:1px solid #08090d; font:700 8px/11px 'JetBrains Mono',monospace; text-align:center; }
+.gw-shell-trash .gw-shell-trash-badge { position:absolute; top:0; right:-2px; min-width:13px; height:13px; padding:0 3px; border-radius:99px; background:#ef4444; color:#fff; border:1px solid #08090d; font:700 8px/11px "Source Han Sans CN",monospace; text-align:center; }
 .gw-shell-trash:focus-visible { outline:2px solid #dfc384; outline-offset:2px; }
 .gw-shell-right { display:flex; align-items:center; gap:12px; flex:0 0 auto; height:44px; }
-.gw-shell-right .gw-shell-fader { display:flex; align-items:center; gap:8px; font:700 10px/1 'JetBrains Mono',monospace; color:#94a3b8; }
+.gw-shell-right .gw-shell-fader { display:flex; align-items:center; gap:8px; font:700 10px/1 "Source Han Sans CN",monospace; color:#94a3b8; }
 .gw-shell-right .gw-shell-fader-track { width:96px; height:6px; }
 
 /* GW-CARD-SELECT-01: shared selected state for side-nav controls and cards. */
@@ -654,7 +651,7 @@
       z-index: 15;
     }
     .uv-hub-percent {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: "Source Han Sans CN", monospace;
       font-size: 8.5px;
       font-weight: 800;
       color: #fae2c8;
@@ -923,7 +920,6 @@
     }
     .launch-orb-btn:hover { filter: hue-rotate(30deg) brightness(1.2); }
     .launch-orb-btn:active { transform: scale(0.92) !important; }
-
 
     /* ========================================================================= */
     /* MODAL & DRAWER HARDWARE DIALOGS (拟物模态窗与侧边抽屉)                     */

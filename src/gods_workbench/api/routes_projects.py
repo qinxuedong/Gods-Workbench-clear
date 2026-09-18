@@ -6,6 +6,7 @@
 from typing import Optional
 from fastapi import APIRouter, Header, Query, status
 
+from gods_workbench.core.auth import require_edit_access, require_governance_access
 from gods_workbench.core.errors import UnauthorizedException
 from gods_workbench.projects_hub.models import (
     CasVersionRequest,
@@ -26,7 +27,7 @@ router = APIRouter(prefix="/api/asset-registry", tags=["projects-hub"])
     status_code=status.HTTP_200_OK,
 )
 def list_projects(
-    archived: Optional[bool] = Query(None, description="是否包含归档项目"),
+    archived: Optional[bool] = Query(False, description="是否包含归档项目"),
     deleted: Optional[bool] = Query(None, description="是否包含回收站项目"),
     authorization: Optional[str] = Header(None),
 ):
@@ -43,10 +44,13 @@ def list_projects(
     summary="创建项目",
     status_code=status.HTTP_201_CREATED,
 )
-def create_project(payload: ProjectCreateRequest, authorization: Optional[str] = Header(None)):
+def create_project(
+    payload: ProjectCreateRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
+):
     """创建新项目。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_edit_access(authorization, x_user_role)
     result = default_projects_service.create_project(payload)
     return ProjectMutationResponse(project=result)
 
@@ -61,10 +65,10 @@ def update_project(
     project_id: str,
     payload: ProjectUpdateRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """更新项目元信息，要求 expected_version 匹配。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_edit_access(authorization, x_user_role)
     result = default_projects_service.update_project(project_id, payload)
     return ProjectMutationResponse(project=result)
 
@@ -79,10 +83,10 @@ def archive_project(
     project_id: str,
     payload: CasVersionRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """将项目移入只读归档状态。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_governance_access(authorization, x_user_role)
     result = default_projects_service.archive_project(project_id, payload.expected_version)
     return ProjectMutationResponse(project=result)
 
@@ -97,10 +101,10 @@ def unarchive_project(
     project_id: str,
     payload: CasVersionRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """将已归档项目恢复为活跃状态。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_governance_access(authorization, x_user_role)
     result = default_projects_service.unarchive_project(project_id, payload.expected_version)
     return ProjectMutationResponse(project=result)
 
@@ -115,10 +119,10 @@ def move_project_to_trash(
     project_id: str,
     payload: CasVersionRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """仅允许已归档项目移入回收站。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_governance_access(authorization, x_user_role)
     result = default_projects_service.move_to_trash(project_id, payload.expected_version)
     return ProjectMutationResponse(project=result)
 
@@ -133,9 +137,9 @@ def restore_project_from_trash(
     project_id: str,
     payload: CasVersionRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """从回收站恢复项目至可用集合。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_governance_access(authorization, x_user_role)
     result = default_projects_service.restore_from_trash(project_id, payload.expected_version)
     return ProjectMutationResponse(project=result)

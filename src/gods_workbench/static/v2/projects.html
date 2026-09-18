@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN" class="h-full overflow-hidden">
 <head>
+  <link rel="stylesheet" href="/static/vendor/css/fonts.css?v=v0.0.1-alpha-2026">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>项目中心 · Gods' Workbench v2</title>
@@ -9,10 +10,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- Google Fonts: Outfit, JetBrains Mono, Manrope -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Gods' Workbench 拟物科技公共硬件设计系统 -->
   <link rel="stylesheet" href="/static/css/hardware-design-system.css">
@@ -289,7 +286,7 @@
           <svg class="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 148 48">
             <path d="M 2 8 A 6 6 0 0 1 8 2 L 134 2 A 4 4 0 0 1 138 5 L 146 43 A 4 4 0 0 1 142 47 L 8 47 A 6 6 0 0 1 2 41 Z"
                   fill="#0b0d13" stroke="#2e3547" stroke-width="1.5" stroke-linejoin="round" />
-            <text x="10" y="11" font-family="'JetBrains Mono', monospace" font-size="7.5" font-weight="700" fill="#dfc384" letter-spacing="0.5">CPU</text>
+            <text x="10" y="11" font-family="'Source Han Sans CN', monospace" font-size="7.5" font-weight="700" fill="#dfc384" letter-spacing="0.5">CPU</text>
             <path d="M 48.32 39.66 A 27 27 0 0 1 99.68 39.66" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="0.8" />
             <path d="M 92.48 28.32 A 27 27 0 0 1 99.68 39.66" fill="none" stroke="#ef4444" stroke-width="1.6" stroke-linecap="round" />
             <polygon id="svgNeedleCPU" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #fae2c8)" transform="rotate(-11.5 74 48)" />
@@ -319,7 +316,7 @@
           <svg class="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 148 48">
             <path d="M 146 8 A 6 6 0 0 0 140 2 L 14 2 A 4 4 0 0 0 10 5 L 2 43 A 4 4 0 0 0 6 47 L 140 47 A 6 6 0 0 0 146 41 Z"
                   fill="#0b0d13" stroke="#2e3547" stroke-width="1.5" stroke-linejoin="round" />
-            <text x="138" y="11" text-anchor="end" font-family="'JetBrains Mono', monospace" font-size="7.5" font-weight="700" fill="#dfc384" letter-spacing="0.5">RAM</text>
+            <text x="138" y="11" text-anchor="end" font-family="'Source Han Sans CN', monospace" font-size="7.5" font-weight="700" fill="#dfc384" letter-spacing="0.5">RAM</text>
             <path d="M 48.32 39.66 A 27 27 0 0 1 99.68 39.66" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="0.8" />
             <path d="M 92.48 28.32 A 27 27 0 0 1 99.68 39.66" fill="none" stroke="#ef4444" stroke-width="1.6" stroke-linecap="round" />
             <polygon id="svgNeedleRAM" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #38bdf8)" transform="rotate(25.9 74 48)" />
@@ -344,12 +341,6 @@
           <span id="masterDeckClock">00:00:00</span>
         </div>
         <button type="button" id="masterDeckDate" class="shrink-0 min-w-[76px] px-2.5 py-1.5 rounded bg-[#06070a] border border-[#dfc384]/45 font-mono text-xs text-[#eddab3] font-bold shadow-inner flex items-center justify-center space-x-1.5 hover:border-[#dfc384] transition" title="打开项目排期日历" aria-label="打开项目排期日历"><i data-lucide="calendar-days" class="w-3.5 h-3.5 text-[#dfc384]" aria-hidden="true"></i><span class="text-slate-500 uppercase" id="masterDeckDateMonth">---</span><span id="masterDeckDateDay">--</span></button>
-
-        <!-- 切换回经典旧版 (放大1.2倍) -->
-        <a href="/static/project-board.html" class="tactile-keycap px-3 py-1.5 rounded-md text-xs text-slate-400 hover:text-white flex items-center space-x-1.5 font-mono" title="查看经典旧版项目板">
-          <i data-lucide="history" class="w-3.5 h-3.5 text-slate-400"></i>
-          <span>经典版</span>
-        </a>
       </div>
     </div>
 

@@ -13,9 +13,20 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
+# 唯一二进制白名单：用户 2026-09-18 指示的 3 个开源思源黑体本地字体（逐条精确路径）。
+# 与 tests/hygiene/test_cleanroom_hygiene.py 的 ALLOWED_BINARY_ALLOWLIST 保持同名同义。
+ALLOWED_BINARY_ALLOWLIST = {
+    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf",
+    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf",
+    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf",
+}
+
 
 def test_repo_wide_zero_binary_assets():
-    """全仓递归扫描：坚决杜绝任何二进制图片、字体、压缩包或执行文件。"""
+    """全仓递归扫描：坚决杜绝任何二进制图片、字体、压缩包或执行文件。
+
+    本用例仅校验工作区文件（ignored_dirs 中保留 .git），git 对象库由独立的治理流程负责。
+    """
     banned_extensions = {
         ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico",
         ".ttf", ".otf", ".woff", ".woff2", ".eot",
@@ -33,7 +44,11 @@ def test_repo_wide_zero_binary_assets():
             if any(part in ignored_dirs for part in path.parts):
                 continue
             if path.suffix.lower() in banned_extensions:
-                violating_files.append(str(path.relative_to(REPO_ROOT)))
+                relative_path = path.relative_to(REPO_ROOT).as_posix()
+                # 命中白名单的逐条精确路径不再报错
+                if relative_path in ALLOWED_BINARY_ALLOWLIST:
+                    continue
+                violating_files.append(relative_path)
 
     assert not violating_files, f"发现受限二进制资产，违反《洁净实现章程》: {violating_files}"
 

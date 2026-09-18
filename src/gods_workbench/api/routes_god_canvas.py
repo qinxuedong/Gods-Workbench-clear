@@ -7,6 +7,7 @@
 from typing import Optional
 from fastapi import APIRouter, Header, Query, Request, Response, status
 
+from gods_workbench.core.auth import require_edit_access
 from gods_workbench.core.errors import UnauthorizedException
 from gods_workbench.god_canvas.models import (
     CanvasCreateRequest,
@@ -57,10 +58,10 @@ def list_canvases(
 def create_canvas(
     payload: CanvasCreateRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """创建画布实体并返回稳定 canvas_id。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_edit_access(authorization, x_user_role)
     result = default_god_canvas_service.create_canvas(payload)
     return CanvasMutationResponse(canvas=result)
 
@@ -91,10 +92,10 @@ def update_canvas_topology(
     canvas_id: str,
     payload: CanvasTopologyUpdateRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """根据 expected_version 更新拓扑；版本不一致严格返回 409 CANVAS_VERSION_CONFLICT。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_edit_access(authorization, x_user_role)
     result = default_god_canvas_service.update_topology(canvas_id, payload)
     return CanvasMutationResponse(canvas=result)
 
@@ -109,10 +110,10 @@ def restore_canvas(
     canvas_id: str,
     payload: Optional[CasVersionRequest] = None,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """恢复画布。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_edit_access(authorization, x_user_role)
     expected_v = payload.expected_version if payload else None
     result = default_god_canvas_service.restore_canvas(canvas_id, expected_version=expected_v)
     return CanvasMutationResponse(canvas=result)
@@ -131,10 +132,10 @@ async def import_canvas_workflow(
     merge_mode: str = Query("replace", description="合并模式: replace | insert"),
     expected_version: Optional[int] = Query(None, description="期望 CAS 版本"),
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """导入工作流拓扑文件并进行严格结构校验。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_edit_access(authorization, x_user_role)
     body_bytes = await request.body()
     content_str = body_bytes.decode("utf-8")
     return default_god_canvas_service.import_workflow(
@@ -155,10 +156,10 @@ def export_canvas_workflow(
     canvas_id: str,
     payload: CanvasExportRequest,
     authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """将画布拓扑导出为指定格式内容。"""
-    if authorization == "invalid":
-        raise UnauthorizedException()
+    require_edit_access(authorization, x_user_role)
     data_str = default_god_canvas_service.export_workflow(
         canvas_id=canvas_id,
         export_format=payload.format,

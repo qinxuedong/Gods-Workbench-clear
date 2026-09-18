@@ -33,6 +33,7 @@ class TaskStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class SmartCanvasTaskResponse(BaseModel):
@@ -43,3 +44,5 @@ class SmartCanvasTaskResponse(BaseModel):
     job_id: str = Field(..., description="异步任务稳定标识")
     state: str = Field(..., description="任务状态")
     poll_hint: Optional[str] = Field(None, description="任务轮询或状态查询路径")
+    result: Optional[Dict[str, Any]] = Field(None, description="任务完成结果")
+    error: Optional[str] = Field(None, description="任务失败原因")

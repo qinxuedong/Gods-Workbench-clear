@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,7 +18,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Gods-Workbench Cleanroom API",
         version="0.1.0",
-        description="基于已冻结契约与黄金夹具构建的洁净室服务骨架",
+        description="基于本轮修复输入与黄金夹具构建的洁净室服务骨架",
     )
 
     @app.exception_handler(CleanroomException)
@@ -29,10 +30,36 @@ def create_app() -> FastAPI:
             content=envelope.model_dump(exclude_none=True),
         )
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """把 FastAPI 参数校验错误统一为契约要求的 400 错误包。"""
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": {
+                    "code": "INVALID_REQUEST",
+                    "message": "请求参数不合法",
+                    "errors": [
+                        {
+                            "loc": list(error.get("loc", ())),
+                            "msg": error.get("msg", "请求参数不合法"),
+                            "type": error.get("type", "invalid_request"),
+                        }
+                        for error in exc.errors()
+                    ],
+                }
+            },
+        )
+
     @app.get("/healthz", tags=["governance"])
     def health_check():
         """健康检查端点。"""
-        return {"status": "ok", "mode": "cleanroom", "frozen_contracts": True}
+        return {
+            "status": "ok",
+            "mode": "cleanroom",
+            "frozen_contracts": False,
+            "release_authorized": False,
+        }
 
     @app.get("/", include_in_schema=False)
     def index_redirect():

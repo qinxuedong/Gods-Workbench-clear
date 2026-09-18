@@ -19,3 +19,6 @@ node_modules/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# 代理工具 hook 会话状态（非项目资产）
+.mimosa/

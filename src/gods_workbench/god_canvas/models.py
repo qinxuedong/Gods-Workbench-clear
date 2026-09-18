@@ -5,7 +5,7 @@
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CanvasMode(str, Enum):
@@ -61,6 +61,22 @@ class CanvasTopology(BaseModel):
     version: int = Field(1, description="CAS 版本号")
     nodes: List[CanvasNode] = Field(default_factory=list, description="节点列表")
     connections: List[CanvasConnection] = Field(default_factory=list, description="连接列表")
+    references: Optional[Dict[str, Any]] = Field(None, description="画布级别全局引用")
+
+    @model_validator(mode="after")
+    def validate_graph(self):
+        """验证节点/连线稳定 ID 唯一且连线端点存在。"""
+        node_ids = [node.entity_id for node in self.nodes]
+        if len(node_ids) != len(set(node_ids)):
+            raise ValueError("节点 entity_id 必须唯一")
+        connection_ids = [connection.connection_id for connection in self.connections]
+        if len(connection_ids) != len(set(connection_ids)):
+            raise ValueError("连线 connection_id 必须唯一")
+        known_nodes = set(node_ids)
+        for connection in self.connections:
+            if connection.from_node not in known_nodes or connection.to_node not in known_nodes:
+                raise ValueError("连线端点必须引用现有节点 entity_id")
+        return self
 
 
 class CanvasItem(BaseModel):
@@ -115,6 +131,21 @@ class CanvasTopologyUpdateRequest(BaseModel):
     connections: List[CanvasConnection] = Field(default_factory=list, description="最新连线集合")
     references: Optional[Dict[str, Any]] = Field(None, description="画布级别全局引用")
 
+    @model_validator(mode="after")
+    def validate_graph(self):
+        """验证更新载荷不会写入悬挂连线或重复 ID。"""
+        node_ids = [node.entity_id for node in self.nodes]
+        if len(node_ids) != len(set(node_ids)):
+            raise ValueError("节点 entity_id 必须唯一")
+        connection_ids = [connection.connection_id for connection in self.connections]
+        if len(connection_ids) != len(set(connection_ids)):
+            raise ValueError("连线 connection_id 必须唯一")
+        known_nodes = set(node_ids)
+        for connection in self.connections:
+            if connection.from_node not in known_nodes or connection.to_node not in known_nodes:
+                raise ValueError("连线端点必须引用现有节点 entity_id")
+        return self
+
 
 class CanvasImportReport(BaseModel):
     """工作流导入结果报告。"""
@@ -136,12 +167,12 @@ class CanvasExportRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    format: str = Field("json", description="导出格式：json | godmap | zip")
+    format: str = Field("json", description="导出格式：json | godmap")
     include_resources: bool = Field(False, description="是否内嵌资源描述")
 
 
 class CanvasExportResponse(BaseModel):
-    """工作流导出成功响应。"""
+    """历史文件 URL 响应模型；当前最小路由直接返回原始内容。"""
 
     file_url: str
     content_type: str

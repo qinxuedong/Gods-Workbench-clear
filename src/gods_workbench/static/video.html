@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>视频生成 · Gods' Workbench</title>
+  <script>if(new URLSearchParams(location.search).get('embedded')==='1'||new URLSearchParams(location.hash.slice(1)).get('embedded')==='1')document.documentElement.classList.add('workspace-embedded');</script>
+  <link rel="stylesheet" href="/static/css/workspace-pages.css?v=v0.0.1-alpha-2026">
+  <link rel="stylesheet" href="/static/css/signal-flow.css?v=v0.0.1-alpha-2026&sf=20260826">
+  <link rel="stylesheet" href="/static/css/canvas-tools.css?v=20260917">
+  <style data-signal-flow-page="video">
+    body.gw-page--video { min-height: 100%; overflow-x: hidden; }
+    body.gw-page--video .workspace-page { padding: 16px 24px 32px !important; }
+    body.gw-page--video .workspace-page > .topbar { min-height: 38px; height: 38px; margin-bottom: 14px; padding: 0 0 8px; }
+    body.gw-page--video .page-header { min-height: 64px; margin-bottom: 18px !important; padding: 0 0 12px; border-bottom: 1px solid var(--sf-line); }
+    body.gw-page--video .page-header h1 { font-size: var(--sf-fs-display) !important; letter-spacing: 0 !important; }
+    body.gw-page--video .video-layout { gap: 16px !important; }
+    body.gw-page--video .section-frame { border-radius: var(--sf-radius-panel) !important; border-color: var(--sf-line) !important; background: var(--sf-content) !important; box-shadow: none !important; }
+    body.gw-page--video .section-body { gap: 14px; }
+    body.gw-page--video .video-output { min-height: 440px; border-radius: var(--sf-radius-control) !important; }
+    body.gw-page--video #submitButton { min-height: 40px; border-radius: var(--sf-radius-control) !important; }
+    @media (max-width: 620px) {
+      body.gw-page--video .workspace-page { padding-inline: 12px !important; }
+      body.gw-page--video .page-header { min-height: 56px; }
+      body.gw-page--video .video-output { min-height: 280px; }
+    }
+  </style>
+</head>
+<body class="gw-signal gw-page--video">
+  <main class="workspace-page">
+    <header class="topbar"><div class="top-actions"><button class="btn small" type="button" data-nav="task-center">中心</button><button class="btn small" type="button" data-nav="api-settings">API 设置</button></div></header>
+    <header class="page-header"><div><p class="eyebrow">Video generation</p><h1>视频生成。</h1><p class="page-subtitle">复用现有视频模型与统一任务系统</p></div></header>
+
+    <div class="video-layout">
+      <form id="videoForm" class="section-frame">
+        <header class="section-head"><h2>生成参数</h2><output class="mono muted" id="providerState" aria-live="polite">LOADING</output></header>
+        <div class="section-body form-grid">
+          <div class="two-col">
+            <div class="field"><label for="providerSelect">服务商</label><select id="providerSelect" required></select></div>
+            <div class="field"><label for="modelSelect">视频模型</label><select id="modelSelect" required></select></div>
+          </div>
+          <div class="field"><label for="promptInput">画面描述</label><textarea id="promptInput" required maxlength="12000" placeholder="描述主体、动作、场景、镜头运动、光线与声音…"></textarea></div>
+          <div class="two-col">
+            <div class="field"><label for="ratioSelect">画面比例</label><select id="ratioSelect"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:3</option><option>3:4</option></select></div>
+            <div class="field"><label for="durationSelect">时长</label><select id="durationSelect"><option value="5">5 秒</option><option value="8">8 秒</option><option value="10">10 秒</option><option value="15">15 秒</option></select></div>
+          </div>
+          <div class="two-col">
+            <div class="field"><label for="resolutionSelect">分辨率</label><select id="resolutionSelect"><option value="">自动</option><option value="720p">720P</option><option value="1080p">1080P</option></select></div>
+            <div class="field"><label for="seedInput">随机种子</label><input id="seedInput" type="number" placeholder="自动"></div>
+          </div>
+          <div class="field"><span class="field-label">参考首帧（可选）</span><label class="reference-drop" for="referenceInput"><span id="referenceLabel">点击上传参考图片<br><small>PNG / JPG / WEBP</small></span><img class="reference-preview" id="referencePreview" alt="参考图片预览"></label><input id="referenceInput" class="sr-only" type="file" accept="image/*" aria-label="参考首帧（可选）"></div>
+          <label style="display:flex;gap:8px;align-items:center"><input id="audioInput" type="checkbox"> 生成同步音频（模型支持时）</label>
+          <label style="display:flex;gap:8px;align-items:center"><input id="enhanceInput" type="checkbox"> 自动增强提示词</label>
+          <button class="btn primary" id="submitButton" type="submit">＋ 提交视频任务</button>
+          <p class="muted" id="formHint" role="status" aria-live="polite" style="margin:0;font-size:10px">提交后可离开页面，任务会在任务中心持续跟踪。</p>
+        </div>
+      </form>
+
+      <section class="section-frame">
+        <header class="section-head"><h2>输出预览</h2><output class="mono muted" id="taskId" aria-live="polite">READY</output></header>
+        <div class="video-output" id="videoOutput" role="status" aria-live="polite" aria-busy="false"><div class="run-state"><strong>等待生成任务</strong><span>选择模型并填写画面描述；支持文生视频与参考图生视频。</span></div></div>
+      </section>
+    </div>
+  </main>
+  <script src="/static/js/workspace-common.js?v=v0.0.1-alpha-2026"></script>
+  <script src="/static/js/generator-touchbar-context.js?v=v0.0.1-alpha-2026&m4=context-shell-20260831"></script>
+  <script src="/static/js/floating-dismissal.js?v=v0.0.1-alpha-2026&m3=floating-dismissal"></script>
+  <script src="/static/js/video.js?v=v0.0.1-alpha-2026"></script>
+</body>
+</html>

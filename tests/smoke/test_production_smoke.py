@@ -22,6 +22,8 @@ def test_production_smoke_app_and_docs_available():
     assert resp_health.status_code == 200
     assert resp_health.json()["status"] == "ok"
     assert resp_health.json()["mode"] == "cleanroom"
+    assert resp_health.json()["frozen_contracts"] is False
+    assert resp_health.json()["release_authorized"] is False
 
     # 2. Swagger 文档
     resp_docs = client.get("/docs")
@@ -47,10 +49,10 @@ def test_production_smoke_frontend_static_routing():
     assert resp_projects.status_code == 200
     assert "项目中心" in resp_projects.text or "Gods Workbench" in resp_projects.text
 
-    # 3. god-canvas 工作台 HTML
+    # 3. V2 影视工坊工作台 HTML
     resp_workshop = client.get("/static/v2/workshop.html")
     assert resp_workshop.status_code == 200
-    assert "god-canvas" in resp_workshop.text
+    assert "影视工坊" in resp_workshop.text
 
     # 4. 样式表静态资源
     resp_css = client.get("/static/css/hardware-design-system.css")
@@ -65,7 +67,7 @@ def test_production_smoke_end_to_end_business_chain():
     projects_res = resp_proj.json()
     assert "projects" in projects_res
     assert len(projects_res["projects"]) >= 1
-    pid = projects_res["projects"][0]["project_id"]
+    pid = next(project["project_id"] for project in projects_res["projects"] if project["project_id"] == "prj-0001")
 
     # 2. 根据项目查询画布列表
     resp_canvases = client.get(f"/api/canvases?project_id={pid}")
@@ -91,7 +93,7 @@ def test_production_smoke_end_to_end_business_chain():
     resp_task = client.post(
         f"/api/canvases/{cid}/tasks",
         json=task_payload,
-        headers={"X-User-Role": "editor"},
+        headers={"Authorization": "Bearer cleanroom-test", "X-User-Role": "editor"},
     )
     assert resp_task.status_code == 202
     task_data = resp_task.json()

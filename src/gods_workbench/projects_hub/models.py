@@ -5,7 +5,7 @@
 
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ProjectType(str, Enum):
@@ -26,11 +26,15 @@ class ProjectItem(BaseModel):
     project_type: ProjectType = Field(..., description="项目类型")
     stage: str = Field(..., description="项目所处生产阶段")
     progress: float = Field(..., ge=0, le=100, description="生产进度 (0-100)")
+    scenes: int = Field(0, ge=0, description="场次数")
+    shots: int = Field(0, ge=0, description="镜头数")
+    description: Optional[str] = Field(None, description="项目摘要")
     start_at: Optional[int] = Field(None, description="排期开始时间戳（毫秒）")
     due_at: Optional[int] = Field(None, description="排期截止时间戳（毫秒）")
     version: int = Field(..., description="并发控制版本号（CAS）")
     archived_at: Optional[str] = Field(None, description="归档时间戳或ISO字符串")
     deleted_at: Optional[str] = Field(None, description="逻辑删除/回收站时间戳或ISO字符串")
+    updated_at: Optional[str] = Field(None, description="最近更新时间")
 
 
 class ProjectListResponse(BaseModel):
@@ -49,6 +53,13 @@ class ProjectCreateRequest(BaseModel):
     description: Optional[str] = Field(None, description="项目描述")
     start_at: Optional[int] = Field(None, description="排期开始时间戳（毫秒）")
     due_at: Optional[int] = Field(None, description="排期截止时间戳（毫秒）")
+
+    @model_validator(mode="after")
+    def validate_schedule(self):
+        """阻止结束时间早于开始时间。"""
+        if self.start_at is not None and self.due_at is not None and self.due_at < self.start_at:
+            raise ValueError("due_at 不能早于 start_at")
+        return self
 
 
 class ProjectMutationResult(BaseModel):
@@ -75,11 +86,18 @@ class ProjectUpdateRequest(BaseModel):
     stage: Optional[str] = Field(None, description="生产阶段")
     scenes: Optional[int] = Field(None, ge=0, description="场次数")
     shots: Optional[int] = Field(None, ge=0, description="镜头数")
-    progress: Optional[int] = Field(None, ge=0, le=100, description="生产进度百分比")
+    progress: Optional[float] = Field(None, ge=0, le=100, description="生产进度百分比")
     description: Optional[str] = Field(None, description="项目描述")
     start_at: Optional[int] = Field(None, description="排期开始时间戳（毫秒）")
     due_at: Optional[int] = Field(None, description="排期截止时间戳（毫秒）")
     expected_version: int = Field(..., description="CAS 期望版本号")
+
+    @model_validator(mode="after")
+    def validate_schedule(self):
+        """校验请求中同时出现的排期字段。"""
+        if self.start_at is not None and self.due_at is not None and self.due_at < self.start_at:
+            raise ValueError("due_at 不能早于 start_at")
+        return self
 
 
 class CasVersionRequest(BaseModel):

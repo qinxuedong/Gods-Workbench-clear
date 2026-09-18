@@ -9,11 +9,10 @@ import json
 import threading
 from typing import Any, Dict, List, Optional
 
+from gods_workbench.core.auth import require_edit_access
 from gods_workbench.core.errors import (
     CanvasVersionConflictException,
     CleanroomException,
-    ForbiddenException,
-    UnauthorizedException,
 )
 from gods_workbench.god_canvas.godmap import export_to_godmap, parse_godmap_content
 from gods_workbench.god_canvas.models import (
@@ -46,8 +45,8 @@ class GodCanvasService:
         self._canvases: Dict[str, CanvasItem] = {}
         self._topologies: Dict[str, CanvasTopology] = {}
         self._jobs: Dict[str, SmartCanvasTaskResponse] = {}
-        self._seq = 1
-        self._job_seq = 0
+        self._seq = 1 if seed_golden_fixture else 0
+        self._job_seq = 1 if seed_golden_fixture else 0
 
         if seed_golden_fixture:
             # 注入 docs/fixtures/canvas-workflow-minimal.json 黄金夹具种子
@@ -137,15 +136,25 @@ class GodCanvasService:
 
             nodes = []
             connections = []
+            references = None
             if payload.initial_payload and isinstance(payload.initial_payload, dict):
-                nodes = payload.initial_payload.get("nodes", [])
-                connections = payload.initial_payload.get("connections", [])
+                initial_topology = CanvasTopology(
+                    canvas_id=cid,
+                    version=1,
+                    nodes=payload.initial_payload.get("nodes", []),
+                    connections=payload.initial_payload.get("connections", []),
+                    references=payload.initial_payload.get("references"),
+                )
+                nodes = initial_topology.nodes
+                connections = initial_topology.connections
+                references = initial_topology.references
 
             self._topologies[cid] = CanvasTopology(
                 canvas_id=cid,
                 version=1,
                 nodes=nodes,
                 connections=connections,
+                references=references,
             )
             return CanvasMutationResult(canvas_id=cid, version=1)
 
@@ -173,6 +182,7 @@ class GodCanvasService:
 
             top.nodes = copy.deepcopy(payload.nodes)
             top.connections = copy.deepcopy(payload.connections)
+            top.references = copy.deepcopy(payload.references)
             top.version += 1
             item.version = top.version
 
@@ -220,17 +230,27 @@ class GodCanvasService:
                 )
 
             try:
+                if file_format not in {"json", "godmap"}:
+                    raise ValueError("仅支持 json 或 godmap 格式")
+                if merge_mode not in {"replace", "insert"}:
+                    raise ValueError("仅支持 replace 或 insert 合并模式")
                 if file_format == "godmap":
                     doc = parse_godmap_content(content)
-                    imported_nodes = doc.payload.nodes
-                    imported_connections = doc.payload.connections
+                    imported_topology = CanvasTopology(
+                        canvas_id=canvas_id,
+                        version=top.version,
+                        nodes=doc.payload.nodes,
+                        connections=doc.payload.connections,
+                        references=doc.payload.references,
+                    )
                 else:
                     raw = json.loads(content)
                     if not isinstance(raw, dict) or "nodes" not in raw:
                         raise ValueError("缺少必填拓扑字段 nodes")
-                    temp_top = CanvasTopology.model_validate(raw)
-                    imported_nodes = temp_top.nodes
-                    imported_connections = temp_top.connections
+                    imported_topology = CanvasTopology.model_validate(raw)
+                imported_nodes = imported_topology.nodes
+                imported_connections = imported_topology.connections
+                imported_references = imported_topology.references
             except Exception as e:
                 raise CleanroomException(
                     status_code=400,
@@ -241,7 +261,14 @@ class GodCanvasService:
             if merge_mode == "replace":
                 top.nodes = imported_nodes
                 top.connections = imported_connections
+                top.references = imported_references
             else:
+                imported_nodes, imported_connections = self._rekey_insert(
+                    top.nodes,
+                    top.connections,
+                    imported_nodes,
+                    imported_connections,
+                )
                 top.nodes.extend(imported_nodes)
                 top.connections.extend(imported_connections)
 
@@ -264,10 +291,48 @@ class GodCanvasService:
         include_resources: bool = False,
     ) -> str:
         """导出画布拓扑为指定格式字符串。"""
+        if export_format not in {"json", "godmap"}:
+            raise CleanroomException(status_code=400, code="UNSUPPORTED_FORMAT", message="仅支持 json 或 godmap 导出")
+        if include_resources:
+            raise CleanroomException(status_code=400, code="UNSUPPORTED_OPTION", message="当前洁净切片不内嵌外部资源")
         top = self.get_topology(canvas_id)
         if export_format == "godmap":
             return export_to_godmap(top)
         return top.model_dump_json(by_alias=True, indent=2)
+
+    @staticmethod
+    def _rekey_insert(existing_nodes, existing_connections, imported_nodes, imported_connections):
+        """为 insert 导入的冲突 ID 分配稳定后缀并重写连线端点。"""
+        node_ids = {node.entity_id for node in existing_nodes}
+        connection_ids = {connection.connection_id for connection in existing_connections}
+        node_map: Dict[str, str] = {}
+        rekeyed_nodes = []
+        for node in copy.deepcopy(imported_nodes):
+            original_id = node.entity_id
+            candidate = original_id
+            suffix = 1
+            while candidate in node_ids:
+                candidate = f"{original_id}-import-{suffix}"
+                suffix += 1
+            node_ids.add(candidate)
+            node_map[original_id] = candidate
+            node.entity_id = candidate
+            rekeyed_nodes.append(node)
+
+        rekeyed_connections = []
+        for connection in copy.deepcopy(imported_connections):
+            original_id = connection.connection_id
+            candidate = original_id
+            suffix = 1
+            while candidate in connection_ids:
+                candidate = f"{original_id}-import-{suffix}"
+                suffix += 1
+            connection_ids.add(candidate)
+            connection.connection_id = candidate
+            connection.from_node = node_map.get(connection.from_node, connection.from_node)
+            connection.to_node = node_map.get(connection.to_node, connection.to_node)
+            rekeyed_connections.append(connection)
+        return rekeyed_nodes, rekeyed_connections
 
     # ------------------------------------------------------------------
     # 2. 智能画布异步任务管理能力 (Smart Canvas Task Management)
@@ -281,13 +346,8 @@ class GodCanvasService:
         user_role: str = "editor",
     ) -> SmartCanvasTaskResponse:
         """发起智能画布任务，返回 202 Accepted 及稳定 job_id。"""
-        # 401 未认证校验
-        if authorization == "invalid" or authorization == "expired":
-            raise UnauthorizedException()
-
-        # 403 权限校验：只读角色（reviewer 或 readonly）禁止提交智能任务
-        if user_role in ("readonly", "guest", "forbidden"):
-            raise ForbiddenException(message="无智能任务执行权限，已降级为只读")
+        # 服务层也保留写权限边界，避免绕过 HTTP 路由直接提交任务。
+        require_edit_access(authorization, user_role)
 
         with self._lock:
             item = self._canvases.get(canvas_id)
@@ -303,9 +363,18 @@ class GodCanvasService:
                     canvas_id=canvas_id,
                 )
 
+            node_ids = {node.entity_id for node in top.nodes}
+            missing_entry_nodes = [node_id for node_id in payload.entry_nodes if node_id not in node_ids]
+            if missing_entry_nodes:
+                raise CleanroomException(
+                    status_code=409,
+                    code="TASK_PRECONDITION_FAILED",
+                    message=f"任务入口节点不存在: {', '.join(missing_entry_nodes)}",
+                )
+
             # 生成稳定 job_id
             self._job_seq += 1
-            job_id = f"job-{self._job_seq:04d}" if self._job_seq > 1 else "job-0001"
+            job_id = f"job-{self._job_seq:04d}"
             poll_hint = f"/api/jobs/{job_id}"
 
             task_resp = SmartCanvasTaskResponse(
@@ -338,6 +407,10 @@ class GodCanvasService:
                 raise CleanroomException(status_code=404, code="JOB_NOT_FOUND", message=f"任务 {job_id} 不存在")
 
             # 终端状态不可再变更
+            allowed_transitions = {
+                "accepted": {"running", "cancelled"},
+                "running": {"completed", "failed", "cancelled"},
+            }
             terminal_states = {"completed", "failed", "cancelled"}
             if job.state in terminal_states:
                 raise CleanroomException(
@@ -346,7 +419,16 @@ class GodCanvasService:
                     message=f"任务 {job_id} 当前已处于终端状态 {job.state}，不可流转至 {state}",
                 )
 
+            if state not in allowed_transitions.get(job.state, set()):
+                raise CleanroomException(
+                    status_code=400,
+                    code="ILLEGAL_STATE_TRANSITION",
+                    message=f"任务 {job_id} 不允许从 {job.state} 流转至 {state}",
+                )
+
             job.state = state
+            job.result = copy.deepcopy(result)
+            job.error = error
             if state in terminal_states:
                 job.poll_hint = None
             return copy.deepcopy(job)

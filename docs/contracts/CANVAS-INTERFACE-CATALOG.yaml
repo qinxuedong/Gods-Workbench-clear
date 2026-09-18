@@ -1,11 +1,11 @@
 meta:
   source: "旧仓库只读研究（main=31371df）与公开文档"
-  review_status: "pending_independent_review"
+  review_status: "user_directed_remediation_input_pending_independent_release_review"
   distribution: "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
   cleanroom_notice: "仅记录 method/path/body/status/schema/错误/验收语义。"
 
 service: canvas_and_smart_canvas
-version: draft-0
+version: remediation-1
 
 interfaces:
   - name: list_canvases
@@ -104,7 +104,9 @@ interfaces:
     method: POST
     path: /api/canvases/{canvas_id}/workflow/import
     body:
-      file: "multipart(json|godmap|zip)"
+      content: "UTF-8 文本（JSON 或 .godmap）"
+    query:
+      format: "enum(json|godmap)"
       merge_mode: "enum(replace|insert)"
       expected_version: "integer | optional"
     status:
@@ -131,20 +133,22 @@ interfaces:
     method: POST
     path: /api/canvases/{canvas_id}/workflow/export
     body:
-      format: "enum(json|godmap|zip)"
+      format: "enum(json|godmap)"
       include_resources: boolean
     status:
       - 200
+      - 400
       - 401
       - 403
       - 404
     schema:
       response_200:
-        file_url: string
-        content_type: string
+        body: "原始 JSON 或 .godmap 文本"
+        content_type: "application/json"
     errors:
+      400: "不支持的格式或资源内嵌选项"
       403: "无导出权限"
-    acceptance: "导出结果可被导入接口完整回放。"
+    acceptance: "当前最小切片的 JSON/.godmap 导出结果可被导入接口完整回放。"
 
   - name: run_smart_canvas_task
     method: POST

@@ -220,7 +220,7 @@ def test_smart_task_state_machine_full_lifecycle():
         entry_nodes=["nd-0001"],
         run_mode=SmartCanvasRunMode.SINGLE,
     )
-    resp = service.submit_smart_task("cv-0001", task_req, user_role="editor")
+    resp = service.submit_smart_task("cv-0001", task_req, authorization="Bearer cleanroom-test", user_role="editor")
     assert resp.state == "accepted"
     job_id = resp.job_id
     assert resp.poll_hint == f"/api/jobs/{job_id}"
@@ -250,7 +250,7 @@ def test_smart_task_state_machine_full_lifecycle():
         entry_nodes=["nd-0001"],
         run_mode=SmartCanvasRunMode.SINGLE,
     )
-    cancel_resp = service.submit_smart_task("cv-0001", task_cancel_req, user_role="editor")
+    cancel_resp = service.submit_smart_task("cv-0001", task_cancel_req, authorization="Bearer cleanroom-test", user_role="editor")
     cancelled_job = service.cancel_job(cancel_resp.job_id)
     assert cancelled_job.state == "cancelled"
     assert cancelled_job.poll_hint is None
@@ -263,22 +263,22 @@ def test_security_auth_and_role_downgrade_matrix():
 
     # 1. 401 未认证 / Token 失效
     with pytest.raises(UnauthorizedException) as exc_401:
-        service.submit_smart_task("cv-0001", req, authorization="invalid")
+        service.submit_smart_task("cv-0001", req, authorization="Bearer invalid")
     assert exc_401.value.status_code == 401
     assert exc_401.value.code == "UNAUTHORIZED"
 
     with pytest.raises(UnauthorizedException):
-        service.submit_smart_task("cv-0001", req, authorization="expired")
+        service.submit_smart_task("cv-0001", req, authorization="Bearer expired")
 
     # 2. 403 权限降级拦截（只读、访客角色）
-    for banned_role in ("readonly", "guest", "forbidden"):
+    for banned_role in ("readonly", "reviewer", "guest", "forbidden"):
         with pytest.raises(ForbiddenException) as exc_403:
-            service.submit_smart_task("cv-0001", req, user_role=banned_role)
+            service.submit_smart_task("cv-0001", req, authorization="Bearer cleanroom-test", user_role=banned_role)
         assert exc_403.value.status_code == 403
         assert exc_403.value.code == "FORBIDDEN"
 
     # 3. 合法角色（editor, admin）正常放行并生成稳定 job_id
-    res_editor = service.submit_smart_task("cv-0001", req, user_role="editor")
+    res_editor = service.submit_smart_task("cv-0001", req, authorization="Bearer cleanroom-test", user_role="editor")
     assert res_editor.state == "accepted"
-    res_admin = service.submit_smart_task("cv-0001", req, user_role="admin")
+    res_admin = service.submit_smart_task("cv-0001", req, authorization="Bearer cleanroom-test", user_role="admin")
     assert res_admin.state == "accepted"

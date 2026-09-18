@@ -180,6 +180,7 @@ def test_api_contract_routes(client: TestClient):
     resp_202 = client.post(
         "/api/canvases/cv-0001/tasks",
         json={"entry_nodes": ["nd-0001"], "run_mode": "single"},
+        headers={"Authorization": "Bearer cleanroom-test"},
     )
     assert resp_202.status_code == 202
     assert resp_202.json()["state"] == "accepted"

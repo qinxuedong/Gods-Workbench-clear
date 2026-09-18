@@ -22,7 +22,7 @@ def main():
     reload = os.getenv("GW_RELOAD", "true").lower() in ("true", "1", "yes")
 
     print("=" * 60)
-    print("  Gods' Workbench Cleanroom (Phase 5)")
+    print("  Gods' Workbench Cleanroom (Remediation)")
     print(f"  服务地址: http://{host}:{port}")
     print(f"  项目中心: http://{host}:{port}/static/v2/projects.html")
     print("=" * 60)

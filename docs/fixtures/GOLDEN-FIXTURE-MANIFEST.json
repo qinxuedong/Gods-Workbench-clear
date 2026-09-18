@@ -1,8 +1,8 @@
 {
   "meta": {
-    "version": "phase-2-draft-1",
+    "version": "remediation-1",
     "source": "old-repo-readonly-research-main-31371df",
-    "review_status": "pending_independent_review",
+    "review_status": "user_directed_remediation_input_pending_independent_release_review",
     "distribution": "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
   },
   "fixtures": [

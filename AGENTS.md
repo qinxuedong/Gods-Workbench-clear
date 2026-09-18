@@ -9,9 +9,14 @@
 1. **唯一合法输入来源**：
    - 仅限读取并依据已审核冻结的材料：`docs/behavior/`（行为规范）、`docs/contracts/`（接口契约）、`docs/fixtures/`（黄金夹具）以及经过解耦审查的自有切片。
    - **绝对禁止**直接复制旧仓源码实现或复用旧仓提交历史。
-2. **禁止引入受限二进制资源**：
-   - 仓库内严禁提交任何图片、截图、音频、视频或本地字体文件（`.ttf`, `.otf`, `.woff` 等）。
-   - 前端所需字体一律使用 Google Fonts CDN 或系统原生字体栈，图标使用 Lucide CDN，样式使用 Tailwind CDN。
+2. **二进制资源授权边界**：
+   - 仓库内严禁提交任何图片、截图、音频、视频、压缩包、可执行文件，以及**除下列 3 个文件之外**的任何字体文件（`.ttf`, `.otf`, `.woff`, `.woff2`, `.eot` 等一律禁止）。
+   - **唯一白名单**（用户 2026-09-18 指示，开源思源黑体，本地运行期强依赖）：
+     - `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf`
+     - `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf`
+     - `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf`
+   - 图标仍使用 Lucide CDN，样式使用 Tailwind CDN；除白名单外的字体一律走 CDN 或系统原生字体栈。
+   - 白名单为**逐条精确路径**，任何新增本地二进制都必须先修订本节并同步卫生用例，否则视为违规。
 3. **明确排除项**：
    - `docs/behavior/PLUGIN-PROTOCOL-SPEC.md`（插件协议）当前属于明确排除项，严禁在后端或前端代码中隐式实现或引入运行时依赖。
 4. **发布状态**：

@@ -1,4 +1,4 @@
-# 自有非画布代码迁移记录
+# 自有非画布代码迁移记录（历史记录，已由 v2 分类表取代）
 
 ## 授权边界
 
@@ -24,6 +24,6 @@
 - `tools/chrome-local-asset-importer/`、`tools/photoshop-asset-connector/`：包含项目/画布协议耦合。
 - `tests/`、`docs/`、`.git/`：不复制旧实现、旧测试、旧历史或用户材料。
 
-## 结论
+## 历史结论
 
-本次没有形成代码迁移。候选模块已从洁净仓库撤回，并归类为共享依赖；画布相关代码继续按洁净契约重构。待完成依赖拆分并通过独立审查后，才允许迁移其中与画布完全解耦的部分。
+本记录只反映早期候选审查，不再作为当前迁移结论。当前结论以 `docs/provenance/CLEANROOM-CODE-CLASSIFICATION-2026-09-17.md` 和 `docs/provenance/AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` 为准；本轮仅接受其中登记的日期选择器 JavaScript/CSS 两个无画布切片，其余候选继续隔离。

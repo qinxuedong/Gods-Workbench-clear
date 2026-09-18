@@ -29,7 +29,7 @@ class ProjectsService:
     def __init__(self, seed_golden_fixture: bool = True):
         self._lock = threading.Lock()
         self._projects: Dict[str, ProjectItem] = {}
-        self._seq = 1
+        self._seq = 1 if seed_golden_fixture else 0
 
         if seed_golden_fixture:
             # 注入黄金夹具中的基准项目
@@ -39,16 +39,20 @@ class ProjectsService:
                 project_type=ProjectType.FILM,
                 stage="production",
                 progress=68.0,
+                scenes=12,
+                shots=48,
+                description="洁净室契约验证基准项目",
                 start_at=1780000000000,
                 due_at=1781200000000,
                 version=3,
                 archived_at=None,
                 deleted_at=None,
+                updated_at=_now_iso(),
             )
 
     def list_projects(
         self,
-        archived: Optional[bool] = None,
+        archived: Optional[bool] = False,
         deleted: Optional[bool] = None,
     ) -> List[ProjectItem]:
         """根据归档与回收站过滤条件返回项目列表。"""
@@ -66,11 +70,12 @@ class ProjectsService:
                     if is_deleted:
                         continue
 
-                # 归档状态过滤：若 archived=True 则查已归档；若 archived=False 则查活跃
-                if archived is True and not is_archived:
-                    continue
-                if archived is False and is_archived:
-                    continue
+                # 回收站项目独立按 deleted 查询，不再被活跃/归档筛选误过滤。
+                if deleted is not True:
+                    if archived is True and not is_archived:
+                        continue
+                    if archived is False and is_archived:
+                        continue
 
                 results.append(copy.deepcopy(item))
 
@@ -88,11 +93,15 @@ class ProjectsService:
                 project_type=payload.project_type,
                 stage="planning",
                 progress=0.0,
+                scenes=0,
+                shots=0,
+                description=payload.description,
                 start_at=payload.start_at,
                 due_at=payload.due_at,
                 version=1,
                 archived_at=None,
                 deleted_at=None,
+                updated_at=_now_iso(),
             )
             self._projects[pid] = item
             return ProjectMutationResult(project_id=pid, version=item.version)
@@ -111,6 +120,19 @@ class ProjectsService:
                     current_version=item.version,
                 )
 
+            if item.archived_at is not None or item.deleted_at is not None:
+                raise CleanroomException(
+                    status_code=403,
+                    code="FORBIDDEN",
+                    message="归档或回收站项目为只读状态",
+                )
+
+            fields_set = payload.model_fields_set
+            next_start = payload.start_at if "start_at" in fields_set else item.start_at
+            next_due = payload.due_at if "due_at" in fields_set else item.due_at
+            if next_start is not None and next_due is not None and next_due < next_start:
+                raise CleanroomException(status_code=400, code="INVALID_SCHEDULE", message="due_at 不能早于 start_at")
+
             # 更新指定字段
             if payload.name is not None:
                 item.name = payload.name
@@ -118,12 +140,19 @@ class ProjectsService:
                 item.stage = payload.stage
             if payload.progress is not None:
                 item.progress = float(payload.progress)
-            if payload.start_at is not None:
+            if payload.scenes is not None:
+                item.scenes = payload.scenes
+            if payload.shots is not None:
+                item.shots = payload.shots
+            if "description" in fields_set:
+                item.description = payload.description
+            if "start_at" in fields_set:
                 item.start_at = payload.start_at
-            if payload.due_at is not None:
+            if "due_at" in fields_set:
                 item.due_at = payload.due_at
 
             item.version += 1
+            item.updated_at = _now_iso()
             return ProjectMutationResult(project_id=project_id, version=item.version)
 
     def archive_project(self, project_id: str, expected_version: int) -> ProjectMutationResult:
@@ -136,8 +165,12 @@ class ProjectsService:
             if item.version != expected_version:
                 raise VersionConflictException(expected_version=expected_version, current_version=item.version)
 
+            if item.deleted_at is not None or item.archived_at is not None:
+                raise CleanroomException(status_code=409, code="LIFECYCLE_CONFLICT", message="项目当前不在活跃状态")
+
             item.archived_at = _now_iso()
             item.version += 1
+            item.updated_at = _now_iso()
             return ProjectMutationResult(project_id=project_id, version=item.version, archived_at=item.archived_at)
 
     def unarchive_project(self, project_id: str, expected_version: int) -> ProjectMutationResult:
@@ -150,8 +183,12 @@ class ProjectsService:
             if item.version != expected_version:
                 raise VersionConflictException(expected_version=expected_version, current_version=item.version)
 
+            if item.deleted_at is not None or item.archived_at is None:
+                raise CleanroomException(status_code=409, code="LIFECYCLE_CONFLICT", message="项目当前不是已归档状态")
+
             item.archived_at = None
             item.version += 1
+            item.updated_at = _now_iso()
             return ProjectMutationResult(project_id=project_id, version=item.version, archived_at=None)
 
     def move_to_trash(self, project_id: str, expected_version: int) -> ProjectMutationResult:
@@ -164,8 +201,12 @@ class ProjectsService:
             if item.version != expected_version:
                 raise VersionConflictException(expected_version=expected_version, current_version=item.version)
 
+            if item.deleted_at is not None or item.archived_at is None:
+                raise CleanroomException(status_code=409, code="LIFECYCLE_CONFLICT", message="只有已归档项目可以进入回收站")
+
             item.deleted_at = _now_iso()
             item.version += 1
+            item.updated_at = _now_iso()
             return ProjectMutationResult(project_id=project_id, version=item.version, deleted_at=item.deleted_at)
 
     def restore_from_trash(self, project_id: str, expected_version: int) -> ProjectMutationResult:
@@ -178,8 +219,13 @@ class ProjectsService:
             if item.version != expected_version:
                 raise VersionConflictException(expected_version=expected_version, current_version=item.version)
 
+            if item.deleted_at is None:
+                raise CleanroomException(status_code=409, code="LIFECYCLE_CONFLICT", message="项目不在回收站")
+
             item.deleted_at = None
+            item.archived_at = None
             item.version += 1
+            item.updated_at = _now_iso()
             return ProjectMutationResult(project_id=project_id, version=item.version, deleted_at=None)
 
 

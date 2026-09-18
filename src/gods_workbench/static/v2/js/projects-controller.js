@@ -764,8 +764,6 @@ window.V2Projects = (function () {
       window.location.href = `/static/v2/storyboard.html?project_id=${encodeURIComponent(targetId)}`;
     } else if (target === 'workshop') {
       window.location.href = `/static/v2/workshop.html?project_id=${encodeURIComponent(targetId)}`;
-    } else if (target === 'classic') {
-      window.location.href = `/static/project-board.html?project_id=${encodeURIComponent(targetId)}`;
     } else {
       window.location.href = `/static/v2/production.html?project_id=${encodeURIComponent(targetId)}`;
     }

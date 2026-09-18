@@ -98,10 +98,41 @@ def test_god_canvas_godmap_and_json_import_export():
     assert json_data["canvas_id"] == "cv-0001"
     assert len(json_data["nodes"]) == 2
 
+    # 画布级引用在两种导出格式中都必须保留；资源内嵌尚未进入洁净最小切片
+    service.update_topology(
+        "cv-0001",
+        CanvasTopologyUpdateRequest(
+            expected_version=1,
+            nodes=service.get_topology("cv-0001").nodes,
+            connections=service.get_topology("cv-0001").connections,
+            references={"asset_id": "asset-0001"},
+        ),
+    )
+    referenced_godmap = parse_godmap_content(service.export_workflow("cv-0001", export_format="godmap"))
+    assert referenced_godmap.payload.references == {"asset_id": "asset-0001"}
+    with pytest.raises(CleanroomException) as resource_error:
+        service.export_workflow("cv-0001", export_format="json", include_resources=True)
+    assert resource_error.value.code == "UNSUPPORTED_OPTION"
+
     # 导入非法数据测试
     with pytest.raises(CleanroomException) as excinfo:
         service.import_workflow("cv-0001", content="not valid json", file_format="json")
     assert excinfo.value.status_code == 400
+
+    bad_godmap = json.dumps(
+        {
+            "format": "godmap",
+            "version": "1.0",
+            "payload": {
+                "canvas_id": "cv-0001",
+                "nodes": [{"entity_id": "nd-only", "kind": "input"}],
+                "connections": [{"connection_id": "ln-bad", "from": "nd-only", "to": "nd-missing"}],
+            },
+        }
+    )
+    with pytest.raises(CleanroomException) as godmap_error:
+        service.import_workflow("cv-0001", content=bad_godmap, file_format="godmap")
+    assert godmap_error.value.code == "INVALID_TOPOLOGY"
 
 
 def test_god_canvas_smart_tasks_and_security_boundaries():
@@ -115,9 +146,11 @@ def test_god_canvas_smart_tasks_and_security_boundaries():
         run_mode=SmartCanvasRunMode.SINGLE,
         inputs={"prompt": "生成镜头 A"},
     )
-    task_resp = service.submit_smart_task("cv-0001", task_req, authorization="valid-token", user_role="editor")
+    task_resp = service.submit_smart_task("cv-0001", task_req, authorization="Bearer cleanroom-test", user_role="editor")
     assert task_resp.state == "accepted"
     assert task_resp.job_id.startswith("job-")
+    assert task_resp.job_id != "job-0001"
+    assert service.get_job("job-0001").state == "accepted"
     assert f"/api/jobs/{task_resp.job_id}" == task_resp.poll_hint
 
     # 2. 查询任务状态
@@ -127,13 +160,13 @@ def test_god_canvas_smart_tasks_and_security_boundaries():
 
     # 3. 鉴权失效 401 拦截
     with pytest.raises(UnauthorizedException) as exc_401:
-        service.submit_smart_task("cv-0001", task_req, authorization="invalid", user_role="editor")
+        service.submit_smart_task("cv-0001", task_req, authorization="Bearer invalid", user_role="editor")
     assert exc_401.value.status_code == 401
     assert exc_401.value.code == "UNAUTHORIZED"
 
     # 4. 权限不足 403 拦截（只读降级）
     with pytest.raises(ForbiddenException) as exc_403:
-        service.submit_smart_task("cv-0001", task_req, authorization="valid-token", user_role="readonly")
+        service.submit_smart_task("cv-0001", task_req, authorization="Bearer cleanroom-test", user_role="readonly")
     assert exc_403.value.status_code == 403
     assert exc_403.value.code == "FORBIDDEN"
 
@@ -143,7 +176,7 @@ def test_god_canvas_smart_tasks_and_security_boundaries():
         entry_nodes=["nd-0001"],
     )
     with pytest.raises(CanvasVersionConflictException) as exc_409:
-        service.submit_smart_task("cv-0001", conflict_req, authorization="valid-token", user_role="editor")
+        service.submit_smart_task("cv-0001", conflict_req, authorization="Bearer cleanroom-test", user_role="editor")
     assert exc_409.value.status_code == 409
     assert exc_409.value.code == "CANVAS_VERSION_CONFLICT"
 
@@ -165,6 +198,7 @@ def test_api_god_canvas_routes_integration(client: TestClient):
     resp_conflict = client.patch(
         "/api/canvases/cv-0001",
         json={"expected_version": 999, "nodes": [], "connections": []},
+        headers={"Authorization": "Bearer cleanroom-test"},
     )
     assert resp_conflict.status_code == 409
     detail = resp_conflict.json()["detail"]
@@ -175,7 +209,7 @@ def test_api_god_canvas_routes_integration(client: TestClient):
     resp_task = client.post(
         "/api/canvases/cv-0001/tasks",
         json={"entry_nodes": ["nd-0001"], "run_mode": "single", "inputs": {}},
-        headers={"X-User-Role": "editor"},
+        headers={"Authorization": "Bearer cleanroom-test", "X-User-Role": "editor"},
     )
     assert resp_task.status_code == 202
     task_data = resp_task.json()
@@ -201,7 +235,7 @@ def test_api_god_canvas_routes_integration(client: TestClient):
     resp_forbid = client.post(
         "/api/canvases/cv-0001/tasks",
         json={"entry_nodes": ["nd-0001"]},
-        headers={"X-User-Role": "readonly"},
+        headers={"Authorization": "Bearer cleanroom-test", "X-User-Role": "readonly"},
     )
     assert resp_forbid.status_code == 403
     assert resp_forbid.json()["detail"]["code"] == "FORBIDDEN"
