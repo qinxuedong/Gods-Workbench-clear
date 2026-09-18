@@ -157,7 +157,11 @@
 
 ## 8. 其他登记事项
 
-- `/static/` 裸目录 404：入口 `/` 仍 307 跳转 `/static/v2/projects.html`（实测 `/static/` = 404，`/static/v2/projects.html` = 200），用户已答复「ok」，可接受。
+- **T1** `/static/` 裸目录 404：入口 `/` 仍 307 跳转 `/static/v2/projects.html`（实测 `/static/` = 404，`/static/v2/projects.html` = 200），用户已答复「ok」，可接受。
+- **T6** 最终验收审核 + 复审确认：结论见 `docs/governance/FINAL-ACCEPTANCE-AUDIT-2026-09-18.md` 与 `docs/governance/FINAL-ACCEPTANCE-REVERIFY-2026-09-18.md`。
+- **T9** 命名断言改「影视工坊」：细节见 §3。
+- **T12** Git 对象库内嵌二进制处置：细节见 §2。
+- **T13** 旧集成标记卫生用例基线重定义：细节见 §4。
 - 发布状态：仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
 - 唯一剩余硬前置：§2 的 `.git` 对象库内嵌二进制处置（P1，破坏性操作，须用户明确确认）。
 
@@ -169,43 +173,115 @@
 `docs/architecture/MAIN-PY-DECOMPOSITION-PLAN.md` 分阶段拆除；本表为滚动台账，细节以目标仓
 `docs/architecture/MAIN-PY-PHASE-D-SEQUENCE.md` 与 `MAIN-PY-PHASE-D-D*-REVIEW.md` 为准。
 
-### 9.1 已提交批次（目标仓 `main` 分支）
+> 事实来源（2026-09-19 只读）：`git log`、`git show <rev>:main.py` 逐提交 AST 比对、
+> `git show <rev>:app_runtime/services/updates/*.py`。**未修改目标仓任何文件。**
 
-| 批次 | 模块 | 符号数 | 提交 |
+### 9.1 Phase D 符号账目（60 候选）
+
+**任务书口径（主控给定）**：已提交 55/60；批次明细 D1=9、D2=5、D3=6、D4=5、D5=6、D6-A=6、D6-B=4、D6-C=1（`check_update`）。
+
+**本轮只读实测口径**（`git show <rev>:main.py` 逐提交 AST 顶层符号差集）：
+
+| 批次 | 模块 | 实测迁出符号数 | 提交 |
 |---|---|---:|---|
-| B | 领域模型（Pydantic） | 25+12+42+6=85 | `9e1b0fe2` |
-| C 首批 | `app_runtime/core/request_limits.py` 等纯函数/配置 | 见 Phase C 报告 | `368ae249` |
 | D1 | `app_runtime/services/updates/versioning.py` | 9 | `d737f944` |
 | D2 | `app_runtime/services/updates/remote.py` | 20 | `352a5f06` |
-| D3 首批 | `app_runtime/services/updates/notes.py` | 3 | `4ed27afb` |
-| D4 首批 | `app_runtime/services/updates/staging.py` | 5 | `3ea0e65d` |
-| D5 | `app_runtime/services/updates/assets.py` | 6 | 依赖注入批（本次提交） |
+| D3 | `app_runtime/services/updates/notes.py` | 3 | `4ed27afb` |
+| D4 | `app_runtime/services/updates/staging.py` | 5 | `3ea0e65d` |
+| D5 | `app_runtime/services/updates/assets.py` | 6 | `6f1ff294` |
+| D6-A | `app_runtime/services/updates/static_pages.py` | 6 | `25f112b3` |
+| D6-B | `app_runtime/services/updates/staging.py` | 4 | `fe41d0bc` |
+| D6-C | `app_runtime/services/updates/check.py` | 1 | `2d2a8a59` |
 
-Phase D 合计 60 符号：已完成 43（D1+D2+D3 首批+D4 首批+D5），余 17。
+- **累计口径**：60 个候选中已迁出 **54 个**（实测时点：目标仓 `main` HEAD = `2d2a8a59`）。
+- **仍保留在 `main.py` 的 6 个候选**：`safe_static_dir`、`schedule_self_restart`、
+  `update_from_github`、`rollback_update`、`UPDATE_API_DEPENDENCIES`、`UPDATE_LOCK`。
+- **并发提示**：本轮作业期间目标仓由另一 worker 并发推进，D6-C（`check_update`）从「工作区未提交」
+  变为「已提交」；上表为**最终复核时点**值。
 
-### 9.2 台账只留单条 task 的原因
+> **口径差异（如实登记，未自行裁定）**：任务书的批次明细逐项相加为 42，且其中 D2=5（实测 20）、
+> D3=6（实测 3）两项与仓库历史不符；「55/60」亦无法由 60 候选清单复现（逐提交实测为 54/60）。
+> 差异原因超出洁净仓职责，**留待主控在 Phase D 收口时裁定**；本表以逐提交 AST 实测值为准，
+> 并保留任务书原始口径供复核。
 
-`TASKS.md` 按用户裁决赛仅为「单条 task + 1-2 行简短说明」；所有哈希、门禁数字、批次边界、
-注入方案与风险处置统一回落到本文件，避免台账行膨胀。
+### 9.2 已迁出模块清单
 
-### 9.3 D5 关键设计（「依赖注入批」）
+`app_runtime/services/updates/{versioning,remote,notes,staging,assets,static_pages,check}.py`
+（7 个模块，均已随 Phase D 各批提交迁入）。
 
-D5 与 D1–D4 不同，非逐字节等价，而是「改写 + provider 依赖注入」：`assets.py` 提供
-`configure_dependencies(**providers)` + `_resolve_dependency(...)`，故意不设模块级 fallback，
-缺失即 `RuntimeError`（fail-closed）；`main.py` 导入期注入闭包，闭包在**每次调用时**解析运行期
-全局，从而恢复 `patch.object(main, ...)` 的补丁面传播。
+### 9.3 建议永久保留在 `main.py` 的 update 域符号
 
-### 9.4 余 17 符号的后续拆分（据 `MAIN-PY-PHASE-D-D6-RECON.md`）
+来源：`MAIN-PY-PHASE-D-D6-RECON.md` §8.4（**建议**，非已定稿结论）：
 
-- D6-A（6，低风险）：静态资源/说明读写类；
-- D6-B（4，中风险）：校验/下载类，`read_app_version` 用 provider 注入；
-- D6-C（1）：仅 `check_update`；
-- 建议永远留在 `main.py`：`UPDATE_LOCK`、`update_from_github`、`rollback_update`、
-  `UPDATE_API_DEPENDENCIES`（补丁面 + 共享锁 + 路由接缝三重约束）。
+- `UPDATE_LOCK`：测试 `patch.object(main, "UPDATE_LOCK")`，且须与两个入口共享同一 Lock 实例；
+- `update_from_github`、`rollback_update`：就地改写安装目录，强耦合 `BASE_DIR`/`DATA_DIR`/`STATIC_DIR`，且共享锁；
+- `UPDATE_API_DEPENDENCIES`：路由装配锚点，7 个 lambda 为刻意的延迟解析（Phase E 路由抽取的接缝）；
+- `app_info`：`UPDATE_API_DEPENDENCIES` 的 7 个 lambda 之一，且读多个 `GITHUB_*` 常量；
+- `read_app_version`（及 `_read_legacy_bootstrap_app_version`，`main.py:358-378`）：legacy 降级重绑语义，
+  `tools/check_release_metadata.py` 与 `tests/test_update_safety.py` 双重硬门禁。
 
-### 9.5 未关闭事项
+### 9.4 冻结不变量（Phase D 每批必须保持不变）
+
+| 项 | 冻结值 |
+|---|---|
+| OpenAPI 序列化字节数（CRLF） | 579853 B |
+| OpenAPI SHA-256 | `48c4cf7d285c537e763083317d2d7a4451de928aa48076ec98fa189b94df7cac` |
+| routes | 146 |
+| paths | 288 |
+| schemas | 181 |
+
+以上为 `MAIN-PY-PHASE-D-SEQUENCE.md` §3 冻结值；`MAIN-PY-PHASE-D-DOCS-AUDIT.md` 已独立复核「实测一致」。
+
+### 9.5 冻结失败集合（7 条，不得新增）
+
+- `tests/test_episode_pipeline_frontend_contract.py`
+- `tests/test_floating_window_frontend_contract.py`
+- `tests/test_gw045_topbar_contract.py`（2 条）
+- `tests/test_m3_asset_manager_module_contract.py`
+- `tests/test_release_metadata.py`
+- `tests/test_signal_flow_design_system_contract.py`
+
+### 9.6 迁移性质：D1–D4 逐字节等价，D5 / D6 不是
+
+- **D1 / D2 / D3 / D4**：逐符号 `ast.get_source_segment` 比对，**逐字节等价**（CRLF→LF 归一）。
+  本轮只读复核：D1 9/9、D2 20/20、D3 3/3、D4 5/5 全部与原 `main.py` 源段一致。
+- **D5 / D6-A / D6-B / D6-C**：属于「**改写 + provider 依赖注入**」，**不是** D1–D4 的逐字节等价迁移。
+  这些模块以 `configure_dependencies(**providers)` + `_resolve_dependency(...)` 注入运行期依赖，
+  调用点在每次调用时解析全局，以恢复 `patch.object(main, ...)` 的补丁面传播；因此源码段与原实现
+  **不保证逐字节相同**。此差异为设计选择，不得表述为「等价迁移」。
+
+### 9.7 未关闭事项
 
 - D2/D4 批次提交说明曾称「补丁面保持」，实测存在 `patch.object(main, github_json/github_get/
   require_update_root_files)` 漂移；已用 `tests/test_phase_d_patch_surface_regression.py` 显式守护。
-- D5 遗留 R1（P2，非阻塞）：`patch.object(main, "update_allowed_file")` 补丁面在 D5 断裂；当前无
-  生产代码/测试使用该补丁点。
+- D5 遗留 R1（P2，非阻塞）：`patch.object(main, "update_allowed_file")` 补丁面在 D5 断裂；
+  当前无生产代码/测试使用该补丁点。
+
+### 9.8 台账只留单条 task 的原因
+
+`TASKS.md` 按用户裁决仅为「单条 task + 1-2 行简短说明」；所有哈希、门禁数字、批次边界、
+注入方案与风险处置统一回落到本文件，避免台账行膨胀。
+
+---
+
+## 10. 文档审核修正记录（2026-09-19）
+
+> 背景：独立审核代理对目标仓 `D:\Working\Gods-Workbench-release`（分支 `main`）文档做了一轮审计，
+> 判定 **FAIL**，问题清单 S1–S6。本节逐条记录**判定与处理**。
+> 本仓（洁净室）职责限于**台账修正**；凡涉及目标仓文档的条目一律标注「待 release 仓修正（主控处理）」，
+> **不声称目标仓文档已被修正**。
+
+| 编号 | 严重度 | 判定 | 本仓处理 | 目标仓处理 |
+|---|---|---|---|---|
+| S1 | 高 | **成立** | 已在 §9.6 记录「D5/D6 非逐字节等价」；行号偏移结论属目标仓文档 | 待 release 仓修正（主控处理）：`MAIN-PY-PHASE-D-SEQUENCE.md` 头部「约 5-12 行」应改为实测分布 `0×27、-5×12、-8×1、-18×1、-25×3、-35×6、+5×1`，范围 **−35…+5** |
+| S2 | 高 | **成立** | **已在本仓修正**：`TASKS.md` T11/T13/T6/T12/T9/T1 六行全部收敛为单行（≤ 80 字符左右，含状态与指针），细节回落到本文件 | 无需目标仓改动（问题位于洁净仓台账） |
+| S3 | 中 | **成立** | 「四个审核报告」实为三个（D2/D3/D4；**不存在 `MAIN-PY-PHASE-D-D1-REVIEW.md`**），已在 §9.1 按提交逐一登记、不引用不存在的 D1 报告 | 待 release 仓修正（主控处理）：任务书/提交说明口径改为三个，或补交 D1 报告 |
+| S4 | 中 | **成立** | **不动**（用户指示由主控在 Phase D 收口时统一处理）：`SEQUENCE` 状态表未随 D2–D4 提交更新 | 待 release 仓修正（主控在 Phase D 收口时统一处理） |
+| S5 | 中 | **成立** | 属目标仓文档；已在 §9.1/§9.3 一律以**符号名**登记，不复制过时硬行号 | 待 release 仓修正（主控处理）：`main.py:2084`、`4070-4080` 为 D2 时点值，当前为 `main.py:2106`、`3906-3916`（`fe41d0bc` 实测为 `2110`、`3790-3800`），建议改为不带行号的符号名表述 |
+| S6 | 低 | **成立** | 属目标仓文档 | 待 release 仓修正（主控处理）：`git reset --hard` 回退需补注「须经用户确认」 |
+
+- 本记录仅登记**判断与分工**，不构成对目标仓文档已修正的声明。
+- S4 按用户指示**不由本仓处理**。
+- 复核方式：对目标仓仅执行只读 `git show` / `git log` / `git grep`；洁净仓行号偏移分布经
+  `368ae249 → 69a24418` 逐符号 AST 推算，得 `0×27、-5×12、-8×1、-18×1、-25×3、-35×6、+5×1`
+  （可测 51/60），范围 **−35…+5**，与审核结论一致。
