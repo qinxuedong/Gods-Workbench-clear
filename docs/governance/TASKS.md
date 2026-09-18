@@ -10,6 +10,6 @@
 - [x] T8 用户裁决落地：清理 12 个图片资源并修复全部引用 —— 图片目录已空、`vendor/fonts/` 仅剩 3 个 otf（`Get-ChildItem`）
 - [x] T9 用户裁决落地：命名断言改「影视工坊」 —— 见 `tests/contracts/test_projects_hub_service.py:117`、`tests/smoke/test_production_smoke.py:55`
 - [x] T10 提交一版（本地提交） —— 已完成，`git status --porcelain -uall` 为空；提交见 `git log --oneline -1`
-- [ ] T11 启动 `main.py` 拆分（方案与 Phase A 基线在 `Gods-Workbench-release` 仓） —— 仅方案与基线，拆分未动工
+- [~] T11 `main.py` 拆分进行中 —— Phase B（`9e1b0fe2`）、Phase C 首批（`368ae249`）已提交；后续滚动 Phase D-G
 - [ ] T12（P1，破坏性操作，待用户确认）处置 `.git` 对象库内 16 个 Copilot checkpoint 引用（含 13 个独占二进制 blob） —— 见 `refs/copilot/checkpoints/**`、`git for-each-ref`
 - [ ] T13 旧集成标记卫生用例基线重定（`test_static_layer_has_no_legacy_integration_markers`，当前 1 failed/39 passed 的唯一失败项）—— 待裁决，详见 `docs/governance/TASK-NOTES-2026-09-18.md` §4
