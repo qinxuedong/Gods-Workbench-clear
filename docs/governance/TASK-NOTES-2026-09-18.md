@@ -160,3 +160,52 @@
 - `/static/` 裸目录 404：入口 `/` 仍 307 跳转 `/static/v2/projects.html`（实测 `/static/` = 404，`/static/v2/projects.html` = 200），用户已答复「ok」，可接受。
 - 发布状态：仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
 - 唯一剩余硬前置：§2 的 `.git` 对象库内嵌二进制处置（P1，破坏性操作，须用户明确确认）。
+
+---
+
+## 9. T11 `main.py` 拆分（滚动更新）
+
+目标：将 `D:\Working\Code Pro\Gods-Workbench-release` 根目录巨型 `main.py` 按
+`docs/architecture/MAIN-PY-DECOMPOSITION-PLAN.md` 分阶段拆除；本表为滚动台账，细节以目标仓
+`docs/architecture/MAIN-PY-PHASE-D-SEQUENCE.md` 与 `MAIN-PY-PHASE-D-D*-REVIEW.md` 为准。
+
+### 9.1 已提交批次（目标仓 `main` 分支）
+
+| 批次 | 模块 | 符号数 | 提交 |
+|---|---|---:|---|
+| B | 领域模型（Pydantic） | 25+12+42+6=85 | `9e1b0fe2` |
+| C 首批 | `app_runtime/core/request_limits.py` 等纯函数/配置 | 见 Phase C 报告 | `368ae249` |
+| D1 | `app_runtime/services/updates/versioning.py` | 9 | `d737f944` |
+| D2 | `app_runtime/services/updates/remote.py` | 20 | `352a5f06` |
+| D3 首批 | `app_runtime/services/updates/notes.py` | 3 | `4ed27afb` |
+| D4 首批 | `app_runtime/services/updates/staging.py` | 5 | `3ea0e65d` |
+| D5 | `app_runtime/services/updates/assets.py` | 6 | 依赖注入批（本次提交） |
+
+Phase D 合计 60 符号：已完成 43（D1+D2+D3 首批+D4 首批+D5），余 17。
+
+### 9.2 台账只留单条 task 的原因
+
+`TASKS.md` 按用户裁决赛仅为「单条 task + 1-2 行简短说明」；所有哈希、门禁数字、批次边界、
+注入方案与风险处置统一回落到本文件，避免台账行膨胀。
+
+### 9.3 D5 关键设计（「依赖注入批」）
+
+D5 与 D1–D4 不同，非逐字节等价，而是「改写 + provider 依赖注入」：`assets.py` 提供
+`configure_dependencies(**providers)` + `_resolve_dependency(...)`，故意不设模块级 fallback，
+缺失即 `RuntimeError`（fail-closed）；`main.py` 导入期注入闭包，闭包在**每次调用时**解析运行期
+全局，从而恢复 `patch.object(main, ...)` 的补丁面传播。
+
+### 9.4 余 17 符号的后续拆分（据 `MAIN-PY-PHASE-D-D6-RECON.md`）
+
+- D6-A（6，低风险）：静态资源/说明读写类；
+- D6-B（4，中风险）：校验/下载类，`read_app_version` 用 provider 注入；
+- D6-C（1）：仅 `check_update`；
+- 建议永远留在 `main.py`：`UPDATE_LOCK`、`update_from_github`、`rollback_update`、
+  `UPDATE_API_DEPENDENCIES`（补丁面 + 共享锁 + 路由接缝三重约束）。
+
+### 9.5 未关闭事项
+
+- D2/D4 批次提交说明曾称「补丁面保持」，实测存在 `patch.object(main, github_json/github_get/
+  require_update_root_files)` 漂移；已用 `tests/test_phase_d_patch_surface_regression.py` 显式守护。
+- D5 遗留 R1（P2，非阻塞）：`patch.object(main, "update_allowed_file")` 补丁面在 D5 断裂；当前无
+  生产代码/测试使用该补丁点。
