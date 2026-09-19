@@ -249,3 +249,11 @@ git gc --prune=now
 ### 8.4 仍待处置（P1，破坏性操作，须用户确认）
 
 §7 所述 `.git` 对象库内的 16 个 `refs/copilot/checkpoints/**` 引用（含 13 个独占二进制 blob，约 25.57 MiB）**尚在**，用户本轮未就该破坏性操作表态，保持待裁决（见 `docs/governance/TASKS.md` T12）。
+
+## 9. 后续状态更新（2026-09-20）
+
+- §8.4 记录的「16 个 `refs/copilot/checkpoints/**` 引用 / 13 个独占二进制 blob / 约 25.57 MiB **尚在**、保持待裁决」：**已于 2026-09-19 获用户明确授权并执行完成**——先做仓外完整 bundle 备份（`C:\Users\qinxuedong\AppData\Local\Temp\godswb-clear-all-20260919-220743.bundle`，25,127,364 字节 / SHA-256 `8000090F…9F9A2` / `git bundle verify` = `is okay` / 含 18 个 ref），再清理引用；**清理后全仓仅剩 3 个白名单 `.otf`**。
+- §8.3 的唯一失败用例 `tests/hygiene/test_cleanroom_hygiene.py::test_static_layer_has_no_legacy_integration_markers`：已随 **T13 基线重定义**转绿，全量 `pytest` **40 passed**（本地）。
+- 证据边界：均为**本地**门禁与**本地**提交（洁净室仓 `7643fd6` 之前为 `abd0e88`；T13 为 `28c23bf` + `996c3ba`）；**未 push、未跑远端 CI、未做生产验收**，**不等于生产就绪**。
+- 指针：`TASK-NOTES-2026-09-18.md` §2（T12）、§4.1（T13）。本文档 §8.4 / §8.3 原文保留不改。
+

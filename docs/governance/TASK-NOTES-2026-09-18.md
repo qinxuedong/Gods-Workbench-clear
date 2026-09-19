@@ -240,7 +240,7 @@
 - **T12** Git 对象库内嵌二进制处置：细节见 §2。
 - **T13** 旧集成标记卫生用例基线重定义：细节见 §4。
 - 发布状态：仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
-- 唯一剩余硬前置：§2 的 `.git` 对象库内嵌二进制处置（P1，破坏性操作，须用户明确确认）。
+- 唯一剩余硬前置：§2 的 `.git` 对象库内嵌二进制处置（P1，破坏性操作，须用户明确确认）——**已于 2026-09-19 获用户明确授权并执行完成（T12，见 §2）**。
 
 ---
 
@@ -470,6 +470,15 @@
 `with CANVAS_LOCK` 与 `asset_registry/canvas_engine/**` 的 `import main` 桥接保持原样），
 「统一两种绑定形态」属需用户显式授权的独立批次，不在本批范围。详见 `_f3/RECON.md`。
 
+### 9.13 T12/T13 与 Phase E8–G 最终状态回填（2026-09-20）
+
+- **T12 已完成**（2026-09-19 获用户明确授权后执行，破坏性）：仓外完整 bundle 备份`C:\Users\qinxuedong\AppData\Local\Temp\godswb-clear-all-20260919-220743.bundle`（25,127,364 字节 / SHA-256 `8000090F…9F9A2` / `git bundle verify` = `is okay` / 含 18 个 ref）；引用清理后全仓仅剩 3 个白名单 `.otf`。洁净室仓提交：`7643fd6` 之前为 `abd0e88`。详见 §2。
+- **T13 已完成**：本地提交 `28c23bf` + `996c3ba`（旧集成标记卫生用例基线重定义 + 移除快捷工具/画布内页）；全量 `pytest` **40 passed**（本地）。详见 §4.1。
+- **Phase E8–E10 / F / G 已完成**（实施在 release 仓 `D:\Working\Code Pro\Gods-Workbench-release`，本仓只记台账）：E8 `a9f223f2`、E9 `16926f81`、E10 `1bd5bcf6`、F1 `497db84b`、F2 `03f81f54`、F3 `8043ac4a`、G `0d607c97`。详见 §9.12。
+- **Phase G 最终形态**：采用**方案 A**，`main.py` 保留模块级 `app = create_app()`，**不切换** `uvicorn main:create_app --factory`；`main:app` 调用方**无需迁移**，旧「13 处待迁移清单」结论**作废**（回填见 §11.3）。
+- **冻结不变量（release 仓实测命中）**：路由 361 条 / `eb79bd54285dec1175630683737285da7f00ae5f0c6d39eb89483e9b30ff900a`；OpenAPI 579853 B / `48c4cf7d285c537e763083317d2d7a4451de928aa48076ec98fa189b94df7cac`；routes/paths/schemas = 146/288/181；`main.app.router.dependencies` 长度 1。
+- **证据边界**：以上均为**本地**门禁与**本地**提交；**未 push、未跑远端 CI、未做生产验收**，**不等于生产就绪**。
+
 ### 9.8 台账只留单条 task 的原因
 
 `TASKS.md` 按用户裁决仅为「单条 task + 1-2 行简短说明」；所有哈希、门禁数字、批次边界、
@@ -544,11 +553,13 @@
 
 **不动它的后果**：拆分永远停在“半成品”——`main.py` 仍是巨型文件，Phase D/E/F 的模块化收益无法在启动层面兑现。
 
-**现在裁决后怎么做**：用户**已授权** Phase G；但**前置动作**是先完成 13 处 `main:app` 调用方的检索与迁移（含 Dockerfile 与启动脚本）。
+**现在裁决后怎么做（历史结论 + 2026-09-20 回填）**：用户**已授权** Phase G；当时**前置动作**结论是先完成 13 处 `main:app` 调用方的检索与迁移（含 Dockerfile 与启动脚本）——以下为**历史结论**。
+
+> **最终事实（2026-09-20 回填）**：Phase G 已采用**方案 A**——`main.py` 保留模块级 `app = create_app()`，**不切换** `uvicorn main:create_app --factory`。因此 `main:app` 全部调用方**无需迁移**；上述「13 处待迁移清单」**已作废**（历史结论原文保留于此，不作无痕篡改）。
 
 | 风险 | 回滚 | 证据边界 |
 |---|---|---|
-| 漏改 `main:app` 调用方导致启动失败 | `git revert` 收敛提交；`main:app` 旧路径仍可用 | 依据：HANDOFF §3 “收敛前必须先完成 13 处 `main:app` 调用方检索与迁移”；**该 13 处为待迁移清单，不是已迁移事实** |
+| 漏改 `main:app` 调用方导致启动失败 | `git revert` 收敛提交；`main:app` 旧路径仍可用 | 依据：HANDOFF §3 “收敛前必须先完成 13 处 `main:app` 调用方检索与迁移”；**该 13 处为待迁移清单，不是已迁移事实**（2026-09-20 回填：该历史结论**已作废**——Phase G 最终采用方案 A，`main.py` 保留模块级 `app = create_app()`，`main:app` 调用方**无需迁移**） |
 | Dockerfile / 启动脚本与代码不一致 | 同步修改并做一次干净环境启动验证 | 需**未跑远端 CI、未做生产验收**，最终必须补独立审核 |
 | 启动参数（host/port/workers）漂移 | 对照 Phase A 启动参数快照 | 快照来源：release 仓 Phase A 冻结（`eb9a4595` 等） |
 
