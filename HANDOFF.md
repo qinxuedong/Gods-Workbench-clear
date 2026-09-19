@@ -1,6 +1,6 @@
 # HANDOFF — `main.py` 拆分项目交接文档
 
-> 生成时间：2026-09-20（滚动更新；最新一次：文档漂移修正 + 独立审核代理 Gauss 复核 PASS + Phase A–G 状态回填）　｜　用途：让下一个代理无需回溯对话即可继续。
+> 生成时间：2026-09-20（滚动更新；最新一次：第二轮独立审核代理 Godel 复核 PASS（A–G 七项实测全绿，无与宣称值不符处）+ HANDOFF 残留重复行清理 + Phase A–G 状态回填）　｜　用途：让下一个代理无需回溯对话即可继续。
 > 本文件是**交接说明**，不是真源；一切以仓库文件与 `git log` 为准。
 
 ---
@@ -150,6 +150,14 @@
 - 独立审核唯一 REJECT（`_f3/RECON.md` / `_g1/RECON.md` / `MAIN-PY-PHASE-G-CALLSITE-RECON.md` 的行数、字节数为 Phase G **改动之前**的快照，与 G 之后 HEAD 不同但各自自洽）已在 `MAIN-PY-PHASE-G-CALLSITE-RECON.md` 的「后续状态更新」小节显式澄清口径。
 - **证据边界**：以上均为**本地**提交与本地门禁结果；**未 push、未跑远端 CI、未做生产验收**。
 
+
+### 4.5 第二轮独立审核（Godel，2026-09-20，只读复核）
+
+- 审核代理 **Godel**（agent id `01a0bb25-9525-7fb3-845d-181d6721c55f`）对本轮四项授权任务逐条只读实测复核，结论 **PASS**，七项（A–G）全部 ACCEPT，**无与宣称值不符处**。
+- 复核实测命中：release `main` ahead origin/main **38**，受跟踪文件无改动，仅他人未跟踪文件；路由身份 **361** / `eb79bd54…900a`；OpenAPI **579853 B** / `48c4cf7d…dfcac`；`deps` 长度 **1**；类型分布 `APIRoute`=95 / `APIWebSocketRoute`=1 / `Mount`=3 / `Route`=4 / `_IncludedRouter`=43（合计 146）；三项契约工具均 exit 0；`main.py` **732931 B** / `e252ae9c…d514` / `app.include_router(` 0 处、AST 实测 assembly 恰 43 处；定向 6 文件 pytest **51 passed / 7 subtests**；洁净仓受限后缀对象**仅 3 个白名单 `.otf`**、全量 pytest **40 passed**；T13 提交 `28c23bf` / `996c3ba` 存在，V2 前端保留、快捷工具 6 页与画布内页已移除。
+- 口径知会（不构成 REJECT）：assembly 内 `include_router` 朴素子串计数为 44，多出的 1 处在模块 docstring 文本；AST 实测调用恰为 43。
+- 本轮清理：`664c7c5`（删除 HANDOFF.md 第 142 行残留重复行）。
+- **证据边界**：以上均为**本地**只读实测与本地提交；**未 push、未跑远端 CI、未做生产验收**。
 ---
 
 ## 5. 踩过的坑（绝对不要再踩）
