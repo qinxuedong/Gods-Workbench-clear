@@ -291,6 +291,8 @@
 | E6 | 对话 / 历史域 7 条 → `app_runtime/routers/chat.py` | `5db98092` |
 | E7 | 外部集成域 24 条 → `app_runtime/routers/integrations.py` | `5c377a77` |
 
+表中 `25216c1b` 为 E0 后的**勘察**提交（`MAIN-PY-PHASE-E-RECON.md`），非实现批次；E2 行为实现提交 `f04334fb` + 测试补齐 `987d3442`。
+
 **覆盖度**：95/95 条原地 `@app.*` 路由实现体已全部迁出；`main.py` 只保留同名薄包装
 （装饰器 + 原签名 + 单条纯委托）。`main.py` 规模：20583 行（Phase D 收口）→ **16782 行 / 741731 B**（E7 后）。
 

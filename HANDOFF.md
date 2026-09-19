@@ -85,6 +85,7 @@
 | Euclid | 两处文档修正 | `ACCEPT` |
 | 主控对抗复核 | E4 源上原版 `test_generation_job_logging_contract.py` 确实 FAIL | 确认适配必要、未放宽断言 |
 | 主控对抗复核（E7，2026-09-19） | 24 条 integrations 实现体 vs 迁移前 `5c377a77~1` 基线（剥离装饰器 + `_resolve_dependency('X')`→X 归一化） | AST 等价 `MISMATCH: []`；装饰器/签名 0 差异；4 条同源路由保留 `ensure_same_origin_request`；`open_registry_asset_locally` 保留 `request_principal`+{admin,editor}+403 |
+| 独立审核代理 Lovelace（E7 台账与代码事实，2026-09-19） | 提交 `01ee08f` 变更范围 / 编码 / 围栏 / release 仓关键数字与 9 个提交哈希存在性 | `ACCEPT`（独立复现 16782 行 / 741731 B / 722 定义 / 95 条 HTTP 路由 / main 42 + assembly 1；170-731 与 179-878 口径自洽） |
 
 ### 2.7 冻结不变量（实测复核，各批必须保持不变）
 
