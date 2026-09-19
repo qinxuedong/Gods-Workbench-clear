@@ -1,6 +1,6 @@
 # HANDOFF — `main.py` 拆分项目交接文档
 
-> 生成时间：2026-09-19（滚动更新；最新一次：Phase E7 提交后）　｜　用途：让下一个代理无需回溯对话即可继续。
+> 生成时间：2026-09-19（滚动更新；最新一次：洁净室仓 T12/T13 完成 + 用户裁决下达后）　｜　用途：让下一个代理无需回溯对话即可继续。
 > 本文件是**交接说明**，不是真源；一切以仓库文件与 `git log` 为准。
 
 ---
@@ -35,9 +35,9 @@
 | Phase B | 79 个 Pydantic 模型 → `app_runtime/models/` | 完成 | `9e1b0fe2` |
 | Phase C | 请求限额常量与纯解析 → `app_runtime/core/` | 完成 | `368ae249` |
 | **Phase D 第 1 项** | 更新 / 备份 / 回滚 / 自重启 | **完成** | D1–D6-C 见下 |
-| Phase E | API 路由抽离 | **进行中：E0–E7 已完成**（95/95 原地路由实现体已迁出；E8–E10 为 43 处 `include_router` 收敛，属人工决策，暂缓） | E0 `ba32e1c9`、勘察 `25216c1b`、E1 `2896db12`、E2 `f04334fb`、E3 `847fad0d`、E4 `00bf6492`、E5 `a94af7f1`、E6 `5db98092`、E7 `5c377a77` |
-| Phase F | 生命周期 / WebSocket / 画布 | 未开工 | — |
-| Phase G | 入口收敛（`create_app()`） | 未开工 | — |
+| Phase E | API 路由抽离 | **完成（本地门禁全绿）**：E0–E10 全部落地，43 处 `include_router` 收敛进 `app_runtime/routers/assembly.py`，`main.py` `include_router` 归零 | E0 `ba32e1c9`、勘察 `25216c1b`、E1 `2896db12`、E2 `f04334fb`+`987d3442`、E3 `847fad0d`、E4 `00bf6492`、E5 `a94af7f1`、E6 `5db98092`、E7 `5c377a77`、E8 `a9f223f2`、E9 `16926f81`、E10 `1bd5bcf6` |
+| Phase F | 生命周期 / WebSocket / 全局协程 / 关闭派发辅助 | **完成（本地门禁全绿）**：F1 WebSocket 连接管理器、F2 生命周期/启动维护/全局协程、F3 关闭与派生派发辅助，均迁至 `app_runtime/runtime/`，main 保留同名薄委托 | F1 `497db84b`、F2 `03f81f54`、F3 `8043ac4a` |
+| Phase G | 入口收敛（`create_app()`） | **完成（本地门禁全绿）**：按 `_g1/RECON.md` §4.2 方案 A 引入 `create_app()`，保留模块级 `app = create_app()`；`main:app` 启动串零改动 | `0d607c97` |
 
 ### 2.2 Phase D 第 1 项：60 符号 → **56 迁出 + 4 设计保留**
 
@@ -54,7 +54,7 @@
   `or path.startswith("app_runtime/")`（提交 `69a24418`，用户明确要求的行为变更）。
 - `REQUIRED_UPDATE_ROOT_FILES` 保持 `{main.py, app_version.py, VERSION}` 不变；拒绝语义未放宽。
 
-### 2.4 Phase E 进度（E0–E7 已完成；E8–E10 暂缓）
+### 2.4 Phase E 进度（E0–E10 全部完成、本地提交）
 
 - **E0**（`ba32e1c9`）：新增路由身份快照门禁 `tests/test_phase_e_route_identity_gate.py`（零行为变更）。
 - **勘察**（`25216c1b`）：`docs/architecture/MAIN-PY-PHASE-E-RECON.md`（含 E0–E10 分批方案）。
@@ -66,10 +66,10 @@
 - **E6**（`5db98092`）：对话 / 历史域 7 条 → `app_runtime/routers/chat.py`。
 - **E7**（`5c377a77`）：外部集成域 24 条 → `app_runtime/routers/integrations.py`。
 - **覆盖度**：95/95 条原地 `@app.*` 路由实现体已全部迁出；main.py 仅保留同名薄包装（装饰器 + 原签名 + 单条纯委托）。
-- **暂缓项（需人工决策）**：E8 / E9 / E10 为 43 处 `include_router` 收敛，会改变注册顺序，且
-  `tests/test_phase_e_route_identity_gate.py`（`MAIN_INCLUDE_ROUTER_CALL_COUNT = 42` / `ASSEMBLY = 1`）与
-  `tests/test_phase_e1_update_domain_assembly.py`（assembly 内 `include_router` 恰 1 次）已把这组数字钉死；重新基线属人工决策。
-- **Phase F / G**：生命周期、WebSocket、全局协程、画布 CAS、`create_app()` 收敛，尚未开始。
+- **已完成**：E8 / E9 / E10 把 43 处 `include_router` 全部收敛进 `app_runtime/routers/assembly.py`；`main.py` 内 `app.include_router(...)` 归零，95 条 `@app.*` 薄包装保持模块顶层。
+  `tests/test_phase_e_route_identity_gate.py`（`MAIN_INCLUDE_ROUTER_CALL_COUNT = 0` / 装配层由 `app_runtime/routers/assembly.py` 承担）与
+  `tests/test_phase_e1_update_domain_assembly.py`（assembly 内 `include_router` 恰 1 次）的门禁数字须按用户 2026-09-19 授权的**重新基线**同步重算。
+- **Phase F / G**：生命周期、WebSocket、全局协程、关闭派发辅助、`create_app()` 入口收敛**已全部完成并本地提交**（F1/F2/F3/G，见 §2.1 表）；**未 push、未跑远端 CI**。
 
 ### 2.5 文档修正与台账
 
@@ -87,7 +87,7 @@
 | 主控对抗复核（E7，2026-09-19） | 24 条 integrations 实现体 vs 迁移前 `5c377a77~1` 基线（剥离装饰器 + `_resolve_dependency('X')`→X 归一化） | AST 等价 `MISMATCH: []`；装饰器/签名 0 差异；4 条同源路由保留 `ensure_same_origin_request`；`open_registry_asset_locally` 保留 `request_principal`+{admin,editor}+403 |
 | 独立审核代理 Lovelace（E7 台账与代码事实，2026-09-19） | 提交 `01ee08f` 变更范围 / 编码 / 围栏 / release 仓关键数字与 9 个提交哈希存在性 | `ACCEPT`（独立复现 16782 行 / 741731 B / 722 定义 / 95 条 HTTP 路由 / main 42 + assembly 1；170-731 与 179-878 口径自洽） |
 
-### 2.7 冻结不变量（实测复核，各批必须保持不变）
+### 2.7 冻结不变量（实测复核；用户 2026-09-19 已授权重新基线）
 
 | 项 | 冻结值 |
 |---|---|
@@ -103,29 +103,30 @@
 
 ## 3. 当前卡在哪里
 
-**E0–E7 已完成，本地门禁全绿；剩余 Phase E 收敛批次与 Phase F/G 均属需人工决策的高风险改动。**
+**E0–E10、Phase F（F1–F3）、Phase G 均已完成、本地门禁全绿并本地提交；未 push、未跑远端 CI、未做生产验收。**
 
-- **E8 / E9 / E10（43 处 `include_router` 收敛）**：`main.py` 仍有 **42 处 `app.include_router(...)`**
-  （另 1 处在 `app_runtime/routers/assembly.py`，合计 43）与 **95 条 `@app.*` 薄包装**，二者**相互穿插**（非连续区块），
-  单点合并会改变注册顺序 → 认证依赖丢失风险。
-  并且门禁已把「main = 42 / assembly = 1 / 合计 43」写死（`tests/test_phase_e_route_identity_gate.py` 第 82–84 行、
-  `tests/test_phase_e1_update_domain_assembly.py` 第 108–117 行钉死 `assembly.py` 内 `include_router` 恰 1 次）；
-  收敛必然要求**重新基线**，属人工决策，本轮跳过。
-- **Phase F（生命周期 / WebSocket / 全局协程 / 画布 CAS）**：高风险机械拆分 + 画布 CAS 资源桥接，未开工。
-- **Phase G（`create_app()` 收敛）**：未开工；收敛前必须先完成 13 处 `main:app` 调用方检索与迁移。
-- 工作区状态（写入时）：release 仓仅余他人未跟踪文件 `_deps.py`（**不动**）；
-  洁净仓 `git status` 有新改的台账文档（本轮提交）；release `main` **已 ahead origin/main 28 个提交，未 push**。
+- **E8 / E9 / E10（43 处 `include_router` 收敛）**：**已完成**（`a9f223f2` / `16926f81` / `1bd5bcf6`）。`main.py` 内 `app.include_router(...)` 已归零；路由类型分布按预期变化并已按授权同步重算冻结基线。
+- **Phase F（生命周期 / WebSocket / 全局协程 / 关闭派发辅助）**：**已完成**（F1 `497db84b` / F2 `03f81f54` / F3 `8043ac4a`）。
+- **Phase G（`create_app()` 入口收敛）**：**已完成**（`0d607c97`）。
+- **工作区状态（写入时）**：release 仓仅余他人未跟踪文件与勘察脚本目录 `_e9/` `_e10/` `_f3/` `_g1/` 等（**不动**）；洁净仓 `git status` 有本轮台账改动（**主控统一提交**）；release `main` 已 ahead origin/main **36 个提交**，**未 push**。
 
 ## 4. 下一步计划
 
-### 4.1 需人工决策（本轮跳过，等用户裁决）
+### 4.1 用户裁决结果（2026-09-19）
 
-1. **E8 / E9 / E10**：43 处 `include_router` 收敛进 `assembly.py` —— 会改变注册顺序与路由类型分布
-   （`APIRoute` 95 → 91、`_IncludedRouter` 43 → 44、合计 146 → 143，属**预期变化**），
-   必须先由用户确认「允许重新基线冻结不变量」，再同步 `tests/test_phase_e_route_identity_gate.py` 与
-   `tests/test_phase_e1_update_domain_assembly.py` 的硬编码值。
-2. **Phase F / G**：生命周期 / WebSocket / 全局协程 / 画布 CAS / `create_app()` 收敛；
-   涉及 `canvas_video`、`import_canvas_workflow`、`canvas_llm` 资源桥接等高风险改动，需单独立项与用户授权。
+用户已于 **2026-09-19** 就「仍待人工裁决」四项全部下达裁决与授权。逐项结果：
+
+1. **重新基线冻结不变量 —— 已授权。** 允许在收敛后重新计算并更新冻结值，含 `.git` 对象库清理后路由/OpenAPI 冻结值的复算，以及 `main=42 / assembly=1 / 合计=43` 断言的重算。
+2. **E8 / E9 / E10 —— 已完成。** 43 处 `include_router` 收敛进 `app_runtime/routers/assembly.py`；路由类型分布变化后已按授权同步重算冻结基线。
+   （`APIRoute` 95 → 91、`_IncludedRouter` 43 → 44、合计 146 → 143，属**预期变化**）。实施时同步 `tests/test_phase_e_route_identity_gate.py` 与
+   `tests/test_phase_e1_update_domain_assembly.py` 的硬编码值为重算后的基线。
+3. **Phase F —— 已完成。** 生命周期 / WebSocket / 全局协程 / 关闭派发辅助的机械拆分全部落地（F1–F3）；画布 CAS 资源桥接的「两种绑定语义统一」属独立授权批次，本轮未改。
+4. **Phase G —— 已完成。** `main.py` 引入 `create_app()` 兼容入口并保留模块级 `app = create_app()`；未切换 `--factory`（实测负面结论）。
+5. **T12（`.git` 内嵌二进制清理，破坏性）—— 已获用户明确授权并执行完成。** 前置为仓外完整 bundle 备份，复核后仅剩 3 个白名单 `.otf`（洁净室仓实测，详见 `TASK-NOTES-2026-09-18.md` §2.3）。
+6. **T13（旧集成标记卫生用例基线重定义）—— 已获授权并落地。** 本地提交 `28c23bf` + `996c3ba`；全量 `pytest` 40 passed（详见 `TASK-NOTES-2026-09-18.md` §4.1）。
+
+> **实施归属**：以上第 1–4 项均在 **release 仓** `D:\Working\Code Pro\Gods-Workbench-release`（分支 `main`）实施；本洁净室仓只记台账。
+> **证据边界**：T12/T13 的实测均为**本地**门禁与**本地**提交（`28c23bf` / `996c3ba`）；E8–E10 / Phase F / Phase G 已**本地完成并本地提交**（`a9f223f2`/`16926f81`/`1bd5bcf6`/`497db84b`/`03f81f54`/`8043ac4a`/`0d607c97`），全部门禁为**本地实测**；全局仍为 **未 push、未跑远端 CI、未做生产验收**，不等于生产就绪。
 
 ### 4.2 已完成批次（E0–E7，全部本地提交、未 push）
 

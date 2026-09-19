@@ -49,7 +49,7 @@
 
 ---
 
-## 2. Git 对象库内嵌二进制（P1，待用户确认）
+## 2. Git 对象库内嵌二进制（P1，2026-09-19 已获用户授权、执行完成）
 
 工作区清理后，`.git` 对象库内仍存在同一批二进制 blob（属工作区之外的第二个残留面，与 §1 互不重叠）。以下为 2026-09-18 实测：
 
@@ -63,7 +63,7 @@
 | `.git` 目录体积 | 538 loose、无 pack、24.80 MiB | `git count-objects -vH` |
 | 远端 | 无（`git remote -v` 为空，未外泄） | `git remote -v` |
 
-### 2.1 处置方案（破坏性操作）
+### 2.1 处置方案（破坏性操作；已于 2026-09-19 执行）
 
     git bundle create <仓库外备份路径> --all   # 建议先备份
     git for-each-ref --format="%(refname)" refs/copilot/ | ForEach-Object { git update-ref -d $_ }
@@ -72,11 +72,47 @@
 
 - 预期效果：`git rev-list --all --not master` 归零；`git count-objects -vH` 体积显著下降；`refs/copilot/checkpoints/**` 内 13 个二进制 blob 不再可达。
 - 前置：确认 Copilot checkpoint 无保留价值；如需留档，先 `git bundle create` 备份到仓库之外。
-- **未获用户明确确认前不得执行。**
+- **前置已满足**：用户 2026-09-19 已**明确授权**，且已先建仓外完整 bundle 备份；本处置**已执行完成**，结果详见 §2.3。
 
 ### 2.2 卫生用例覆盖盲区
 
 `tests/hygiene/test_phase6_deep_hygiene.py::test_repo_wide_zero_binary_assets` 的 `ignored_dirs` 显式包含 `.git`（第 38 行），因此该用例只扫工作区文件、**不覆盖 git 对象库**。建议后续为卫生套件补一条「git 对象库零独占二进制」用例。
+
+### 2.3 处置执行结果（2026-09-19，破坏性操作已获用户明确授权后执行）
+
+用户于 2026-09-19 就「仍待人工裁决」四项全部下达裁决，并**明确授权执行本次 `.git` 内嵌二进制清理（破坏性操作）**。执行前后均在本洁净室仓 `D:\Working\Code Pro\Gods-Workbench-clear-all\Gods-Workbench-clear` 做只读实测：
+
+| 项 | 实测值 | 来源命令 |
+|---|---:|---|
+| `refs/copilot/` 引用命中 | 0 | `git for-each-ref refs/copilot/` |
+| 仅由非 master 引用可达的对象 | 0 行 | `git rev-list --objects --all --not master` |
+| 完整性自检 | exit 0、无输出 | `git fsck --no-progress` |
+| unreachable 对象 | 空 | `git fsck --unreachable` |
+| count / size / in-pack / packs | 20 / 346 / 503 / 1 | `git count-objects -v` |
+| size-pack / prune-packable / garbage | 24362 / 0 / 0 | `git count-objects -v` |
+| **全库可达对象中含 NUL 的二进制 blob** | **仅 3 个，全部为白名单思源黑体** | 逐 blob 扫描 `git rev-list --objects --all` |
+| 处置后 ref 集合 | 仅 `refs/heads/master` | `git for-each-ref` |
+
+复核后保留的 3 个二进制 blob（`AGENTS.md` 白名单，本地运行期强依赖）：
+
+| 路径 | 字节数 |
+|---|---:|
+| `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf` | 9,036,076 |
+| `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf` | 8,812,324 |
+| `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf` | 8,806,392 |
+
+处置前的仓外完整备份（**先备份、后清理**）：
+
+| 项 | 值 | 来源命令 |
+|---|---|---|
+| bundle 路径（仓库之外） | `C:\Users\qinxuedong\AppData\Local\Temp\godswb-clear-all-20260919-220743.bundle` | `git bundle create` |
+| 文件大小 | 25,127,364 字节 | 文件系统 stat |
+| SHA-256 | `8000090F9B64C3B75AE30D734A4A1653829DE4D234F46D63B1D13A7A6ED9F9A2` | 文件哈希 |
+| 完整性验证 | `git bundle verify` 输出 `is okay` | `git bundle verify` |
+| 含 ref 数 | 18（16 个 `refs/copilot/checkpoints/**` + `refs/heads/master` + `HEAD`），记录为 complete history | `git bundle verify` |
+
+- 执行为「**已获用户明确授权 + 已建仓外完整 bundle 备份**」两项前置同时满足下进行；处置后 `refs/copilot/checkpoints/**` 内 13 个受限二进制 blob 不再可达，全库可达对象中除 3 个白名单 `.otf` 外无其它含 NUL 的二进制 blob。
+- **证据边界**：以上均为**本地 `.git` 对象库实测**（只读命令 + 文件哈希）；洁净室仓**未 push、未跑远端 CI、未做生产验收**，不得据此外推为发布就绪。§2.2 所述卫生用例 `ignored_dirs` 仍忽略 `.git` 的盲区**依然存在**，建议另立任务补用例。
 
 ---
 
@@ -91,26 +127,67 @@
 
 ---
 
-## 4. 旧集成标记用例（专项，未完成）
+## 4. 旧集成标记用例（专项，2026-09-19 已完成）
 
-`tests/hygiene/test_cleanroom_hygiene.py::test_static_layer_has_no_legacy_integration_markers`（第 72 行起）的 `forbidden_markers` 基线需按「V2 为保留前端」重定义：
+`tests/hygiene/test_cleanroom_hygiene.py::test_static_layer_has_no_legacy_integration_markers`（第 72 行起）的 `forbidden_markers` 基线需按「V2 为保留前端」重定义。**以下为重定义前的原基线状态（历史记录，已由 §4.1 完成重定义）：**
 
-- 现基线把 `lucide`、`runninghub`、`comfyui`、`settings.html`、`asset-manager.html`、`unsplash.com`、`window.v2projects` 等一并列为禁用标记，导致静态层大量误报（实测超 100 处命中）。
+- 原基线把 `lucide`、`runninghub`、`comfyui`、`settings.html`、`asset-manager.html`、`unsplash.com`、`window.v2projects` 等一并列为禁用标记，导致静态层大量误报（实测超 100 处命中）。
 - 按 V2 保留口径，`lucide`（CDN 图标）、V2 页面自有业务标识等应从禁用清单中剔除或白名单化；真正的「旧版经典集成」标记需重新界定。
-- 本项为**专项任务，尚未完成**，改写基线与用例须单独提请审核。
+- 本项已由用户 2026-09-19 裁决授权并落地，**完成明细见 §4.1**（基线重定义提交 `28c23bf`、快捷工具与画布内页移除提交 `996c3ba`）。
+
+### 4.1 T13 完成节（2026-09-19）
+
+用户 2026-09-19 裁决：V2 前端**整体保留**；画布/工具**只保留“入口首页”内容**，快捷工具入口及其内部内容不迁移。据此分两个本地提交落地：
+
+| 项 | 内容 | 提交 |
+|---|---|---|
+| 卫生用例基线重定义 | 重定义 `tests/hygiene/test_cleanroom_hygiene.py::test_static_layer_has_no_legacy_integration_markers` 的 `forbidden_markers` | `28c23bf` |
+| 快捷工具与画布内页移除 | 删除快捷工具/画布内页并剪除 V2 storyboard 入口 | `996c3ba` |
+
+**基线重定义口径（为什么原基线是误报）**：原 `forbidden_markers` 把一批**V2 保留前端的合法标识**与真正的“旧版经典集成”红线混在一起，导致静态层 130+ 处误报。按“V2 整体保留”口径：
+
+- **移除的合法标识**（不再视为禁用标记）：`storyboard.html` / `production.html` / `agents.html` / `collab.html` / `settings.html`（V2 页面互链）、`lucide`（`AGENTS.md` 授权的 CDN 图标库）、`unsplash.com`、`window.V2Projects`、`asset-manager.html` / `comfyui` / `runninghub`（V2 链路仍在使用）。
+- **保留/新增的真正红线**（以 `/static/` 前缀精确匹配，避免误伤 `v2/*.html`）：`/static/home.html`、`/static/index.html`、`/static/gpt-chat.html`、`/static/project-board.html`、`/static/settings.html`、`chrome-local`。
+
+**删除的快捷工具入口与画布内页**（`996c3ba`，共 36 个文件）：
+
+| 类别 | 清单 |
+|---|---|
+| 快捷工具 6 页 | `zimage` / `online` / `klein` / `enhance` / `angle` / `video` 的 `.html` |
+| 画布内页 2 页 | `canvas.html`、`smart-canvas.html` |
+| 连带专属资源 28 个 | `css/{canvas-tools,canvas,smart-canvas}.css`；`js/{canvas,smart-canvas,video,image-preview,history-bulk-manager,generator-touchbar-context,ltx-director-timeline}.js`；`js/canvas/` 全部 18 个模块 |
+
+**同步剪除引用**：`v2/storyboard.html` 移除“快捷工具”rail 分组、6 个 `data-canvas-tool` 按钮、`openCanvasToolPage()` 及其清尾调用（保留“全局画布”分组）；`js/canvas-list.js` 仅保留 `canvas-open` postMessage；`js/asset-manager.js` 删除无调用点的 `canvasAssetOpenUrl()` 及指向 `canvas.html` 的锚点。`canvas-list.html` 作为 V2 storyboard“全局画布”入口保留。
+
+**门禁实测（本地）**：
+
+| 项 | 结果 | 来源命令 |
+|---|---|---|
+| 全量测试 | **40 passed**（此前唯一失败用例已转绿） | `python -m pytest -q --no-header -p no:cacheprovider` |
+| 该卫生用例定向 | 6 passed | `python -m pytest tests/hygiene/test_cleanroom_hygiene.py -q` |
+| JS 语法检查 | 0 失败（全仓 `.js`） | `node --check` |
+| 保留页面坏链扫描 | 0 | 坏链扫描脚本 |
+| 删除页残留引用扫描 | 0 | 残留引用扫描脚本 |
+
+- 变更记录另见 `docs/migration/T13-QUICK-TOOL-REMOVAL-2026-09-19.md`（`996c3ba` 内）。
+- **证据边界**：以上均为**本地门禁与本地提交**（`28c23bf` / `996c3ba`）；**未 push、未跑远端 CI、未做生产验收**。
 
 ---
 
 ## 5. 测试基线
 
-| 项 | 值 |
-|---|---|
-| 命令 | `python -m pytest -q --no-header -p no:cacheprovider` |
-| 实测结果 | **1 failed / 39 passed in 0.51s**（2026-09-18 现场实测） |
-| 失败用例 | `tests/hygiene/test_cleanroom_hygiene.py::test_static_layer_has_no_legacy_integration_markers` |
-| 历史结果 | 修复前基线为 5 failed / 35 passed（含二进制与命名断言）；二进制清理 + 白名单 + 命名断言落地后收敛为上述 1 failed |
-| 归因 | 唯一失败项为 §4 的旧集成标记用例基线问题，与二进制清理、V2 命名无关 |
-| 基线仓对照 | 基线 `HEAD = abd0e88` 解包后为 32 passed（前序治理记录实测） |
+命令统一为：`python -m pytest -q --no-header -p no:cacheprovider`。
+
+| 时点 | 结果 | 说明 | 依据提交 |
+|---|---:|---|---|
+| **当前（2026-09-19）** | **40 passed / 0 failed** | T13 落地后全量转绿 | `28c23bf` + `996c3ba`（本地提交） |
+| 历史 | 1 failed / 39 passed | 唯一失败为 §4 旧集成标记用例基线问题 | T13 前 |
+| 历史 | 5 failed / 35 passed | 含二进制残留与命名断言失败 | 二进制清理前 |
+| 基线仓对照 | 32 passed | 基线 `HEAD = abd0e88` 解包后 | 前序治理记录实测 |
+
+- **当前实测（2026-09-19）**：`python -m pytest -q --no-header -p no:cacheprovider` = **40 passed**；此前唯一失败用例 `tests/hygiene/test_cleanroom_hygiene.py::test_static_layer_has_no_legacy_integration_markers` 已随 §4.1 基线重定义转绿。
+- **沿革**：修复前基线为 5 failed / 35 passed；二进制清理 + 白名单 + 命名断言落地后收敛为 1 failed / 39 passed；T13 重定义旧集成标记基线并移除快捷工具内页后收敛为 **40 passed / 0 failed**。
+- **证据边界**：以上均为**本地门禁**结果；**未 push、未跑远端 CI、未做生产验收**，不等于生产就绪。
 
 ---
 
@@ -319,13 +396,13 @@
   另 **1 条 `test_asset_thumbnail_cache::test_non_mp4_video_is_transcoded_and_cached` 为本机 PATH 无 `ffmpeg` 所致**
   （本机已装 ffmpeg 但不在 PATH；将其 bin 目录加入 PATH 后该测试 **21 passed**，代码路径与 HEAD 逐字节相同）。
 
-**暂缓项（需人工决策，本轮跳过）**
+**已获授权、实施中项（用户 2026-09-19 裁决）**
 
 - **E8 / E9 / E10**：43 处 `include_router` 收敛进 `assembly.py`。会改变注册顺序与路由类型分布
   （预期 `APIRoute` 95→91、`_IncludedRouter` 43→44、合计 146→143），
   且 `tests/test_phase_e_route_identity_gate.py:82-84`、`tests/test_phase_e1_update_domain_assembly.py:108-117`
-  已把「main=42 / assembly=1 / 合计=43」与「assembly 内 `include_router` 恰 1 次」钉死；**重新基线属人工决策**。
-- **Phase F / G**：生命周期 / WebSocket / 全局协程 / 画布 CAS / `create_app()` 收敛；未开工。
+  已把「main=42 / assembly=1 / 合计=43」与「assembly 内 `include_router` 恰 1 次」钉死；**用户已于 2026-09-19 授权重新基线冻结不变量**。
+- **Phase F / G**：生命周期 / WebSocket / 全局协程 / 画布 CAS / `create_app()` 收敛；**已获用户授权、实施中（release 仓）**。
 
 **独立复核（2026-09-19，主控对抗复核）**
 
@@ -341,6 +418,57 @@
 
 **证据边界**：以上全部为**本地**门禁与本地提交证据；**未 push、未跑远端 CI、未做生产验收**，
 不得据此外推为发布就绪。
+
+### 9.11 用户裁决：重新基线冻结不变量 + Phase F/G 开工（2026-09-19）
+
+用户于 **2026-09-19** 就「仍待人工裁决」的四项全部下达裁决，其中与 T11 相关的三项：
+
+| 裁决项 | 裁决内容 | 影响 |
+|---|---|---|
+| **重新基线冻结不变量** | **授权**：允许在收敛后重新计算并更新冻结值（含 `.git` 对象库清理后路由/OpenAPI 冻结值的复算，以及 `main=42 / assembly=1 / 合计=43` 断言的重算） | §9.10 中「E8–E10 与 Phase F/G 待人工裁决」改为「已获授权」 |
+| **E8–E10** | **授权**：43 处 `include_router` 收敛 | 改动 `main.py` `include_router` 42 与 `app_runtime/routers/assembly.py` 1，注册顺序与路由类型分布按预期变化（`APIRoute` 95 → 91、`_IncludedRouter` 43 → 44、合计 146 → 143） |
+| **Phase F** | **授权**：生命周期 / WebSocket / 全局协程 / 画布 CAS 的机械拆分 | 高风险机械拆分 + 画布 CAS 资源桥接 |
+| **Phase G** | **授权**：`main.py` 收敛为 `create_app()` 兼容入口（含 `main:app` 调用方迁移、Dockerfile 与启动脚本） | 收敛前须完成 `main:app` 调用方检索与迁移 |
+
+- **实施归属**：以上 E8–E10 / Phase F / Phase G 均在 **release 仓** `D:\Working\Code Pro\Gods-Workbench-release`（分支 `main`）实施，本洁净室仓**只记台账**，不改 release 仓任何文件。
+- **状态**：截至本记录（2026-09-19），上述三项在本仓台账中标记为「**已获用户授权、实施中**」。
+- **证据边界**：本记录只登记**裁决事实与日期**；E8–E10 / Phase F / Phase G 的**实现完成度、门禁结果**以 release 仓在实施后的实测为准，**
+  未完成前不得据本裁决宣称已完成或生产就绪**。
+
+### 9.12 Phase E8–E10 / Phase F / Phase G 完成记录（2026-09-20，滚动更新）
+
+> 实施归属：以下全部在 **release 仓** `D:\Working\Code Pro\Gods-Workbench-release`（分支 `main`）落地；
+> 本洁净室仓只记台账，未改 release 仓任何文件。基线：`a640557b` 之前为 Phase E7（`5c377a77`）。
+
+| 批次 | 提交 | 内容 | 门禁实测 |
+|---|---|---|---|
+| E8 | `a9f223f2` | registry 域 7 处 `include_router` 收敛 | 三项 `--check` exit 0；不变量命中 |
+| E9 | `16926f81` | canvas 域 11 处 `include_router` 收敛 | 同上 |
+| E10 | `1bd5bcf6` | 剩余 24 处 `include_router` 收敛；`main.py` `include_router` 归零 | Phase E 全批 212 passed / 962 subtests |
+| F1 | `497db84b` | `ConnectionManager` 机械迁移到 `app_runtime/runtime/websocket_manager.py`（main 保留兼容子类 + `_namespace()` 晚绑定） | 新增 6 用例；不变量命中 |
+| F2 | `03f81f54` | `app_lifespan` / `startup_event` / `_run_startup_maintenance` / `_schedule_global_coroutine` 迁移到 `app_runtime/runtime/lifecycle.py`（main 保留同名薄委托 + `lambda: globals()` 命名空间） | 新增 13 用例；243 passed / 962 subtests |
+| F3 | `8043ac4a` | F2 明确延后的 5 个关闭 / 派生派发辅助符号（`_mark_asset_index_derived_dispatch_unresolved`、`_asset_index_clean_shutdown_allowed`、`_asset_registry_lifecycle_is_closing`、`_drain_asset_registry_tasks_for_shutdown`、`_continue_derived_dispatch_after_completion`）迁移到同一模块 | 新增 12 用例；243 passed / 962 subtests |
+| G | `0d607c97` | 按勘察报告 `_g1/RECON.md` §4.2 方案 A 引入 `create_app()`；只包「app 对象 + 4 中间件 + `app.state.allowed_origins`」，`app = create_app()` 保持模块级 | 新增 7 用例；真实 `uvicorn "main:app"` 冒烟 `/health/live` → 200；290 passed / 962 subtests |
+
+**冻结不变量（E10 → G，逐批零漂移，实测）**：
+- 路由身份 **361** 条 / SHA-256 `eb79bd54285dec1175630683737285da7f00ae5f0c6d39eb89483e9b30ff900a`；
+- 路由类型分布 APIRoute=95 / APIWebSocketRoute=1 / Mount=3 / Route=4 / _IncludedRouter=43 = **146**；
+- `app.router.dependencies` 长度 **1**（`authorize_http_request`）；
+- OpenAPI **579853 B** / SHA-256 `48c4cf7d285c537e763083317d2d7a4451de928aa48076ec98fa189b94df7cac`；paths 288 / schemas 181；
+- mount 集合 `{/static, /output, /assets}`；首个 websocket `/ws/stats`；
+- 顺序指纹（`_e9/fingerprint.py`）四段全部与 `_e10/fp_f1.json` 一致。
+
+**证据边界**：以上均为**本地**门禁与**本地**提交；**未 push、未跑远端 CI、未做生产验收**，不等于生产就绪。
+全量 `pytest -q` 在本机为 **2670 passed / 271 skipped / 3476 subtests / 7 failed**；7 条失败均为**既有、与本拆分无关**的
+静态前端契约用例（`test_episode_pipeline_frontend_contract` / `test_floating_window_frontend_contract` /
+`test_gw045_topbar_contract`×2 / `test_m3_asset_manager_module_contract` / `test_release_metadata` /
+`test_signal_flow_design_system_contract`），经核实**均不 import `main`**，且 E10 以来 `git diff` 未触及 `static/` 或这些测试文件。
+
+**Phase F 批次边界说明**：`CANVAS_CAS_DEPENDENCIES.canvas_lock=CANVAS_LOCK` 与
+`CANVAS_REFERENCE_API_DEPENDENCIES.canvas_lock=lambda: CANVAS_LOCK` 是两种**不可互换**的绑定语义
+（早绑定快照 vs 晚绑定），已实测确认；本轮 F 批**未**改动画布 CAS 资源桥接实现体（`main.py` 15 处
+`with CANVAS_LOCK` 与 `asset_registry/canvas_engine/**` 的 `import main` 桥接保持原样），
+「统一两种绑定形态」属需用户显式授权的独立批次，不在本批范围。详见 `_f3/RECON.md`。
 
 ### 9.8 台账只留单条 task 的原因
 
@@ -369,3 +497,86 @@
 - S2 是本仓唯一实际修正项；其余条目本仓仅做**台账侧一致性处理**（去引用、去过时行号、如实记录非等价迁移）。
 - 复核方式：对目标仓仅执行只读 `git show` / `git log` / `git grep`。行号偏移分布经 `368ae249 → 69a24418`
   逐符号 AST 推算，得 `0×27、-5×12、-8×1、-18×1、-25×3、-35×6、+5×1`（可测 51/60），范围 **−35…+5**，与审核结论一致。
+---
+
+## 11. 「仍待您裁决」四项人工决策逐项解释（2026-09-19 裁决）
+
+> 面向非深技术读者。四项均已于用户 2026-09-19 裁决中明确授权。
+> **重要前提**：以下所有数字都标注了来源命令/提交；**「本地门禁通过」不等于「生产就绪」**。
+> 当前证据等级统一为：**本地门禁通过 / 本地提交 / 未 push / 未跑远端 CI / 未做生产验收**。
+
+### 11.1 重新基线冻结不变量
+
+**这一项到底是什么**：拆分 `main.py` 时，为了防止“越拆越乱”，先给整站拍了张“快照”——路由条数、OpenAPI 文档大小、启动依赖顺序等。任何一批拆分都必须让快照一模一样（否则说明 URL 或响应被改坏了）。但路由合并本身会**有意**改变路由计数，于是快照里的 `main=42 / assembly=1 / 合计=43` 这类断言必须“重新算一遍”。
+
+**为什么当初必须人裁决**：重算基线 = 主动放弃一层“防退化”保护。只有人能确认“这组新数字确实是预期变化，而不是把 bug 一起算进基线”。
+
+**不动它的后果**：E8–E10 无法开工；或者强行开工就会撞上写死的断言（`tests/test_phase_e_route_identity_gate.py` 第 82–84 行、`tests/test_phase_e1_update_domain_assembly.py` 第 108–117 行），门禁直接红。
+
+**现在裁决后怎么做**：用户**已授权**重新基线；在 release 仓收敛后按新口径复算路由/OpenAPI 冻结值，并同步更新上述两处硬编码断言。
+
+| 风险 | 回滚 | 证据边界 |
+|---|---|---|
+| 新基线“洗白”了非预期变化 | 基线值连同胞断言一起 `git revert` 回旧值，再重跑门禁 | 冻结值来源：release 仓 `tests/test_phase_e_route_identity_gate.py`（路由 361 / SHA-256 `eb79bd54…900a`；OpenAPI 579853 B / SHA-256 `48c4cf7d…7cac`），E1–E7 各批实测命中 |
+| 两处断言口径不一致 | 以 `test_phase_e_route_identity_gate.py` 为单一真源，另一处对齐 | 建议改基线后**独立复算**，不采信实现者自述 |
+
+### 11.2 Phase F（生命周期 / WebSocket / 全局协程 / 画布 CAS 的机械拆分）
+
+**这一项到底是什么**：把 `main.py` 里“启动/关闭钩子（生命周期）”、“WebSocket 长连接”、“后台常驻任务（全局协程）”以及“画布并发控制（CAS）”这几类代码，**按原样**搬到独立模块。只搬位置，不改逻辑。
+
+**为什么当初必须人裁决**：这几类的失败模式是“进程起来看着正常，但连接会静默掉线、并发下会互相覆盖”。不像普通接口那样改坏了立刻报错，所以需要人明确承担“允许动这块”的责任。
+
+**不动它的后果**：`main.py` 继续背着最大块的“不可测”代码；后续 Phase G 无法收口（因为 `create_app()` 必须能重建这些资源）。
+
+**现在裁决后怎么做**：用户**已授权** Phase F 开工；在 release 仓 `main` 分支实施。
+
+| 风险 | 回滚 | 证据边界 |
+|---|---|---|
+| WebSocket 首个连接、心跳、断开行为发生变化 | 以“首个 websocket 路径 = `/ws/stats`”等冻结项做前后对比；异常则 `git revert` 该批提交 | 冻结项来源：release 仓路由身份快照（`main.app.router.dependencies` 长度 1；mount 集合 `{/static, /output, /assets}`；首个 websocket `/ws/stats`；无 `/api/speech`），均为 local 实测 |
+| 全局协程被重复启动或未启动 | 启动日志 + 应用生命周期用例；异常即回滚 | 需在**独立审核**后才能标记完成（见 §9.8 / HANDOFF §5.4） |
+| 画布 CAS 资源桥接改变并发语义 | 以并发热点用例回归；异常即回滚 | **尚未实测**：截至本记录 Phase F 未开工，无当前证据 |
+
+### 11.3 Phase G（`main.py` 收敛为 `create_app()` 兼容入口）
+
+**这一项到底是什么**：把 `main.py` 变成一个小小的“兼容外壳”——里面只有一个 `create_app()` 函数负责组装整个应用。原来的 `main.py` 顶部代码（应用实例、挂路由、依赖）全部搬进 `app_runtime/`。
+
+**为什么当初必须人裁决**：外部启动方式（`main:app`、Dockerfile、启动脚本）都直接指向 `main.py`。收敛后如果漏改一处调用方，部署/启动就会**当场起不来**。
+
+**不动它的后果**：拆分永远停在“半成品”——`main.py` 仍是巨型文件，Phase D/E/F 的模块化收益无法在启动层面兑现。
+
+**现在裁决后怎么做**：用户**已授权** Phase G；但**前置动作**是先完成 13 处 `main:app` 调用方的检索与迁移（含 Dockerfile 与启动脚本）。
+
+| 风险 | 回滚 | 证据边界 |
+|---|---|---|
+| 漏改 `main:app` 调用方导致启动失败 | `git revert` 收敛提交；`main:app` 旧路径仍可用 | 依据：HANDOFF §3 “收敛前必须先完成 13 处 `main:app` 调用方检索与迁移”；**该 13 处为待迁移清单，不是已迁移事实** |
+| Dockerfile / 启动脚本与代码不一致 | 同步修改并做一次干净环境启动验证 | 需**未跑远端 CI、未做生产验收**，最终必须补独立审核 |
+| 启动参数（host/port/workers）漂移 | 对照 Phase A 启动参数快照 | 快照来源：release 仓 Phase A 冻结（`eb9a4595` 等） |
+
+### 11.4 T12（`.git` 内嵌二进制清理，破坏性）+ T13（旧集成标记卫生用例基线重定义）
+
+**T12 是什么**：干净的是工作区，但 `.git` 对象库里还塞着一批旧的 checkpoint 二进制（图片/缩略图/字体）。T12 就是把这些 checkpoint 引用删掉、把仓库压缩（`git gc`），让那些二进制不再可达。
+
+**T13 是什么**：一条卫生用例（`test_static_layer_has_no_legacy_integration_markers`）把一批 **V2 保留前端的合法标识**当成了“旧版集成痕迹”，导致 130+ 处误报。T13 就是按“V2 整体保留”口径重写这条用例的禁用标记清单，并移除不再迁移的快捷工具页。
+
+**为什么当初必须人裁决**：
+- T12 是**破坏性**操作：删引用 + `gc` 后，那些 checkpoint 历史就**不可恢复**（除非有备份）。这种操作必须人来承担。
+- T13 属于“**放宽门禁**”：放宽守卫本身就是风险，必须人来确认“放掉的是误报，不是真红线”。
+
+**不动它的后果**：
+- T12 不动：`.git` 体积与受限二进制长期滞留，且现有卫生用例**忽略 `.git`**（`ignored_dirs` 含 `.git`），永远不会报警。
+- T13 不动：全量门禁长期挂 1 条红（`1 failed / 39 passed`），后续每批都得人工解释“这条是已知失败”，守卫形同虚设。
+
+**现在裁决后怎么做**：
+- T12：用户**已明确授权**；**先建仓外完整 bundle 备份**，**再**删 `refs/copilot/checkpoints/**` + `gc`。已执行完毕，复核后仅剩 3 个白名单 `.otf`（详见 §2.3）。
+- T13：用户**已授权**；已落地为两个本地提交 `28c23bf`（基线重定义）+ `996c3ba`（移除快捷工具/画布内页），详见 §4.1。
+
+| 风险 | 回滚 | 证据边界 |
+|---|---|---|
+| T12 误删仍有价值的 checkpoint | **仓外 bundle** `C:\Users\qinxuedong\AppData\Local\Temp\godswb-clear-all-20260919-220743.bundle`（25,127,364 字节 / SHA-256 `8000090F…9F9A2` / `git bundle verify` = `is okay` / 含 18 个 ref）可完整还原 | 全部为本地 `.git` 只读实测：`git for-each-ref`、`git rev-list --objects --all --not master`、`git fsck --no-progress`、`git count-objects -v` |
+| T12 清理后误以为“仓库已合规” | — | §2.2 盲区**仍在**：`test_phase6_deep_hygiene.py` 的 `ignored_dirs` 含 `.git`，不覆盖对象库 |
+| T13 放宽后真红线被放过 | `git revert 28c23bf` 可恢复旧禁用清单 | 红线口径来源：`28c23bf` 提交信息与 diff（保留 `/static/home.html`、`/static/index.html`、`/static/gpt-chat.html`、`/static/project-board.html`、`/static/settings.html`、`chrome-local`，带 `/static/` 前缀精确匹配） |
+| T13 删除页面后残留坏链 | `git revert 996c3ba` 可整体恢复 36 个文件 | 实测：`node --check` 0 失败；保留页面坏链扫描 0；删除页残留引用扫描 0；`pytest` 40 passed（均为**本地**门禁） |
+
+---
+
+**统一证据边界声明**：本节四项的数字分别来自**本地 `.git` 只读命令**、**本地提交 `28c23bf` / `996c3ba`**、**本地 `pytest` 40 passed**，以及 release 仓**已完成批次（E0–E7）的本地门禁记录**。全部**未 push、未跑远端 CI、未做生产验收**，**不得将本地门禁通过解读为生产就绪**。
