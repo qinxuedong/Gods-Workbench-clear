@@ -1139,9 +1139,8 @@ async function openCanvas(c){
                 kind:canvas.kind || 'classic'
             }
         }, location.origin);
-        window.location.href = (canvas.kind === 'smart')
-            ? `/static/smart-canvas.html?${query.toString()}`
-            : `/static/canvas.html?${query.toString()}`;
+        // 画布内页（canvas.html / smart-canvas.html）已按用户裁决移除；
+        // 仅向宿主（v2/storyboard）派发 canvas-open 事件，由宿主决定后续处理。
     } catch(e){
         console.error(e);
         setStatus(L('无法关联项目条目','Unable to link project entity'));

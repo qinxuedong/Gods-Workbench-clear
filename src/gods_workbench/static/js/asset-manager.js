@@ -3222,11 +3222,6 @@ function canvasAssetsForCategory(categoryId=activeCanvasAssetCategory){
     list = list.filter(canvas => (canvas.kind || 'classic') === categoryId);
     return list.sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'zh-Hans-CN', {numeric:true, sensitivity:'base'}));
 }
-function canvasAssetOpenUrl(canvas){
-    if(!canvas?.id) return '';
-    const id = encodeURIComponent(canvas.id);
-    return canvas.kind === 'smart' ? `/static/smart-canvas.html?id=${id}` : `/static/canvas.html?id=${id}`;
-}
 function activeCanvasAssetCanvas(){
     if(!activeCanvasAssetCanvasId) return null;
     return (canvasAssetsData.canvases || []).find(canvas => canvas.id === activeCanvasAssetCanvasId) || null;
@@ -11508,7 +11503,6 @@ function renderDetailMediaCanvas(source){
                 <button type="button" data-detail-media-canvas-remove="${escapeAttr(activeId)}" ${!detailMediaCanvasSelectedIds().size ? 'disabled' : ''}><i data-lucide="trash-2"></i><span>移除所选</span></button>
                 <button type="button" data-detail-media-canvas-zoom="0"><i data-lucide="scan"></i><span>适应画布</span></button>
                 <button class="asset-detail-media-minimap-toggle ${detailMediaCanvasMinimapVisible ? 'is-active' : ''}" type="button" data-detail-media-minimap-toggle aria-pressed="${detailMediaCanvasMinimapVisible}" title="${detailMediaCanvasMinimapVisible ? '隐藏画布缩略图' : '显示画布缩略图'}"><i class="asset-detail-minimap-visible" data-lucide="map"></i><i class="asset-detail-minimap-hidden" data-lucide="map-off"></i><span class="asset-detail-minimap-visible">隐藏缩略图</span><span class="asset-detail-minimap-hidden">显示缩略图</span></button>
-                ${detailViewerState.referenceCanvasId ? `<a href="/static/canvas.html?id=${encodeURIComponent(detailViewerState.referenceCanvasId)}" target="_blank" rel="noopener"><i data-lucide="external-link"></i><span>打开画布</span></a>` : ''}
                 <button class="primary" type="button" data-detail-reference-save ${!canPersist || detailViewerState.referenceCanvasSaving ? 'disabled' : ''}><i data-lucide="${detailViewerState.referenceCanvasSaving ? 'loader-2' : 'save'}"></i><span>${detailViewerState.referenceCanvasId ? '更新参考画布' : '保存参考画布'}</span></button>
                 </div>
             </div>

@@ -241,13 +241,6 @@
         <button class="canvas-rail-item" data-canvas-rail="classic" type="button" onclick="openCanvasOverview(this, 'classic')"><i data-lucide="square-kanban" class="w-3.5 h-3.5"></i><span>普通画布</span></button>
         <button class="canvas-rail-item" data-canvas-rail="project" type="button" onclick="openCanvasOverview(this, 'project')"><i data-lucide="folder-kanban" class="w-3.5 h-3.5"></i><span>项目画布</span></button>
         <button class="canvas-rail-item" data-canvas-rail="reference" type="button" onclick="openCanvasOverview(this, 'reference')"><i data-lucide="image" class="w-3.5 h-3.5"></i><span>参考画布</span></button>
-        <div class="canvas-rail-heading tools">快捷工具</div>
-        <button class="canvas-rail-item tools" data-canvas-tool="zimage" type="button" onclick="openCanvasToolPage(this, '/static/zimage.html')"><i data-lucide="wand-sparkles" class="w-3.5 h-3.5"></i><span>文生图</span></button>
-        <button class="canvas-rail-item tools" data-canvas-tool="online" type="button" onclick="openCanvasToolPage(this, '/static/online.html')"><i data-lucide="globe-2" class="w-3.5 h-3.5"></i><span>在线生图</span></button>
-        <button class="canvas-rail-item tools" data-canvas-tool="klein" type="button" onclick="openCanvasToolPage(this, '/static/klein.html')"><i data-lucide="pencil-ruler" class="w-3.5 h-3.5"></i><span>图片编辑</span></button>
-        <button class="canvas-rail-item tools" data-canvas-tool="enhance" type="button" onclick="openCanvasToolPage(this, '/static/enhance.html')"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i><span>细节增强</span></button>
-        <button class="canvas-rail-item tools" data-canvas-tool="angle" type="button" onclick="openCanvasToolPage(this, '/static/angle.html')"><i data-lucide="box" class="w-3.5 h-3.5"></i><span>角度控制</span></button>
-        <button class="canvas-rail-item tools" data-canvas-tool="video" type="button" onclick="openCanvasToolPage(this, '/static/video.html')"><i data-lucide="video" class="w-3.5 h-3.5"></i><span>视频生成</span></button>
       </section>
       <div class="p-2 border-b border-white/5 shrink-0 canvas-scene-legacy">
         <div class="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#141720] border border-[#dfc384]/35 text-[#eddab3] text-xs font-semibold shadow-md">
@@ -333,21 +326,9 @@
       frame.hidden = true;
       frame.src = 'about:blank';
     }
-
-    window.openCanvasToolPage = function openCanvasToolPage(button, path) {
-      const frame = document.getElementById('canvasOverviewFrame');
-      if (!frame) return;
-      document.querySelectorAll('[data-canvas-rail]').forEach(item => item.classList.remove('active'));
-      document.querySelectorAll('[data-canvas-tool]').forEach(item => item.classList.toggle('active', item === button));
-      frame.hidden = false;
-      frame.title = button?.textContent?.trim() || '快捷工具';
-      frame.src = embeddedCanvasRoute(path);
-      document.getElementById('storyboardMatrixContent').hidden = true;
-    };
     window.openCanvasOverview = function openCanvasOverview(button, filter) {
       const frame = document.getElementById('canvasOverviewFrame');
       if (!frame) return;
-      document.querySelectorAll('[data-canvas-tool]').forEach(item => item.classList.remove('active'));
       document.querySelectorAll('[data-canvas-rail]').forEach(item => item.classList.toggle('active', item === button));
       frame.hidden = false;
       frame.title = '画布总览';
