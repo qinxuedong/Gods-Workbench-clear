@@ -10,6 +10,6 @@
 - [x] T8 用户裁决落地：清理 12 个图片资源并修复全部引用 —— 图片目录已空、`vendor/fonts/` 仅剩 3 个 otf（`Get-ChildItem`）
 - [x] T9 命名断言改「影视工坊」已落地 —— 详见 §3
 - [x] T10 提交一版（本地提交） —— 已完成，`git status --porcelain -uall` 为空；提交见 `git log --oneline -1`
-- [~] T11 `main.py` 拆分进行中；Phase D 已收口（实测 56/60 迁出 + 4 设计保留），后续 Phase E–G —— 详见 TASK-NOTES §9
+- [~] T11 `main.py` 拆分进行中；Phase D 已收口（56/60 迁出 + 4 设计保留），Phase E 已完成 E0–E7（95/95 原地路由迁出；E8–E10 与 Phase F/G 待人工裁决）—— 详见 TASK-NOTES §9
 - [ ] T12（P1，破坏性，待用户确认）清理 `.git` 内 checkpoint 二进制 —— 详见 §2
 - [ ] T13 旧集成标记卫生用例基线重定义（待裁决）—— 详见 §4

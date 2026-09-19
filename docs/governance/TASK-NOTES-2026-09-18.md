@@ -272,6 +272,74 @@
   Euclid（文档修正复核，`ACCEPT`）、
   Ramanujan（更新分发白名单审核，`ACCEPT`）。
 
+### 9.10 Phase E 进度（2026-09-19 滚动更新）
+
+> 口径：实施仓 `D:\Working\Code Pro\Gods-Workbench-release`（分支 `main`），
+> 只读 `git log` / `git show <rev>:main.py` / 本地门禁命令取证。**未 push、未跑远端 CI**。
+
+**已完成的本地提交（均未 push）**
+
+| 批次 | 内容 | 提交 |
+|---|---|---|
+| E0 | 路由身份快照门禁（394 行 / 9 用例，零行为变更） | `ba32e1c9` |
+| 勘察 | `docs/architecture/MAIN-PY-PHASE-E-RECON.md`（含 E0–E10 方案） | `25216c1b` |
+| E1 | 更新域装配入口 → `app_runtime/routers/assembly.py`；main 内 `include_router` 43 → 42 | `2896db12` |
+| E2 | shell/media 域 4 条 → `app_runtime/routers/shell_media.py` | `f04334fb`（测试补齐 `987d3442`） |
+| E3 | 本地资产 / 素材库域 30 条 → `app_runtime/routers/local_assets.py` | `847fad0d` |
+| E4 | 生成 / 任务提交域 25 条 → `app_runtime/routers/generation.py` | `00bf6492` |
+| E5 | 工作流导入 / 导出域 5 条 → `app_runtime/routers/workflows.py` | `a94af7f1` |
+| E6 | 对话 / 历史域 7 条 → `app_runtime/routers/chat.py` | `5db98092` |
+| E7 | 外部集成域 24 条 → `app_runtime/routers/integrations.py` | `5c377a77` |
+
+**覆盖度**：95/95 条原地 `@app.*` 路由实现体已全部迁出；`main.py` 只保留同名薄包装
+（装饰器 + 原签名 + 单条纯委托）。`main.py` 规模：20583 行（Phase D 收口）→ **16782 行 / 741731 B**（E7 后）。
+
+**冻结不变量（E1–E7 各批实测不变）**
+
+| 项 | 冻结值 |
+|---|---|
+| 路由身份 | **361** 条 / SHA-256 `eb79bd54285dec1175630683737285da7f00ae5f0c6d39eb89483e9b30ff900a` |
+| OpenAPI（CRLF+UTF-8） | **579853 B** / SHA-256 `48c4cf7d285c537e763083317d2d7a4451de928aa48076ec98fa189b94df7cac` |
+| routes / paths / schemas | 146 / 288 / 181 |
+| `main.app.router.dependencies` 长度 | 1（`Depends(authorize_http_request)`） |
+| 路由类型分布 | `APIRoute=95 / APIWebSocketRoute=1 / Mount=3 / Route=4 / _IncludedRouter=43`，合计 146 |
+| `include_router` 调用 | main.py 42 + `assembly.py` 1 = 43 |
+
+**门禁证据（本地）**
+
+- 三项契约门禁 `python tools/{check_openapi_contract,check_provider_contract,route_permissions}.py --check` 均 exit 0。
+- 门禁批次（E0/E1–E6 + 路由/权限/OpenAPI 契约）`pytest`：**170 passed / 731 subtests**。
+- 含 E7 新门禁的完整 Phase E 批次 `pytest`：**179 passed / 878 subtests**（2026-09-19 主控实测复核）。
+- E7 定向：新门禁 `tests/test_phase_e7_integrations_extraction.py` **9 passed / 147 subtests**；
+  定向回归（jimeng / codex / runninghub / task-center / log / generation）**116 passed / 44 subtests**。
+- 全量 `pytest -q`：**8 failed / 2630 passed / 274 skipped / 3476 subtests**。
+  其中 **7 条为 Phase D 起即有、各批无关的 static 前端/元数据契约失败**；
+  另 **1 条 `test_asset_thumbnail_cache::test_non_mp4_video_is_transcoded_and_cached` 为本机 PATH 无 `ffmpeg` 所致**
+  （本机已装 ffmpeg 但不在 PATH；将其 bin 目录加入 PATH 后该测试 **21 passed**，代码路径与 HEAD 逐字节相同）。
+
+**暂缓项（需人工决策，本轮跳过）**
+
+- **E8 / E9 / E10**：43 处 `include_router` 收敛进 `assembly.py`。会改变注册顺序与路由类型分布
+  （预期 `APIRoute` 95→91、`_IncludedRouter` 43→44、合计 146→143），
+  且 `tests/test_phase_e_route_identity_gate.py:82-84`、`tests/test_phase_e1_update_domain_assembly.py:108-117`
+  已把「main=42 / assembly=1 / 合计=43」与「assembly 内 `include_router` 恰 1 次」钉死；**重新基线属人工决策**。
+- **Phase F / G**：生命周期 / WebSocket / 全局协程 / 画布 CAS / `create_app()` 收敛；未开工。
+
+**独立复核（2026-09-19，主控对抗复核）**
+
+- 还原基线：`git show 5c377a77~1:main.py` 与新 `app_runtime/routers/integrations.py` 逐函数比对。
+- 24/24 条 integrations 实现体 AST 等价（剥离装饰器 + `_resolve_dependency('X')`→X 归一化）：**MISMATCH: []**。
+- 24 条同名薄包装装饰器与签名对基线 **0 差异**；4 条同源路由保留真实 `ensure_same_origin_request(request)`；
+  `open_registry_asset_locally` 保留 `request_principal` + `{admin,editor}` + 403。
+- 冻结不变量主控独立复算命中：路由 361 / `eb79bd54…900a`；OpenAPI 579853 B / `48c4cf7d…7cac`；deps 长度 1；
+  路由类型 `APIRoute=95 / APIWebSocketRoute=1 / Mount=3 / Route=4 / _IncludedRouter=43` = 146。
+- 全量 `pytest -q` 主控复现：**8 failed / 2630 passed / 274 skipped / 3476 subtests passed**，8 条失败与 §9.10 归因逐条一致
+  （7 条 static 契约失败文件自 Phase D/E 各批均未被改动；1 条 ffmpeg 缺失，加入其 bin 目录后该测试 **21 passed**）。
+- 限制说明：代理服务本会话多次返回 `completed: null`（Reality Checker / worker 均如此），故本轮独立复核由主控本人执行并留痕。
+
+**证据边界**：以上全部为**本地**门禁与本地提交证据；**未 push、未跑远端 CI、未做生产验收**，
+不得据此外推为发布就绪。
+
 ### 9.8 台账只留单条 task 的原因
 
 `TASKS.md` 按用户裁决仅为「单条 task + 1-2 行简短说明」；所有哈希、门禁数字、批次边界、
