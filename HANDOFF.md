@@ -1,6 +1,6 @@
 # HANDOFF — `main.py` 拆分项目交接文档
 
-> 生成时间：2026-09-19（滚动更新；最新一次：洁净室仓 T12/T13 完成 + 用户裁决下达后）　｜　用途：让下一个代理无需回溯对话即可继续。
+> 生成时间：2026-09-20（滚动更新；最新一次：文档漂移修正 + 独立审核代理 Gauss 复核 PASS + Phase A–G 状态回填）　｜　用途：让下一个代理无需回溯对话即可继续。
 > 本文件是**交接说明**，不是真源；一切以仓库文件与 `git log` 为准。
 
 ---
@@ -11,8 +11,9 @@
 = `https://github.com/qinxuedong/Gods-Workbench.git`）根目录里的**巨型 `main.py`** 分阶段拆分，
 最终收敛为「入口兼容层 + 若干 `app_runtime/*` 模块」。
 
-- 当前 `main.py`（HEAD `5c377a77`）：**16782 行**（`split("\n")` 口径）/ **741731 B** / 顶层定义 **722** 个 /
-  `app.include_router(...)` **42 处（另 1 处在 `app_runtime/routers/assembly.py`，合计 43）** / `@app.*` 原地 HTTP 路由 **95 条**。
+- `main.py` E7 基线（HEAD `5c377a77`，**历史快照**）：**16782 行**（`split("\n")` 口径）/ **741731 B** / 顶层定义 **722** 个 /
+  （历史）`app.include_router(...)` **42 处（另 1 处在 `app_runtime/routers/assembly.py`，合计 43）** / `@app.*` 原地 HTTP 路由 **95 条**。
+- **当前 `main.py`（HEAD `0d607c97`，Phase G 之后）**：**16461 行**（`split("\n")` 口径，`splitlines()` 为 16460）/ **732931 B** / SHA-256 `e252ae9c68321404a826d09cf3c7d1bc9076ecb3d8f88224c372e76970ebd514` / `app.include_router(...)` **0 处**（43 处全部在 `app_runtime/routers/assembly.py`）。
 - 方案文档：`docs/architecture/MAIN-PY-DECOMPOSITION-PLAN.md`（Phase A–G）。
 - 硬性目标：**拆分不等于重构**——URL、方法、状态码、响应结构、认证依赖顺序、启动方式全部保持兼容。
 
@@ -68,7 +69,7 @@
 - **覆盖度**：95/95 条原地 `@app.*` 路由实现体已全部迁出；main.py 仅保留同名薄包装（装饰器 + 原签名 + 单条纯委托）。
 - **已完成**：E8 / E9 / E10 把 43 处 `include_router` 全部收敛进 `app_runtime/routers/assembly.py`；`main.py` 内 `app.include_router(...)` 归零，95 条 `@app.*` 薄包装保持模块顶层。
   `tests/test_phase_e_route_identity_gate.py`（`MAIN_INCLUDE_ROUTER_CALL_COUNT = 0` / 装配层由 `app_runtime/routers/assembly.py` 承担）与
-  `tests/test_phase_e1_update_domain_assembly.py`（assembly 内 `include_router` 恰 1 次）的门禁数字须按用户 2026-09-19 授权的**重新基线**同步重算。
+  `tests/test_phase_e1_update_domain_assembly.py`（assembly 内 `include_router` 调用总数为 43、`main.py` 为 0）的门禁数字。**实测最终结果与当时预期不同**：`include_router` 从 `main.py` 搬进 `app_runtime/routers/assembly.py` **不改变路由类型分布**（`APIRoute`=95 / `APIWebSocketRoute`=1 / `Mount`=3 / `Route`=4 / `_IncludedRouter`=43，合计 146），路由身份仍为 361 条。
 - **Phase F / G**：生命周期、WebSocket、全局协程、关闭派发辅助、`create_app()` 入口收敛**已全部完成并本地提交**（F1/F2/F3/G，见 §2.1 表）；**未 push、未跑远端 CI**。
 
 ### 2.5 文档修正与台账
@@ -105,10 +106,9 @@
 
 **E0–E10、Phase F（F1–F3）、Phase G 均已完成、本地门禁全绿并本地提交；未 push、未跑远端 CI、未做生产验收。**
 
-- **E8 / E9 / E10（43 处 `include_router` 收敛）**：**已完成**（`a9f223f2` / `16926f81` / `1bd5bcf6`）。`main.py` 内 `app.include_router(...)` 已归零；路由类型分布按预期变化并已按授权同步重算冻结基线。
+- **E8 / E9 / E10（43 处 `include_router` 收敛）**：**已完成**（`a9f223f2` / `16926f81` / `1bd5bcf6`）。`main.py` 内 `app.include_router(...)` 已归零；**实测路由类型分布与路由身份均未变化**（361 条 / `eb79bd54…900a`、APIRoute=95 / _IncludedRouter=43 / 合计 146），变的只有 `main=0 / assembly=43`。
 - **Phase F（生命周期 / WebSocket / 全局协程 / 关闭派发辅助）**：**已完成**（F1 `497db84b` / F2 `03f81f54` / F3 `8043ac4a`）。
-- **Phase G（`create_app()` 入口收敛）**：**已完成**（`0d607c97`）。
-- **工作区状态（写入时）**：release 仓仅余他人未跟踪文件与勘察脚本目录 `_e9/` `_e10/` `_f3/` `_g1/` 等（**不动**）；洁净仓 `git status` 有本轮台账改动（**主控统一提交**）；release `main` 已 ahead origin/main **36 个提交**，**未 push**。
+- **工作区状态（写入时，2026-09-20）**：release 仓仅余他人未跟踪文件与勘察脚本目录 `_e9/` `_e10/` `_f3/` `_g1/` 等（**不动**）；release `main` 已 ahead origin/main **38 个提交**（Phase E8–G 七个批次 + 文档漂移修正 `546061df` + 独立审核报告 `15699e64`），**未 push**。
 
 ## 4. 下一步计划
 
@@ -117,8 +117,7 @@
 用户已于 **2026-09-19** 就「仍待人工裁决」四项全部下达裁决与授权。逐项结果：
 
 1. **重新基线冻结不变量 —— 已授权。** 允许在收敛后重新计算并更新冻结值，含 `.git` 对象库清理后路由/OpenAPI 冻结值的复算，以及 `main=42 / assembly=1 / 合计=43` 断言的重算。
-2. **E8 / E9 / E10 —— 已完成。** 43 处 `include_router` 收敛进 `app_runtime/routers/assembly.py`；路由类型分布变化后已按授权同步重算冻结基线。
-   （`APIRoute` 95 → 91、`_IncludedRouter` 43 → 44、合计 146 → 143，属**预期变化**）。实施时同步 `tests/test_phase_e_route_identity_gate.py` 与
+   （**实测最终结果与这条当时的预测不同，此处按实测更正**：路由类型分布 `APIRoute`=95、`APIWebSocketRoute`=1、`Mount`=3、`Route`=4、`_IncludedRouter`=43，合计仍为 **146**；路由身份仍为 **361** 条 —— 把 `include_router` 调用从 `main.py` 搬进 `app_runtime/routers/assembly.py` **不改变路由类型分布**，变的只是 `main=0 / assembly=43`）。实施时同步 `tests/test_phase_e_route_identity_gate.py` 与
    `tests/test_phase_e1_update_domain_assembly.py` 的硬编码值为重算后的基线。
 3. **Phase F —— 已完成。** 生命周期 / WebSocket / 全局协程 / 关闭派发辅助的机械拆分全部落地（F1–F3）；画布 CAS 资源桥接的「两种绑定语义统一」属独立授权批次，本轮未改。
 4. **Phase G —— 已完成。** `main.py` 引入 `create_app()` 兼容入口并保留模块级 `app = create_app()`；未切换 `--factory`（实测负面结论）。
@@ -138,9 +137,18 @@
 - **证据边界**：以上均为**本地**门禁与本地提交；**未 push、未跑远端 CI、未做生产验收**。
 
 ### 4.3 最终交付前
+- [x] **补一轮真正独立的代理审核**（Phase E / F / G 各一次）—— **已完成**：独立审核代理 **Gauss**（agent id `01a0bafa-30fd-7b02-97ae-7dedc57f7111`）对 release 仓 Phase E8–E10 + F1–F3 + G 逐条独立实测复核，结论 **PASS（9/10 ACCEPT；唯一 REJECT 属文档时效口径，已闭环）**；报告落盘 release 仓 `docs/architecture/MAIN-PY-PHASE-E8-G-REVIEW.md`（提交 `15699e64`）。
+- [x] 更新洁净室台账（`docs/governance/TASKS.md` / `TASK-NOTES-2026-09-18.md`）与本文件 —— **已完成**（洁净仓提交 `661a79e` + 本次）。
 
-- **补一轮真正独立的代理审核**（Phase E / F / G 各一次）。
-- 更新洁净室台账（`docs/governance/TASKS.md` / `TASK-NOTES-2026-09-18.md`）与本文件。
+- [ ] **仍待人工决策（不得代用户拍板）**：是否 push / 跑远端 CI / 做生产验收；画布 CAS 两种绑定语义统一（需用户显式授权的独立批次）；端口口径 `main.py` 3000 / `Dockerfile` 3333 / 洁净仓 `AGENTS.md` 2077 三处并存。
+
+### 4.4 文档漂移修正批次（2026-09-20，已完成、本地提交、未 push）
+
+- release 仓 `546061df`：Phase A–G 完成状态回填 —— `MAIN-PY-DECOMPOSITION-PLAN.md` §9 由「PLANNED — 未执行」改为已完成后实测小结（含批次 sha / 冻结不变量 / 方案 A / 证据边界）；`MAIN-PY-PHASE-D-SEQUENCE.md`、`MAIN-PY-PHASE-E-RECON.md`、`MAIN-PY-PHASE-G-CALLSITE-RECON.md`、`MAIN-PY-PHASE-D-D6-RECON.md` 各追加「后续状态更新（2026-09-20）」小节，**原文不改**（历史勘察记录保持原样）。
+- release 仓 `15699e64`：落盘独立审核报告 `docs/architecture/MAIN-PY-PHASE-E8-G-REVIEW.md`。
+- 洁净仓 `661a79e`：`TASK-NOTES-2026-09-18.md` §9.13 完成状态回填 + §4/§11.3 口径更正；`BINARY-AND-NAMING-BASELINE` / `FINAL-ACCEPTANCE-REVERIFY` / `ROUND2-ACCEPTANCE-AUDIT` / `CLEANROOM-STATUS.md` 追加「后续状态更新（2026-09-20）」指针，**原文不改**。
+- 独立审核唯一 REJECT（`_f3/RECON.md` / `_g1/RECON.md` / `MAIN-PY-PHASE-G-CALLSITE-RECON.md` 的行数、字节数为 Phase G **改动之前**的快照，与 G 之后 HEAD 不同但各自自洽）已在 `MAIN-PY-PHASE-G-CALLSITE-RECON.md` 的「后续状态更新」小节显式澄清口径。
+- **证据边界**：以上均为**本地**提交与本地门禁结果；**未 push、未跑远端 CI、未做生产验收**。
 
 ---
 
