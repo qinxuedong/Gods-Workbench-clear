@@ -70,24 +70,31 @@ def test_plugin_protocol_exclusion(repo_root: Path):
 
 
 def test_static_layer_has_no_legacy_integration_markers(repo_root: Path):
-    """确保重写后的静态层没有旧路由、插件和整页壳层残留。"""
+    """确保重写的静态层没有旧路径、经典页面或不健康集成。
+
+    口径（用户 2026-09-19 裁决）：
+      * 保留范围：V2 前端整体保留（static/v2/**）；画布/工具仅保留“入口首页”内容。
+        因此 V2 页面互相引用的 storyboard.html / production.html / agents.html /
+        collab.html / settings.html、CDN 图标库 lucide、unsplash.com 占位图源、
+        window.V2Projects 命名空间，以及仍在 V2 链路内合法使用的 asset-manager.html /
+        comfyui / runninghub 等业务标识，不再作为禁用标记（重定义前曾造成 130+ 处误报）。
+      * 禁用范围：
+        1. 已删除的 V1 经典页面入口：/static/home.html、/static/index.html、
+           /static/gpt-chat.html、/static/project-board.html、/static/settings.html；
+        2. 已删除的经典集成端点关键字：chrome-local。
+
+    依据：AGENTS.md（洁净室铁律与 Lucide CDN 合规）、
+    docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md、
+    docs/governance/TASK-NOTES-2026-09-18.md 第 4 节（T13）。
+    """
     static_dir = repo_root / "src" / "gods_workbench" / "static"
     forbidden_markers = (
-        "/api/asset-auth",
-        "asset-manager.html",
-        "comfyui",
-        "runninghub",
-        "photoshop",
+        "/static/home.html",
+        "/static/index.html",
+        "/static/gpt-chat.html",
+        "/static/project-board.html",
+        "/static/settings.html",
         "chrome-local",
-        "storyboard.html",
-        "production.html",
-        "agents.html",
-        "collab.html",
-        "settings.html",
-        "project-board.html",
-        "unsplash.com",
-        "window.v2projects",
-        "lucide",
     )
     violations = []
     for path in static_dir.rglob("*"):
