@@ -90,3 +90,15 @@ node --check <所有保留 .js>
 ## 7. 本轮文件边界
 
 本轮只写：`HANDOFF.md`、`HANDOFF-2.md`、`docs/governance/agent-reports-2026-09-20/T-handoff.md`。
+
+## 8. 推送与远端 CI 实测（2026-09-20 收口）
+
+- **提交**：`97b8b0474a702fa5b0161b0e5847b9a8824f55b7`（master 上 66 项变更：新增 26 / 修改 30 / 删除 5 等）。
+- **remote**：`git remote add origin https://github.com/qinxuedong/Gods-Workbench-clear.git`（用户已授权配置 remote）。
+- **push**：`git push -u origin master` 成功；`origin/master` == 本地 HEAD `97b8b04`；工作树 `git status --porcelain` 为空。
+- **远端 CI**：推送触发 workflow run [`35508682089`](https://github.com/qinxuedong/Gods-Workbench-clear/actions/runs/35508682089)（job `106072698272`），**3 秒即失败，但失败原因是账户计费/额度**——GitHub 官方注解：
+  > The job was not started because recent account payments have failed or your spending limit needs to be increased.
+  即**任务根本未启动、未执行任何步骤**（`steps: []`），**不是代码或测试失败**。
+- **结论与边界**：`push` = 已执行且成功；**远端 CI = 未真正跑通（被计费拦截）**，不能据此认定通过或失败；生产验收仍未执行。
+  待账户计费恢复后，需重跑 `gh workflow run CI` 或重新 push 以取得真实绿/红信号。
+- 本次未写入 `D:\Working\Code Pro\Gods-Workbench-release`（全程只读）。
