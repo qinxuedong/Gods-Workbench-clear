@@ -35,3 +35,17 @@
 
 - 上文「远端 CI：未执行」为当时快照。修复行尾哈希问题后，远端 CI run `35512673637` = **success**（Linux `40 passed` + 二进制白名单通过）；详见 `docs/governance/agent-reports-2026-09-20/T-ci-remote.md`。
 - **生产验收仍未执行**；本地验收 ≠ 远端 CI ≠ 生产验收。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+---
+
+## 追加更新（2026-09-20/21，Phase 4 远端 CI）
+
+本节为**追加**，不改写上文。
+
+- Phase 4 提交 `fa6b374`（外部 IdP 影子校验模块 + 依赖锁 + SBOM + 独立终审收口）已 push（`c2d3758..fa6b374`）。
+- 远端 CI run [`35521632747`](https://github.com/qinxuedong/Gods-Workbench-clear/actions/runs/35521632747) = **success**：
+  - 环境 `Python 3.11.16`（ubuntu-latest）；实测 **`63 passed, 2 warnings in 0.50s`**；
+  - 步骤「扫描二进制白名单」通过（允许项仅 3 个 Source Han Sans CN 字体路径）；
+  - 依赖导入步骤打印 `0.141.1 / 2.13.5 / 0.53.0`，与 `requirements.lock` 主表（干净 venv 实测）**同版本**。
+- **生产验收仍未执行**；本地验收 ≠ 远端 CI ≠ 生产验收。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

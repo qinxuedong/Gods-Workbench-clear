@@ -70,7 +70,17 @@ Phase 4 只推进「可在本地复现、可被独立复核」的部分，**生�
 4. **干净 venv 按 requirements 区间解析 ≠ 按 lock 精确安装。** 前者证明「依赖可安装」，不等于「锁可复现」。
 5. **`uvicorn[standard]` 的平台差异**：Windows 无 `uvloop`，Linux 有；跨平台锁不可只看本机 `pip freeze`。
 
-## 6. 边界
+## 6. 提交、推送与远端 CI 实测
+
+- 提交：`fa6b374a2449a18ba91902eba696d94828e8728f`（16 文件，+2603 / -0；逐文件 `git add`，未用 `-A`）。
+- push：`c2d3758..fa6b374` → `origin/master` 成功；本地 HEAD == `origin/master`；工作树干净。
+- 远端 CI run `35521632747` = **success**：
+  - Linux `Python 3.11.16` → **`63 passed, 2 warnings in 0.50s`**；
+  - 「扫描二进制白名单」通过（仅 3 个白名单 `.otf`）；
+  - CI 解析出 `fastapi 0.141.1 / pydantic 2.13.5 / uvicorn 0.53.0`，与 `requirements.lock` **主表（干净 venv 实测）逐版本一致**。
+- 证据命令：`gh run list --workflow CI --branch master --limit 3`、`gh run view 35521632747 --log`。
+
+## 6.1 边界
 
 - **本地通过 ≠ 远端 CI ≠ 生产验收。**
 - 上一轮远端 CI（`35512673637` / `35512832677` / `35512899099`）= success，但绑定提交 `8c955e2`~`c2d3758`，**不覆盖本轮工作树**。
