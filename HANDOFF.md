@@ -104,11 +104,14 @@
 
 ## 3. 当前卡在哪里
 
-**E0–E10、Phase F（F1–F3）、Phase G 均已完成、本地门禁全绿并本地提交；未 push、未跑远端 CI、未做生产验收。**
+**E0–E10、Phase F（F1–F3）、Phase G 均已完成、本地门禁全绿并本地提交；2026-09-20 用户裁决的「画布 CAS 绑定统一 / 端口统一 2077」亦已完成并本地提交；未 push、未跑远端 CI、未做生产验收。**
 
 - **E8 / E9 / E10（43 处 `include_router` 收敛）**：**已完成**（`a9f223f2` / `16926f81` / `1bd5bcf6`）。`main.py` 内 `app.include_router(...)` 已归零；**实测路由类型分布与路由身份均未变化**（361 条 / `eb79bd54…900a`、APIRoute=95 / _IncludedRouter=43 / 合计 146），变的只有 `main=0 / assembly=43`。
 - **Phase F（生命周期 / WebSocket / 全局协程 / 关闭派发辅助）**：**已完成**（F1 `497db84b` / F2 `03f81f54` / F3 `8043ac4a`）。
+- **Phase G（`create_app()` 入口收敛）**：**已完成**（`0d607c97`）。采用方案 A——保留模块级 `app = create_app()`，**不切换** `uvicorn main:create_app --factory`；`main:app` 调用方无需迁移。
+- **第三轮：画布 CAS 绑定统一 + 端口统一 2077**：**已完成**（CAS `40ab81cb`；端口 `8b85d4c5` + `006f3ddc`）。独立审核代理 V1（CAS）/ V2（端口）各自 **PASS**（8/8 ACCEPT）。
 - **工作区状态（写入时，2026-09-20）**：release 仓仅余他人未跟踪文件与勘察脚本目录 `_e9/` `_e10/` `_f3/` `_g1/` 等（**不动**）；release `main` 已 ahead origin/main **41 个提交**（Phase A–G 全部批次 + 文档漂移修正 `546061df` + 独立审核报告 `15699e64` + 本轮 CAS 统一 `40ab81cb` / 端口统一 `8b85d4c5` / 根级文档更正 `006f3ddc`），**未 push**。
+- **当前唯一阻塞（只能由用户拍板，不得代决）**：**是否 push** / **是否跑远端 CI** / **是否做生产验收**。其余设计与实现项均无剩余阻塞。
 
 ## 4. 下一步计划
 
@@ -239,6 +242,11 @@
     否则不得标记完成或宣告发布就绪。
 22. **在最终成果完成前**：不得仅凭子代理自述或聊天结论断言完成；须回到仓库文件、`git log`、实测命令输出取证。
 
+### 5.5 草稿与临时文件卫生
+
+23. **不要复用仓库内既有未跟踪临时文件当草稿**（尤其 `_cm.txt` / `_cm2.txt` / `_p1.py` / `_rd.py` / `_t12.py` / `find15c.py` 等）：它们是他人在用、或前序会话留下的提交信息/脚本临时件，改了会污染对方工作区。自己造草稿一律写到 `%TEMP%`；本轮曾误覆写 `_cm.txt`/`_cm2.txt`，已按会话日志逐字节还原（787/789 B、CRLF）。
+24. **提交信息走「独立草稿文件 → `git commit -F`」**：草稿放 `%TEMP%`（如 `%TEMP%\gw_commit.txt`），不要落在仓库里；中文提交信息用 UTF-8 无 BOM，提交前用 python 读回校验 `b'\xef\xbf\xbd'` 计数为 0。
+
 ---
 
 ## 6. 关键文件路径速查
@@ -265,28 +273,40 @@
 ## 7. 复现命令（快速自检）
 
 ```powershell
-# 1) 双仓状态（应为 clean；release ahead origin/main，未 push）
-cd "D:\Working\Code Pro\Gods-Workbench-release"; git status --short; git rev-list --count origin/main..HEAD
-cd "D:\Working\Code Pro\Gods-Workbench-clear-all\Gods-Workbench-clear"; git status --short
+# 0) 两个仓（release 有 main.py；洁净室仓只有台账）
+#    release: D:\Working\Code Pro\Gods-Workbench-release        (分支 main)
+#    洁净室 : D:\Working\Code Pro\Gods-Workbench-clear-all\Gods-Workbench-clear (分支 master)
 
-# 2) import main 的必备环境变量
-$env:GODS_WORKBENCH_OBSERVABILITY_CURSOR_SECRET='x'
+# 1) 状态自检（两块分别复制到对应仓根执行）
+#   [release 仓根]
+$env:GODS_WORKBENCH_OBSERVABILITY_CURSOR_SECRET='x'   # 跑任何 import main 前必须
+git status --short; git rev-list --count origin/main..HEAD   # 期望 41，未 push
+#   [洁净室仓根]
+git status --short                                    # 期望仅剩他人未跟踪临时件
 
-# 3) 三项契约门禁（应全 exit 0）
+# 2) 冻结不变量（release 仓根；应与 §2.7 一致）
+#    复用勘察脚本（需上一步已设 GODS_WORKBENCH_OBSERVABILITY_CURSOR_SECRET）
+python _e9/inv.py
+
+# 3) 本轮两项改动的定向复核（release 仓根）
+#   3a 画布 CAS 晚绑定：应恰好 4 处 canvas_lock=lambda: CANVAS_LOCK
+git grep -n "canvas_lock=lambda: CANVAS_LOCK" -- main.py
+#   3b 端口统一：server_port() 默认 2077（越界回退 2077）
+python -c "import main;print(main.server_port())"
+
+# 4) 三项契约门禁（release 仓根；应全 exit 0）
 python tools/check_openapi_contract.py --check
 python tools/check_provider_contract.py --check
 python tools/route_permissions.py --check
 
-# 4) Phase E 路由身份快照门禁（9 用例）
+# 5) Phase E 路由身份快照门禁 + 全批门禁（release 仓根）
 python -m pytest tests/test_phase_e_route_identity_gate.py -q
+python -m pytest tests/test_phase_e_route_identity_gate.py tests/test_phase_e1_update_domain_assembly.py tests/test_phase_e2_shell_media_extraction.py tests/test_phase_e3_local_assets_extraction.py tests/test_phase_e4_generation_extraction.py tests/test_phase_e5_workflows_extraction.py tests/test_phase_e6_chat_extraction.py tests/test_phase_e7_integrations_extraction.py tests/test_route_permissions.py tests/test_app_permissions.py tests/test_m3_openapi_contract.py -q
 
-# 5) Phase E 全批门禁（E0/E1/E2/E3/E4/E5/E6/E7 + 路由/权限/OpenAPI 契约）
-python -m pytest tests/test_phase_e_route_identity_gate.py tests/test_phase_e1_update_domain_assembly.py `
-  tests/test_phase_e2_shell_media_extraction.py tests/test_phase_e3_local_assets_extraction.py `
-  tests/test_phase_e4_generation_extraction.py tests/test_phase_e5_workflows_extraction.py `
-  tests/test_phase_e6_chat_extraction.py tests/test_phase_e7_integrations_extraction.py `
-  tests/test_route_permissions.py tests/test_app_permissions.py tests/test_m3_openapi_contract.py -q
-
-# 6) 全量（已知与各批无关的既有失败：static 前端契约 7 条 + 本机缺 ffmpeg 1 条）
+# 6) 全量（release 仓根；约 10 分钟）
+#    预期 2677 passed / 271 skipped / 3476 subtests / 7 failed
+#    7 条既有失败（与拆分/CAS/端口无关）：test_episode_pipeline_frontend_contract /
+#    test_floating_window_frontend_contract / test_gw045_topbar_contract×2 /
+#    test_m3_asset_manager_module_contract / test_release_metadata / test_signal_flow_design_system_contract
 python -m pytest -q
 ```
