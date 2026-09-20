@@ -98,3 +98,44 @@
 
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**；字体白名单放行 ≠ 分发授权。
 - 未闭环：真实外部 IdP、许可证义务闭合、SBOM 签名 / 来源证明、macOS / aarch64、生产容器部署与验收。
+
+
+---
+
+## 8. 推送与远端 CI 实测结果（2026-09-21 追加）
+
+- 提交：`3ff19b35c9f6aa7661930ea59affb6670c84ba84`（"Phase 5：依赖哈希锁、跨平台重装实测与许可证清点收口"）
+- 推送：`git push origin master` → `994b501..3ff19b3  master -> master`
+- 读回：`git rev-parse HEAD` == `git rev-parse origin/master` == `3ff19b35c9f6aa7661930ea59affb6670c84ba84`
+
+### 8.1 远端 CI（GitHub Actions，workflow `CI`）
+
+```text
+gh run list --workflow CI --branch master --limit 3
+completed  success  Phase 5：依赖哈希锁、跨平台重装实测与许可证清点收口  CI  master  push  35527154879  23s
+
+gh run view 35527154879 --json conclusion,headSha,event
+{"conclusion":"success","event":"push","headSha":"3ff19b35c9f6aa7661930ea59affb6670c84ba84","workflowName":"CI"}
+```
+
+关键步骤原文（`gh run view 35527154879 --log`）：
+
+```text
+验证关键依赖可导入 : 依赖导入通过: 0.141.1 2.13.5 0.53.0
+运行全量测试       : 63 passed, 2 warnings in 0.52s
+扫描二进制白名单   : 二进制白名单扫描通过；允许项仅为 3 个 Source Han Sans CN 字体路径。
+```
+
+`headSha` 与本轮提交**逐字一致**，故该 success 覆盖本轮工作树（Linux / Python 3.11 / ubuntu-latest）。
+
+### 8.2 口径边界（务必区分）
+
+| 层级 | 状态 |
+|---|---|
+| 本地实测（Windows / WSL2） | 通过（按锁重装、`pip check`、`63 passed`） |
+| 远端 CI（GitHub Actions，`3ff19b3`） | **success**（Linux Python 3.11，`63 passed`，二进制白名单通过） |
+| 生产验收 | **未执行**，仍为独立决策 |
+
+> CI success **不等于**发布授权或生产就绪。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+> 已知 CI 注解（非失败）：`actions/checkout@v4` / `actions/setup-python@v5` 的 Node.js 20 弃用提示，
+> 以及 `ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26 的提示 —— 属上游公告，非本轮缺陷。

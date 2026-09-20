@@ -83,4 +83,6 @@
 
 **阻断发布的判定不变**：真实外部 IdP 未接入（`verify_jwt` 未被任何生产路径调用）、许可证/第三方闭包未闭环、
 无生产容器部署证据、无发布授权。仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+**远端 CI 实测（2026-09-21 追加）**：提交 `3ff19b35c9f6aa7661930ea59affb6670c84ba84` 已 push，`origin/master` 与 `HEAD` 一致；CI run **`35527154879` = success**（headSha 逐字相同，Linux/Python 3.11，`63 passed`，二进制白名单通过）。该 run 覆盖本轮工作树。
+
 **本地通过 ≠ 远端 CI ≠ 生产验收**。
