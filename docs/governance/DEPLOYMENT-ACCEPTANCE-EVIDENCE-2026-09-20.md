@@ -26,3 +26,12 @@
 - 生产验收：未执行。
 - 远端 CI：未执行；release 仓历史运行曾为 failure，不能替代本轮证据。
 - 发布授权：未获得；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+---
+
+## 追加更新（2026-09-20 远端 CI）
+
+本节为**追加**，不改写上文。
+
+- 上文「远端 CI：未执行」为当时快照。修复行尾哈希问题后，远端 CI run `35512673637` = **success**（Linux `40 passed` + 二进制白名单通过）；详见 `docs/governance/agent-reports-2026-09-20/T-ci-remote.md`。
+- **生产验收仍未执行**；本地验收 ≠ 远端 CI ≠ 生产验收。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
