@@ -1,6 +1,7 @@
 """智能画布任务编排与状态模型。
 
-对齐 run_smart_canvas_task 接口契约与 202 Accepted 黄金夹具。
+对齐 run_smart_canvas_task 接口契约（仅 202 Accepted）与 202 黄金夹具；
+受理响应必须携带稳定 job_id 与 poll_hint，终态查询时 poll_hint 清空为 None。
 """
 
 from enum import Enum
@@ -37,12 +38,15 @@ class TaskStatus(str, Enum):
 
 
 class SmartCanvasTaskResponse(BaseModel):
-    """智能画布任务返回结构（支持 200 Completed 与 202 Accepted 契约）。"""
+    """智能画布任务返回结构（对齐 202 Accepted 契约）。
+
+202 受理响应必须携带 poll_hint；终态查询（completed/failed/cancelled）时 poll_hint 清空。
+"""
 
     model_config = ConfigDict(extra="allow")
 
     job_id: str = Field(..., description="异步任务稳定标识")
     state: str = Field(..., description="任务状态")
-    poll_hint: Optional[str] = Field(None, description="任务轮询或状态查询路径")
+    poll_hint: Optional[str] = Field(None, description="任务轮询或状态查询路径；202 受理时必填，终态清空")
     result: Optional[Dict[str, Any]] = Field(None, description="任务完成结果")
     error: Optional[str] = Field(None, description="任务失败原因")

@@ -150,3 +150,12 @@
 
 - 本登记为**工作树实测**；计数与字节数取自本次命令输出，不构成远端 CI 或生产验收。
 - 洁净仓当前仍为 `NOT AUTHORIZED FOR PUBLIC DISTRIBUTION`。
+
+## 追加更新（2026-09-20 收口）
+
+本节为**追加**，不改写上文逐文件登记与合计数。
+
+- §「已从工作树移除（未提交）」所列 5 个 comfyui/runninghub 文件，已于提交 `97b8b04` **落库删除**；当前 `git ls-files src/gods_workbench/static` 与磁盘**同为 108**，差集为 0。
+- 合计口径不变：108 文件 / 35,041,179 字节；四类 ① 2 / ② 90 / ③ 15 / ④ 1。
+- 复核见 `docs/governance/agent-reports-2026-09-20/T-classification.md`。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

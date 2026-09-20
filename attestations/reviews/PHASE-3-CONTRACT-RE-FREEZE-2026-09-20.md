@@ -490,3 +490,28 @@ src/gods_workbench/static/v2/js/projects-controller.js:1419: await fetch(`/api/c
 ```text
 （空）
 ```
+
+## 修正后重签（R2，2026-09-20）
+
+本附录为**追加**，不改写上文任何一行。上文记录的是 `cde7433` 时点的 GATE REOPENED 判定；本节记录针对上节 P1 项的修正后重签。
+
+### 修正项与证据
+
+| 上节 P1 | 修正 | 证据 |
+|---|---|---|
+| P1-1 拓扑写入 CAS 过宽（契约 optional、路由默认 None） | `restore_canvas` / `import_canvas_workflow` 的 `expected_version` 改为**必填 integer**；服务层去掉 `is not None` 短路，直接 `!=` 判 409 | `docs/contracts/CANVAS-INTERFACE-CATALOG.yaml`（restore/import 两处 `expected_version: integer`）；`src/gods_workbench/api/routes_god_canvas.py`；`src/gods_workbench/god_canvas/service.py` |
+| P1-2 智能任务契约过宽（允许 200、poll_hint 可选） | 契约收敛为**仅 202**，删除 `response_200`，`poll_hint: string`；`SmartCanvasTaskResponse` 说明 202 必填、终态清空 | `docs/contracts/CANVAS-INTERFACE-CATALOG.yaml`（`run_smart_canvas_task`，version→`remediation-2`）；`src/gods_workbench/god_canvas/tasks.py` |
+| P1-3 验证环境阻塞（无 pytest / fastapi） | 本机 Python 3.11 已装依赖，全量门禁可跑并据实记录（见下） | 本轮命令输出 |
+| P1-4 范围清理中（`/static/runninghub/` 残留） | comfyui/runninghub 全量移除；卫生用例改为“已删文件不得重现、保留页面不得引用已删路径、不得保留业务标识” | `tests/hygiene/test_cleanroom_hygiene.py` |
+| P1-5 认证仅拒字符串 `invalid` | 仍为**未闭环**；外部身份提供商方案见 `docs/governance/EXTERNAL-IDP-PLAN-2026-09-20.md` | 不在本轮契约冻结范围 |
+
+### 跨平台行尾修正（本轮关键修复）
+
+远端 CI（GitHub Actions run `35508749903` / `35508682089`）失败根因：哈希登记值绑定 **Windows CRLF 字节**，而 Linux 检出为 **LF**，同一文件字节不同导致两条哈希断言失败。
+
+- 修正：`tests/hygiene/test_cleanroom_hygiene.py` 新增 `_canonical_sha256()`（CRLF/CR→LF 归一）；`docs/provenance/PHASE-2-INPUT-SHA256.txt` 16 条、`AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` 2 条哈希重算为 LF 归一值；新增 `.gitattributes`（`* text=auto eol=lf` + 二进制标记）。
+- 证据：Windows 工作树 `python -m pytest` → **40 passed**；全树 LF 仿真 → **40 passed**；`node --check` 56/56；二进制白名单仅 3 个 `.otf`。
+
+### 重签结论
+
+SSoT 更正（P1-1 / P1-2）与跨平台行尾一致性问题已按证据修正，本地门禁复跑通过。**但本记录仍是机器自证加本地复核，不构成独立第三方审计，也不构成发布或生产授权**；P1-5（真实 IdP）与许可证/部署验收仍待闭环。仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

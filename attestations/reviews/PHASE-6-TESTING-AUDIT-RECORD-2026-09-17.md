@@ -96,3 +96,11 @@ tests/hygiene/test_phase6_deep_hygiene.py::test_cleanroom_secrets_and_plugin_pro
 - `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf`
 
 因此，本文档中「无图片、字体资源」「零二进制」等表述只反映 **2026-09-17/18 当时快照**，现已过时；按本仓库历史记录保护原则，**原文不追溯改写**，以本节为准。图片、截图、音视频、用户数据、凭据及白名单外字体仍一律禁止。
+
+## 后续状态更新（2026-09-20）
+
+本节为**追加指针**，不改写上文任何一行。
+
+- 上文「零二进制 / 不得提交字体 / 无字体资源」等表述为 **2026-09-17/18 时点快照**。当前权威口径以根 `AGENTS.md` §1.2 为准：仅 **3 个精确路径**的开源思源黑体（`SourceHanSansCN-{Bold,Medium,Normal}.otf`，OFL-1.1）列入唯一白名单，其余图片/字体/音视频等二进制一律禁止。
+- **开源字体放行 ≠ 公开分发授权**：仓库发布状态仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+- 当前重新取证见 `attestations/reviews/CURRENT-SNAPSHOT-AUDIT-2026-09-20.md` 与 `attestations/reviews/PHASE-3-CONTRACT-RE-FREEZE-2026-09-20.md`。

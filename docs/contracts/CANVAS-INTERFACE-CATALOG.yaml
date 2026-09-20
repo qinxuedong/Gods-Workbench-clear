@@ -5,7 +5,7 @@ meta:
   cleanroom_notice: "仅记录 method/path/body/status/schema/错误/验收语义。"
 
 service: canvas_and_smart_canvas
-version: remediation-1
+version: remediation-2
 
 interfaces:
   - name: list_canvases
@@ -84,7 +84,7 @@ interfaces:
     method: POST
     path: /api/canvases/{canvas_id}/restore
     body:
-      expected_version: "integer | optional"
+      expected_version: integer
     status:
       - 200
       - 401
@@ -108,7 +108,7 @@ interfaces:
     query:
       format: "enum(json|godmap)"
       merge_mode: "enum(replace|insert)"
-      expected_version: "integer | optional"
+      expected_version: integer
     status:
       - 200
       - 400
@@ -159,7 +159,6 @@ interfaces:
       run_mode: "enum(single|cascade)"
       inputs: object
     status:
-      - 200
       - 202
       - 400
       - 401
@@ -167,14 +166,11 @@ interfaces:
       - 404
       - 409
     schema:
-      response_200:
-        job_id: string
-        state: "completed"
       response_202:
         job_id: string
         state: "accepted"
-        poll_hint: "string | optional"
+        poll_hint: string
     errors:
       202: "异步受理，不代表失败"
       409: "版本冲突或运行前置条件不满足"
-    acceptance: "返回 202 时必须提供可追踪 job_id。"
+    acceptance: "受理必须返回 202，并携带稳定 job_id 与 poll_hint。"

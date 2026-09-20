@@ -674,3 +674,14 @@
 - **当前实测（`Get-ChildItem -Recurse -File src/gods_workbench/static`）**：108 个文件 / **35,041,179 字节**。
 - 与 `docs/provenance/STATIC-SCOPE-REGISTRY-2026-09-20.md` 的合计行 **108 / 35041179** 一致；类别计数不变：① 2（10,385 字节）、② 90（4,282,873 字节）、③ 15（30,723,433 字节）、④ 1（24,488 字节）。
 - 本注记为**追加更正**，不改写 §12.1–§12.5 任何一行；历史快照数字保留在 §12.5 中并以此注记覆盖其时效。
+
+### 12.7 远端 CI 失败根因与修复（2026-09-20）
+
+- **现象**：GitHub Actions run `35508749903` / `35508682089` 在「运行全量测试」失败，`2 failed, 38 passed`。
+- **失败用例**：`tests/hygiene/test_cleanroom_hygiene.py::test_accepted_non_canvas_slices_match_migration_manifest`、`::test_phase2_input_hashes_match_current_files`。
+- **根因（实证）**：`PHASE-2-INPUT-SHA256.txt` 与本轮前的 `AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` 的登记哈希绑定 **Windows CRLF 原始字节**；Linux CI 检出为 **LF**，同一文件字节不同。CI 报错值 `b0765218…` / `1ae7a240…` / `1ca8a32…` 恰等于 git blob（LF）哈希，证明差异 100% 来自行尾。
+- **修复**：① `tests/hygiene/test_cleanroom_hygiene.py` 新增 `_canonical_sha256()`（CRLF/CR→LF 归一），两处哈希断言改为行尾无关；② 16 条输入哈希 + 2 条迁移目标哈希重算为 LF 归一值；③ 新增 `.gitattributes`（`* text=auto eol=lf` + 二进制标记）。
+- **本轮实测**：Windows 工作树 `python -m pytest -q --no-header -p no:cacheprovider` → **40 passed**；全树 LF 仿真 → **40 passed**；`node --check` 56/56；二进制白名单违规 0（仅 3 个 `.otf`）。
+- **边界**：以上均为**本地**证据；**未 push、未跑远端 CI、未做生产验收**（以实际 GitHub Actions run 为准）。仓库仍为 `NOT AUTHORIZED FOR PUBLIC DISTRIBUTION`。
+- **同轮 Phase 3 契约修正**：`restore_canvas` / `import_canvas_workflow` 的 `expected_version` 改必填 integer 并强制 CAS；`run_smart_canvas_task` 收敛为仅 202 + `poll_hint: string`；契约 version → `remediation-2`。详见 `attestations/reviews/PHASE-3-CONTRACT-RE-FREEZE-2026-09-20.md` 修正后重签（R2）。
+- **本注记为追加**，不改写 §1–§12.6 任何一行。

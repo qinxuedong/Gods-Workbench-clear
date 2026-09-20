@@ -116,7 +116,7 @@ def test_god_canvas_godmap_and_json_import_export():
 
     # 导入非法数据测试
     with pytest.raises(CleanroomException) as excinfo:
-        service.import_workflow("cv-0001", content="not valid json", file_format="json")
+        service.import_workflow("cv-0001", content="not valid json", expected_version=2, file_format="json")
     assert excinfo.value.status_code == 400
 
     bad_godmap = json.dumps(
@@ -131,7 +131,7 @@ def test_god_canvas_godmap_and_json_import_export():
         }
     )
     with pytest.raises(CleanroomException) as godmap_error:
-        service.import_workflow("cv-0001", content=bad_godmap, file_format="godmap")
+        service.import_workflow("cv-0001", content=bad_godmap, expected_version=2, file_format="godmap")
     assert godmap_error.value.code == "INVALID_TOPOLOGY"
 
 

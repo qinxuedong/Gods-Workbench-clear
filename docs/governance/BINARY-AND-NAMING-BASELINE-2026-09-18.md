@@ -257,3 +257,11 @@ git gc --prune=now
 - 证据边界：均为**本地**门禁与**本地**提交（洁净室仓 `7643fd6` 之前为 `abd0e88`；T13 为 `28c23bf` + `996c3ba`）；**未 push、未跑远端 CI、未做生产验收**，**不等于生产就绪**。
 - 指针：`TASK-NOTES-2026-09-18.md` §2（T12）、§4.1（T13）。本文档 §8.4 / §8.3 原文保留不改。
 
+
+## 后续状态更新（2026-09-20）
+
+本节为**追加指针**，不改写上文任何一行。
+
+- 上文「零二进制 / 不得提交字体 / 无字体资源」等表述为 **2026-09-17/18 时点快照**。当前权威口径以根 `AGENTS.md` §1.2 为准：仅 **3 个精确路径**的开源思源黑体（`SourceHanSansCN-{Bold,Medium,Normal}.otf`，OFL-1.1）列入唯一白名单，其余图片/字体/音视频等二进制一律禁止。
+- **开源字体放行 ≠ 公开分发授权**：仓库发布状态仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+- 当前重新取证见 `attestations/reviews/CURRENT-SNAPSHOT-AUDIT-2026-09-20.md` 与 `attestations/reviews/PHASE-3-CONTRACT-RE-FREEZE-2026-09-20.md`。

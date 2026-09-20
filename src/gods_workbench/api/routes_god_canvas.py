@@ -108,14 +108,15 @@ def update_canvas_topology(
 )
 def restore_canvas(
     canvas_id: str,
-    payload: Optional[CasVersionRequest] = None,
+    payload: CasVersionRequest,
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """恢复画布。"""
+    """恢复画布；按章程必须携带 expected_version（CAS）。"""
     require_edit_access(authorization, x_user_role)
-    expected_v = payload.expected_version if payload else None
-    result = default_god_canvas_service.restore_canvas(canvas_id, expected_version=expected_v)
+    result = default_god_canvas_service.restore_canvas(
+        canvas_id, expected_version=payload.expected_version
+    )
     return CanvasMutationResponse(canvas=result)
 
 
@@ -130,11 +131,11 @@ async def import_canvas_workflow(
     request: Request,
     format: str = Query("json", description="文件格式: json | godmap"),
     merge_mode: str = Query("replace", description="合并模式: replace | insert"),
-    expected_version: Optional[int] = Query(None, description="期望 CAS 版本"),
+    expected_version: int = Query(..., description="期望 CAS 版本（必填）"),
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """导入工作流拓扑文件并进行严格结构校验。"""
+    """导入工作流拓扑文件并进行严格结构校验；按章程必须携带 expected_version（CAS）。"""
     require_edit_access(authorization, x_user_role)
     body_bytes = await request.body()
     content_str = body_bytes.decode("utf-8")

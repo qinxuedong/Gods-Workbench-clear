@@ -85,3 +85,11 @@
 
 审核人：独立审核代理人（只读取证，未做任何删除/回退/提交）
 审核时间：2026-09-18
+
+## 后续状态更新（2026-09-20）
+
+本节为**追加指针**，不改写上文任何一行。
+
+- 上文「零二进制 / 不得提交字体 / 无字体资源」等表述为 **2026-09-17/18 时点快照**。当前权威口径以根 `AGENTS.md` §1.2 为准：仅 **3 个精确路径**的开源思源黑体（`SourceHanSansCN-{Bold,Medium,Normal}.otf`，OFL-1.1）列入唯一白名单，其余图片/字体/音视频等二进制一律禁止。
+- **开源字体放行 ≠ 公开分发授权**：仓库发布状态仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+- 当前重新取证见 `attestations/reviews/CURRENT-SNAPSHOT-AUDIT-2026-09-20.md` 与 `attestations/reviews/PHASE-3-CONTRACT-RE-FREEZE-2026-09-20.md`。

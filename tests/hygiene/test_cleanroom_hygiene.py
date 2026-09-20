@@ -24,6 +24,16 @@ ALLOWED_BINARY_ALLOWLIST = {
 }
 
 
+def _canonical_sha256(path: Path) -> str:
+    """按内容规范化（CRLF/CR 归一为 LF）后计算 SHA-256。
+
+    登记表绑定的是**文件内容**，而不是某个平台的检出行尾表示；Windows 工作树
+    与 Linux CI 检出必须得到同一结论，因此比较前统一归一化行尾。
+    """
+    raw = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(raw).hexdigest()
+
+
 def test_no_banned_binary_assets(repo_root: Path):
     """确保仓库中绝不存在受限的图片、字体或音视频等二进制资源。
 
@@ -170,7 +180,7 @@ def test_accepted_non_canvas_slices_match_migration_manifest(repo_root: Path):
     actual = {}
     for relative_path in expected:
         path = repo_root / relative_path
-        actual[relative_path] = hashlib.sha256(path.read_bytes()).hexdigest()
+        actual[relative_path] = _canonical_sha256(path)
     assert actual == expected, "接受迁移切片的目标哈希与来源登记不一致"
 
 
@@ -184,5 +194,5 @@ def test_phase2_input_hashes_match_current_files(repo_root: Path):
             entries.append((match.group(1).lower(), match.group(2).strip()))
     assert len(entries) == 16
     for expected, relative_path in entries:
-        actual = hashlib.sha256((repo_root / relative_path).read_bytes()).hexdigest()
+        actual = _canonical_sha256(repo_root / relative_path)
         assert actual == expected, f"输入哈希不匹配: {relative_path}"

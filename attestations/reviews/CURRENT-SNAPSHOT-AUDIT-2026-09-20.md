@@ -462,3 +462,25 @@ JS 检查总数: 56 失败: 0
 ```text
 （空）
 ```
+
+## 当前快照审计（R2，2026-09-20）
+
+本附录为**追加**，不改写上文任何一行。上文绑定 `cde7433` + 当时脏工作树；本节记录修正后的当前快照实测。
+
+### 本轮实测（Python 3.11，工作目录为本仓根）
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 全量测试 | `python -m pytest -q --no-header -p no:cacheprovider` | **40 passed** |
+| JS 语法 | `node --check`（全部保留 `.js`） | **56 / 56 通过** |
+| 二进制白名单 | 全仓扫描（排除 `.git`） | 违规 **0**；仅 3 个白名单 `.otf` |
+| 源码残留 | `runninghub` / `comfyui` / `.rh-` | **0** |
+| 静态层字节 | `Get-ChildItem -Recurse -File src/gods_workbench/static` | **108 文件 / 35,041,179 字节** |
+
+### 行尾口径
+
+上一版远端 CI 失败由 **CRLF/LF 哈希口径不统一**造成（详见 `PHASE-3-CONTRACT-RE-FREEZE-2026-09-20.md` 修正后重签附录）。已新增 `.gitattributes` 并令卫生用例按**内容归一化**计算哈希；Windows 与 LF 检出得到同一结论。
+
+### 边界
+
+本地通过 **≠** 远端 CI **≠** 生产验收。远端结果以 GitHub Actions 实际 run 为准。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

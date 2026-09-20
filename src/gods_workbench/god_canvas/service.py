@@ -188,15 +188,15 @@ class GodCanvasService:
 
             return CanvasMutationResult(canvas_id=canvas_id, version=top.version)
 
-    def restore_canvas(self, canvas_id: str, expected_version: Optional[int] = None) -> CanvasMutationResult:
-        """恢复画布。"""
+    def restore_canvas(self, canvas_id: str, expected_version: int) -> CanvasMutationResult:
+        """恢复画布；按章程强制 CAS：版本不一致严格返回 409 CANVAS_VERSION_CONFLICT。"""
         with self._lock:
             item = self._canvases.get(canvas_id)
             top = self._topologies.get(canvas_id)
             if not item or not top:
                 raise CleanroomException(status_code=404, code="CANVAS_NOT_FOUND", message=f"画布 {canvas_id} 不存在")
 
-            if expected_version is not None and top.version != expected_version:
+            if top.version != expected_version:
                 raise CanvasVersionConflictException(
                     expected_version=expected_version,
                     current_version=top.version,
@@ -211,18 +211,18 @@ class GodCanvasService:
         self,
         canvas_id: str,
         content: str,
+        expected_version: int,
         file_format: str = "json",
         merge_mode: str = "replace",
-        expected_version: Optional[int] = None,
     ) -> CanvasImportResponse:
-        """导入工作流文件（严格支持 json 与 godmap 拓扑校验）。"""
+        """导入工作流文件（严格支持 json 与 godmap 拓扑校验）；按章程强制 CAS。"""
         with self._lock:
             item = self._canvases.get(canvas_id)
             top = self._topologies.get(canvas_id)
             if not item or not top:
                 raise CleanroomException(status_code=404, code="CANVAS_NOT_FOUND", message=f"画布 {canvas_id} 不存在")
 
-            if expected_version is not None and top.version != expected_version:
+            if top.version != expected_version:
                 raise CanvasVersionConflictException(
                     expected_version=expected_version,
                     current_version=top.version,
