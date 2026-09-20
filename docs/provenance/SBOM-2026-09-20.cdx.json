@@ -1,0 +1,629 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:dc7bbe1d-e7da-5cc7-aa44-08eaeabd038c",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-09-20T00:00:00+08:00",
+    "component": {
+      "type": "application",
+      "name": "Gods-Workbench-clear",
+      "version": "0.1.0"
+    },
+    "properties": [
+      {
+        "name": "gw:generator",
+        "value": "主代理本地复算：干净 venv pip install -> pip freeze -> importlib.metadata -> SHA-256"
+      },
+      {
+        "name": "gw:python",
+        "value": "3.11.9"
+      },
+      {
+        "name": "gw:evidence-boundary",
+        "value": "干净 venv 已完成联网安装并跑通全量 pytest；但本 SBOM 不含 wheel/sdist 哈希、无签名、无来源证明；Linux 闭包含 uvloop 差异"
+      },
+      {
+        "name": "gw:release-state",
+        "value": "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "annotated-doc",
+      "version": "0.0.5",
+      "scope": "runtime",
+      "purl": "pkg:pypi/annotated-doc@0.0.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/annotated-types@0.8.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: MIT License"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "anyio",
+      "version": "4.15.1",
+      "scope": "runtime",
+      "purl": "pkg:pypi/anyio@4.15.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "certifi",
+      "version": "2026.7.22",
+      "scope": "test",
+      "purl": "pkg:pypi/certifi@2026.7.22",
+      "licenses": [
+        {
+          "license": {
+            "id": "MPL-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "cffi",
+      "version": "2.1.1",
+      "scope": "runtime",
+      "purl": "pkg:pypi/cffi@2.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT-0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "click",
+      "version": "8.5.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/click@8.5.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "colorama",
+      "version": "0.4.6",
+      "scope": "test",
+      "purl": "pkg:pypi/colorama@0.4.6",
+      "licenses": [
+        {
+          "license": {
+            "name": "未提供 SPDX id；见 classifier 记录"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: BSD License"
+        },
+        {
+          "name": "gw:platform",
+          "value": "仅 Windows 需要"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "cryptography",
+      "version": "46.0.7",
+      "scope": "runtime",
+      "purl": "pkg:pypi/cryptography@46.0.7",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fastapi",
+      "version": "0.141.1",
+      "scope": "runtime",
+      "purl": "pkg:pypi/fastapi@0.141.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "h11",
+      "version": "0.16.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/h11@0.16.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: MIT License"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httpcore",
+      "version": "1.0.9",
+      "scope": "test",
+      "purl": "pkg:pypi/httpcore@1.0.9",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: BSD License"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httptools",
+      "version": "0.8.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/httptools@0.8.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httpx",
+      "version": "0.28.1",
+      "scope": "test",
+      "purl": "pkg:pypi/httpx@0.28.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: BSD License"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "idna",
+      "version": "3.20",
+      "scope": "runtime",
+      "purl": "pkg:pypi/idna@3.20",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "iniconfig",
+      "version": "2.3.0",
+      "scope": "test",
+      "purl": "pkg:pypi/iniconfig@2.3.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "packaging",
+      "version": "26.3",
+      "scope": "test",
+      "purl": "pkg:pypi/packaging@26.3",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR BSD-2-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pluggy",
+      "version": "1.6.0",
+      "scope": "test",
+      "purl": "pkg:pypi/pluggy@1.6.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: MIT License"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pycparser",
+      "version": "3.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/pycparser@3.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydantic",
+      "version": "2.13.5",
+      "scope": "runtime",
+      "purl": "pkg:pypi/pydantic@2.13.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydantic_core",
+      "version": "2.46.5",
+      "scope": "runtime",
+      "purl": "pkg:pypi/pydantic-core@2.46.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "Pygments",
+      "version": "2.21.0",
+      "scope": "test",
+      "purl": "pkg:pypi/pygments@2.21.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pytest",
+      "version": "9.1.1",
+      "scope": "test",
+      "purl": "pkg:pypi/pytest@9.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "python-dotenv",
+      "version": "1.2.3",
+      "scope": "runtime",
+      "purl": "pkg:pypi/python-dotenv@1.2.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "scope": "runtime",
+      "purl": "pkg:pypi/pyyaml@6.0.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: MIT License"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "starlette",
+      "version": "1.6.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/starlette@1.6.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "typing-inspection",
+      "version": "0.4.4",
+      "scope": "runtime",
+      "purl": "pkg:pypi/typing-inspection@0.4.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/typing-extensions@4.16.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "PSF-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "uvicorn",
+      "version": "0.53.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/uvicorn@0.53.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "watchfiles",
+      "version": "1.2.0",
+      "scope": "runtime",
+      "purl": "pkg:pypi/watchfiles@1.2.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:license:classifier",
+          "value": "License :: OSI Approved :: MIT License"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "websockets",
+      "version": "17.1",
+      "scope": "runtime",
+      "purl": "pkg:pypi/websockets@17.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "uvloop",
+      "version": "未在本机解析（仅非 Windows 平台）",
+      "scope": "runtime",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:note",
+          "value": "uvicorn[standard] 的 uvloop 带 sys_platform != 'win32' 标记；Linux CI 与生产容器会安装，交付锁必须补登并复核"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "src/gods_workbench/static/vendor/MANIFEST.md",
+      "scope": "runtime",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1148e1d02d166783784fd2efccf290c322931ddf9a4061b3b4548bd49581c648"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "src/gods_workbench/static/vendor/css/fonts.css",
+      "scope": "runtime",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0779fb82cd9040b28555ede2ac4a193ccc28a23d354f5c7a9aaea9972c6c05e3"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf",
+      "scope": "runtime",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0972537ef0238ccf5b3b055caffc15b69e314ac676b0b9bac8e5649d76e2f03a"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf",
+      "scope": "runtime",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9cdeb297c219d4a73201c70f01a41f7b0d2feab5b0384312ee3e91971a8d037a"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf",
+      "scope": "runtime",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "dd058ac5fd8471302d4f8331384eff3c594d6fc1fb90f1a3566832e8da090fab"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "src/gods_workbench/static/vendor/js/lucide.js",
+      "scope": "runtime",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "187a756625c5ce7499c207d1b0d1cf4e1ab95e3f666c7e0cd0fafc3e6842d040"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "src/gods_workbench/static/vendor/js/three-0.160.0.module.js",
+      "scope": "runtime",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "76dea8151bc9352aef3528b4262e249b2604f62543828328db978d060d61a495"
+        }
+      ]
+    },
+    {
+      "type": "framework",
+      "name": "Tailwind CSS CDN",
+      "version": "未钉死版本",
+      "scope": "external",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://cdn.tailwindcss.com?plugins=forms,container-queries"
+        }
+      ],
+      "properties": [
+        {
+          "name": "gw:risk",
+          "value": "CDN URL 未钉死版本；传递依赖可能含 Apache-2.0 / CC-BY-4.0，须在生产制品中另行裁决"
+        }
+      ]
+    }
+  ]
+}

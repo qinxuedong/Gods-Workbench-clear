@@ -105,3 +105,15 @@ python -m pytest -q --no-header -p no:cacheprovider
 ## 当前未完成项与证据边界
 
 本轮未执行远端 CI、容器/服务器部署、TLS/反向代理、真实外部 IdP、生产数据、备份恢复或生产流量验收；也未执行 `git add`、`commit`、`push`、`remote`。因此当前最多可称为“本地可验收方案 + 当前工作区聚焦检查”，不可称为部署完成、生产就绪或公开发布授权。
+
+## 更正注记（2026-09-20，Phase 4）
+
+本节为对历史记录的追加更正，不改写上文第 32 行历史表述。
+
+- 历史行 32 的“当前仓库没有 `requirements*.txt` 或锁文件”表述已由当前工作区事实纠正：`git ls-files requirements.txt requirements-dev.txt` 输出 `requirements-dev.txt`、`requirements.txt`；两文件自提交 `97b8b04` 起已被跟踪。
+- 依赖复现实测：在 `%TEMP%\gw-a3-20260920\venv` 以 Python 3.11.13 创建全新环境，并执行 `pip install -r requirements-dev.txt`。首次执行原文错误为 `UnicodeDecodeError: 'gbk' codec can't decode byte 0x96 in position 34: illegal multibyte sequence`；设置 `PYTHONUTF8=1` 重试后的原文错误为 `WARNING: ... NewConnectionError ... [WinError 10013] 以一种访问权限不允许的方式做了一个访问套接字的尝试。`，随后 `ERROR: Could not find a version that satisfies the requirement fastapi<1,>=0.115` 与 `ERROR: No matching distribution found for fastapi<1,>=0.115`。因此安装结果登记为“失败/未完成”，不能声称干净环境安装成功。
+- 失败后的空环境复核：`python -m pip check` 原文为 `No broken requirements found.`；`python -m pip freeze` 无输出。该结果仅说明空环境没有已安装包的冲突，不构成依赖安装成功证据。
+- import 覆盖复核扫描命令与结论见部署复现报告：`src/**/*.py` 与 `run.py` 的第三方顶层 import 均被依赖文件声明覆盖。
+- 全量回归命令 `python -m pytest -q --no-header -p no:cacheprovider` 在临时 PATH 包装器（仅位于 `%TEMP%\gw-a2-20260920\bin`，未入库）下原文输出 `63 passed in 0.39s`；该结果是本地测试证据，不替代远端 CI 或生产验收。
+- A1 负责锁文件与 SBOM；本任务不生成 `requirements.lock`。即使安装成功，也只能说明本地依赖复现步骤可执行，不能证明生产部署、发布授权或生产就绪。
+- 原文错误补充：首次安装的错误类型为 `UnicodeDecodeError: 'gbk' codec can't decode byte 0x96 in position 34: illegal multibyte sequence`；UTF-8 重试对 `/simple/fastapi/` 连续 5 次报告 `[WinError 10013] 以一种访问权限不允许的方式做了一个访问套接字的尝试。`，最终为 `ERROR: Could not find a version that satisfies the requirement fastapi<1,>=0.115 (from versions: none)` 与 `ERROR: No matching distribution found for fastapi<1,>=0.115`。完整记录见 `T-deploy-repro.md` §3.4。

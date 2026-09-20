@@ -685,3 +685,61 @@
 - **边界**：以上均为**本地**证据；**未 push、未跑远端 CI、未做生产验收**（以实际 GitHub Actions run 为准）。仓库仍为 `NOT AUTHORIZED FOR PUBLIC DISTRIBUTION`。
 - **同轮 Phase 3 契约修正**：`restore_canvas` / `import_canvas_workflow` 的 `expected_version` 改必填 integer 并强制 CAS；`run_smart_canvas_task` 收敛为仅 202 + `poll_hint: string`；契约 version → `remediation-2`。详见 `attestations/reviews/PHASE-3-CONTRACT-RE-FREEZE-2026-09-20.md` 修正后重签（R2）。
 - **本注记为追加**，不改写 §1–§12.6 任何一行。
+
+
+## 13. Phase 4：发布门禁推进（2026-09-20/21，滚动更新）
+
+> 本节仅追加，不改写 §1–§12.7 任何一行。工作目录：洁净仓根；基线提交 `c2d3758`（本地 == `origin/master`）。
+> 任务书：`docs/governance/AGENT-TASK-2026-09-20-PHASE4.md`。
+
+### 13.1 起点（HANDOFF-3 的三个未闭环项）
+
+`HANDOFF-3.md` §6 列明未闭环：**真实外部 IdP / 许可证最终结论 / 运行时部署证据**。本轮针对前两项与证据链推进，第三项（生产验收）明确**不在本轮范围**。
+
+### 13.2 分派与产物
+
+| 任务 | 负责人 | 产物 | 结果 |
+|---|---|---|---|
+| P4-A2 外部 IdP 影子校验 | 代理 A2 | `src/gods_workbench/core/oidc.py`、`tests/contracts/test_oidc_verifier.py`、`requirements.txt`(+`cryptography>=42,<47`)、`T-oidc-shadow.md` | 完成；23 条专测 |
+| P4-A3 治理文档漂移 + 部署可复现证据 | 代理 A3 | 两份治理文档追加章节、`T-deploy-repro.md` | 完成；沙箱内安装失败，主代理复跑成功（见 §13.4） |
+| P4-A1 依赖锁与 SBOM | 代理 A1 | `requirements.lock`、`docs/provenance/SBOM-2026-09-20.cdx.json`、`T-lock-sbom.md` | **首版含不可复算数字，主代理重算重写** |
+| P4-B1 独立对抗式终审 | 审核代理 B1 | `attestations/reviews/PHASE-4-INDEPENDENT-REVIEW-2026-09-20.md` | R1 不可提交 → 修正 → R2 本地可提交 |
+
+### 13.3 门禁实测（主代理复跑）
+
+- `python -m pytest -q --no-header -p no:cacheprovider` → **63 passed**（基线 40 + 新增 23）。
+- `.js` 的 `node --check` → **56/56 通过**。
+- 二进制红线扫描（跳过 `.git`）→ 违规 **0**，仅 3 个白名单 `.otf`。
+- 治理文档追加性：`git diff --numstat` 删除列均为 **0**（纯追加）。
+- 未新增根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`。
+
+### 13.4 干净环境安装实测（本轮证据升级）
+
+在 `%TEMP%\gw-root-20260920\venv-clean`（CPython 3.11.9）实测：
+
+- `pip install -r requirements-dev.txt` **成功**（30 包）；
+- `pip check` → `No broken requirements found.`；
+- `pytest` → **63 passed**。
+
+**边界**：该干净环境按**区间约束**解析，**未按 `requirements.lock` 精确钉版本重装**；未在 Linux/容器复跑（Linux 闭包会额外含 `uvloop`）；无哈希锁、无 SBOM 签名与来源证明。
+
+### 13.5 发现的真实缺陷与处置（重要）
+
+代理 A1 首版 `requirements.lock` 与 SBOM **含有无法复算的推测版本**（如 certifi 2025.8.3 / cffi 2.0.0 / httptools 0.7.1 / idna 3.1 / pycparser 2.23 / Pygments 2.19.2），且 A1 明确登记其沙箱**无法执行 Python**。主代理据此：
+
+1. 用 `pip list --format=freeze` + `importlib.metadata` 复算真实版本；
+2. 新建干净 venv 实测安装，取得权威闭包；
+3. 重写 `requirements.lock`（主表 30 条 = 干净 venv 实测；附表 31 条 = 本机快照）与 SBOM（39 组件 = 31 library + 7 file + 1 framework）；
+4. 在 `T-lock-sbom.md` §7 保留「更正记录」，不掩盖首版错误。
+
+另：审核代理 B1 在 R1 指出 3 处报告口径缺陷（`T-lock-sbom.md` 的「未新增依赖」与 A2 实际新增 `cryptography` 冲突、`T-deploy-repro.md` 双环境需连读、`T-oidc-shadow.md` 把 63 等同 OIDC 专测），主代理已逐条修正，B1 在 R2 确认闭环。
+
+### 13.6 主代理对抗复核（OIDC 模块）
+
+自行构造 10 条绕过尝试（禁用配置、空 issuer、伪造签名、未知组、无组、`alg=none`、HS256 混淆、伪 kid、错误 issuer、JWKS 含私钥），**全部被拒绝**；合法令牌通过并映射为 `editor`；多组取最高（`readonly`+`admin` → `admin`）。结论：默认关闭、失败关闭的设计在本轮范围内成立。
+
+### 13.7 证据边界与未闭环项
+
+- **本地通过 ≠ 远端 CI ≠ 生产验收**。上一轮远端 CI `success` 绑定 `8c955e2`~`c2d3758`，**不覆盖本轮工作树**。
+- 未闭环：真实外部 IdP（模块**不接线**）、许可证最终结论（提示词快照与 Tailwind CDN 闭包）、**生产部署证据**、哈希锁、SBOM 签名/来源证明、Linux 容器闭包。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

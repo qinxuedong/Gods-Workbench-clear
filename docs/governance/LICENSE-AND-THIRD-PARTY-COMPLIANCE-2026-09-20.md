@@ -41,3 +41,23 @@
 2. 将 OFL-1.1、ISC、MIT、BSD-3-Clause、CC BY 4.0 及 Feather 派生声明纳入发布包；对 CC BY 条目保留作者、来源与修改说明。
 3. 对 Tailwind 运行时改为固定、可复核的制品策略，或在生产中明确 CDN 的 SRI/镜像/可用性与许可证闭包。
 4. 由独立人工审计复核；在此之前，发布状态继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+## 更正注记（2026-09-20，Phase 4）
+
+本节为对历史记录的追加更正，不改写上文第 26–29 行历史表述。
+
+- 历史行 26–29 的“无 `requirements*.txt`/锁文件”表述已由当前工作区事实纠正：复核命令 `git ls-files requirements.txt requirements-dev.txt` 输出 `requirements-dev.txt`、`requirements.txt`；两文件自提交 `97b8b04` 起已被跟踪。当前 `requirements.txt` 声明 FastAPI、Uvicorn、Pydantic、Cryptography，`requirements-dev.txt` 通过 `-r requirements.txt` 继承运行期依赖并追加 pytest、httpx。
+- 复核命令：`Get-Content requirements.txt; Get-Content requirements-dev.txt`。结论：仓库已有依赖声明文件；本注记不把其等同于精确版本锁或发布合规闭包。
+- 依赖安装实测见 `docs/governance/agent-reports-2026-09-20/T-deploy-repro.md`：在 `%TEMP%\gw-a3-20260920\venv` 使用 Python 3.11.13 新建环境；首次安装因本机 pip 文件解码报错失败，设置 `PYTHONUTF8=1` 重试后因网络套接字权限失败，均按原文记录，未改写为成功。
+- import 覆盖复核命令扫描 `src/**/*.py` 与 `run.py`；第三方顶层 import 为 `cryptography, fastapi, pydantic, uvicorn`，均由 `requirements.txt` 覆盖；pytest/httpx 为开发测试依赖，由 `requirements-dev.txt` 覆盖。
+- 本次更正不改变组件“未闭环”判断：A1 负责 `requirements.lock` 与 SBOM；本任务未生成锁文件，亦未新增根级 `LICENSE` 或 `THIRD_PARTY_NOTICES.md`。
+
+
+## 追加更正（2026-09-20，Phase 4，主代理补充）
+
+本节继续追加，不改写上文任何一行。上文 A3 注记记录的是 A3 所在沙箱的安装失败；主代理在自身 shell 中复跑后**安装成功**，故「依赖可复现」的**环境阻塞已解除，但结论仍未闭环**：
+
+- 干净 venv 实测：`pip install -r requirements-dev.txt` 成功（30 个包），`pip check` 无冲突，`pytest` **63 passed**。
+- 仍未闭环的部分：未按 `requirements.lock` 精确钉版本重装；无哈希锁；未在 Linux/容器复跑（Linux 会额外安装 `uvloop`）；无 SBOM 签名与来源证明。
+- 证据文件：`requirements.lock`、`docs/provenance/SBOM-2026-09-20.cdx.json`、`docs/governance/agent-reports-2026-09-20/T-lock-sbom.md`。
+- 因此本清单中 Python 运行期组件的「未闭环」判定**维持不变**，原因从「无依赖声明/无法安装」更新为「缺哈希锁、跨平台锁与签名来源证明」。

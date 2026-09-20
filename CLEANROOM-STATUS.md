@@ -46,3 +46,16 @@
 - 5 项失败用例与原因登记见 `docs/governance/TASKS.md` 第二节及 `docs/governance/FILE-GOVERNANCE-2026-09-18.md`。
 - 归因：5 项失败均为**既有基线问题**（受限二进制资源未裁决、旧集成标记基线未重定义、V2 `workshop.html` 命名断言待裁决），非本轮「经典版删除」引入。
 > 后续状态更新（2026-09-20）：上述三项均已裁决并落地——受限二进制资源已按 3 个思源黑体白名单化、`.git` 对象库内嵌二进制已清理（T12）、旧集成标记基线已重定义并移除快捷工具/画布内页（T13）。当前全量 `pytest` 为 40 passed（本地）。详见 `docs/governance/TASK-NOTES-2026-09-18.md` §2/§4.1。
+
+
+## Phase 4 状态更新（2026-09-20/21 追加）
+
+本节仅追加，不改动上方任何历史行。
+
+- 当前全量本地 `python -m pytest -q --no-header -p no:cacheprovider` = **63 passed**（新增 23 条 OIDC 契约测试）。
+- 远端 CI run `35512673637`（及后续 `35512832677` / `35512899099`）均为 **success**；该结论绑定提交 `8c955e2`~`c2d3758`，**不覆盖本轮 Phase 4 工作树**（本轮尚未提交、未推送）。
+- Phase 4 新增能力（尚未提交）：外部 IdP **影子校验模块**（`src/gods_workbench/core/oidc.py`，默认关闭 / 失败关闭 / **不接线**）、依赖**版本锁**（`requirements.lock`）、**CycloneDX SBOM**（`docs/provenance/SBOM-2026-09-20.cdx.json`）。
+- 干净 venv 实测：`pip install -r requirements-dev.txt` 成功（30 包），`pip check` 无冲突，`pytest` 63 passed；**仍未按 lock 精确重装**、无哈希锁、无签名/来源证明。
+- 独立审核代理 B1 两轮对抗式终审：R1 判**不可提交**（提出 3 处报告口径缺陷）→ 主代理修正 → R2 判**本地证据范围内可提交**。详见 `attestations/reviews/PHASE-4-INDEPENDENT-REVIEW-2026-09-20.md`。
+
+**仍然阻断发布的判定不变**：真实外部 IdP 未接入（`verify_jwt` 未被任何生产路径调用）、许可证/第三方闭包未闭环、无 Linux/容器与生产部署证据、无发布授权。仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
