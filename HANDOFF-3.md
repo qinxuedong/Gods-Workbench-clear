@@ -1,6 +1,6 @@
 # HANDOFF-3 —— 2026-09-20 CI 修复与 Phase 3 修正收口
 
-> 状态：**本地已完成，待 push / 远端 CI 实测**。
+> 状态：**已完成（本地 + 远端 CI）**；push 成功，远端 CI run `35512673637` = success；生产验收未执行。
 > 依据：根 `AGENTS.md`；真源为 `D:\Working\Code Pro\Gods-Workbench-release`。
 
 ## 1. 本轮解决的核心问题：远端 CI 失败
@@ -33,9 +33,9 @@
 
 ## 5. 下一步（主代理执行）
 
-1. 逐文件 `git add`（禁止 `git add -A`）；中文提交信息。
-2. `git push` → `gh workflow run CI`；据实记录结果。
-3. 生产验收为**独立决策**，不得由本地通过假定完成。
+1. ~~逐文件 `git add`；中文提交信息。~~ 已完成：提交 `8c955e2`。
+2. ~~`git push` → 远端 CI。~~ 已完成：push 成功（`6a3389f..8c955e2`），run `35512673637` = **success**（Linux `40 passed` + 二进制白名单通过）。
+3. 生产验收为**独立决策**，未执行，不得由 CI 通过假定完成。
 
 ## 6. 边界
 

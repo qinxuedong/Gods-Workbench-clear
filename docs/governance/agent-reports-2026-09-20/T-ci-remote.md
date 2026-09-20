@@ -107,3 +107,26 @@ LF 检出模拟（把所有文本文件归一为 LF 后再跑）：             
 - 因此**不能**宣称「远端 CI 已通过」；当前最多可宣称「已定位并在本地/跨平台模拟下修复，待下一次远端 run 复核」。
 - 历史两次 run 的失败**是代码/登记缺陷**（已修复），与本仓历史上「计费导致任务未启动」的记录不同；
   两者不可混为一谈。
+
+---
+
+## 远端 CI 实测结果（2026-09-20 修复后）
+
+本节为**追加**。
+
+### 修复前（失败）
+
+- run `35508749903` / `35508682089`：步骤「运行全量测试」失败，`2 failed, 38 passed`。
+- 失败用例：`test_accepted_non_canvas_slices_match_migration_manifest`、`test_phase2_input_hashes_match_current_files`。
+- 根因：登记哈希绑定 Windows CRLF 字节，Linux 检出为 LF（CI 报错值等于 git blob LF 哈希）。
+
+### 修复后（通过）
+
+- 提交：`8c955e2d3072df5916758b1e462013dd7547b24b`（`master`，已 `git push`，`6a3389f..8c955e2`）。
+- run `35512673637`：**completed / success**，作业「Python 3.11 tests and hygiene」16s。
+- 远端实测：`40 passed, 2 warnings in 0.57s`；步骤「扫描二进制白名单」通过（允许项仅 3 个 Source Han Sans CN 字体路径）。
+- 证据命令：`gh run view 35512673637 --log` / `gh run list --limit 3`。
+
+### 边界
+
+以上为**远端 CI**结果；**生产验收未执行**，属独立决策，不能由 CI 通过替代。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

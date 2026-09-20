@@ -33,7 +33,8 @@
 
 ## 四、仍开放 / 未执行（诚实声明）
 
-- **未执行**：push、远端 CI、生产验收（本报告撰写时点）。远端以 GitHub Actions 实际 run 为准。
+- **已执行（本轮追加）**：`git push` 成功（`6a3389f..8c955e2`）；远端 CI run `35512673637` = **success**，Linux 实测 `40 passed`。
+- **未执行**：生产验收（独立决策，不能由 CI 通过替代）。
 - **未闭环**：真实外部身份提供商（当前认证仅拒字符串 `invalid`，方案见 `EXTERNAL-IDP-PLAN-2026-09-20.md`）；许可证/第三方依赖合规的最终法务结论；部署验收的运行时证据。
 - **契约遗留**：`CANVAS-INTERFACE-CATALOG.yaml:157` 的 `run_smart_canvas_task expected_version` 仍为 `"integer | optional"`（该接口非拓扑写入，属有意保留）。
 
