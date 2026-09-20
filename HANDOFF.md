@@ -1,6 +1,6 @@
 # HANDOFF — `main.py` 拆分项目交接文档
 
-> 生成时间：2026-09-20（滚动更新；最新一次：第二轮独立审核代理 Godel 复核 PASS（A–G 七项实测全绿，无与宣称值不符处）+ HANDOFF 残留重复行清理 + Phase A–G 状态回填）　｜　用途：让下一个代理无需回溯对话即可继续。
+> 生成时间：2026-09-20（滚动更新；最新一次：第三轮——用户 2026-09-20 裁决「统一画布 CAS 绑定语义 / 端口统一 2077」均已落地 release 仓，并由两个独立审核代理 V1/V2 复核 **PASS**；此前第二轮独立审核代理 Godel 复核 PASS）　｜　用途：让下一个代理无需回溯对话即可继续。
 > 本文件是**交接说明**，不是真源；一切以仓库文件与 `git log` 为准。
 
 ---
@@ -108,7 +108,7 @@
 
 - **E8 / E9 / E10（43 处 `include_router` 收敛）**：**已完成**（`a9f223f2` / `16926f81` / `1bd5bcf6`）。`main.py` 内 `app.include_router(...)` 已归零；**实测路由类型分布与路由身份均未变化**（361 条 / `eb79bd54…900a`、APIRoute=95 / _IncludedRouter=43 / 合计 146），变的只有 `main=0 / assembly=43`。
 - **Phase F（生命周期 / WebSocket / 全局协程 / 关闭派发辅助）**：**已完成**（F1 `497db84b` / F2 `03f81f54` / F3 `8043ac4a`）。
-- **工作区状态（写入时，2026-09-20）**：release 仓仅余他人未跟踪文件与勘察脚本目录 `_e9/` `_e10/` `_f3/` `_g1/` 等（**不动**）；release `main` 已 ahead origin/main **38 个提交**（Phase E8–G 七个批次 + 文档漂移修正 `546061df` + 独立审核报告 `15699e64`），**未 push**。
+- **工作区状态（写入时，2026-09-20）**：release 仓仅余他人未跟踪文件与勘察脚本目录 `_e9/` `_e10/` `_f3/` `_g1/` 等（**不动**）；release `main` 已 ahead origin/main **41 个提交**（Phase E8–G 七个批次 + 文档漂移修正 `546061df` + 独立审核报告 `15699e64`），**未 push**。
 
 ## 4. 下一步计划
 
@@ -140,7 +140,9 @@
 - [x] **补一轮真正独立的代理审核**（Phase E / F / G 各一次）—— **已完成**：独立审核代理 **Gauss**（agent id `01a0bafa-30fd-7b02-97ae-7dedc57f7111`）对 release 仓 Phase E8–E10 + F1–F3 + G 逐条独立实测复核，结论 **PASS（9/10 ACCEPT；唯一 REJECT 属文档时效口径，已闭环）**；报告落盘 release 仓 `docs/architecture/MAIN-PY-PHASE-E8-G-REVIEW.md`（提交 `15699e64`）。
 - [x] 更新洁净室台账（`docs/governance/TASKS.md` / `TASK-NOTES-2026-09-18.md`）与本文件 —— **已完成**（洁净仓提交 `661a79e` + 本次）。
 
-- [ ] **仍待人工决策（不得代用户拍板）**：是否 push / 跑远端 CI / 做生产验收；画布 CAS 两种绑定语义统一（需用户显式授权的独立批次）；端口口径 `main.py` 3000 / `Dockerfile` 3333 / 洁净仓 `AGENTS.md` 2077 三处并存。
+- [x] **画布 CAS 两种绑定语义统一** —— **2026-09-20 已由用户裁决并完成**（统一为**晚绑定调用式**）；release 提交 `40ab81cb`；独立审核代理 **V1** 复核 **PASS**（8/8 ACCEPT，含 `patch.object(main,"CANVAS_LOCK")` 动态端到端实测）。详见 §4.6。
+- [x] **端口口径统一为 2077** —— **2026-09-20 已由用户裁决并完成**；release 提交 `8b85d4c5`（+ `006f3ddc` 根级设计文档更正注记）；独立审核代理 **V2** 复核 **PASS**。详见 §4.6。
+- [ ] **仍待人工决策（不得代用户拍板）**：是否 push / 跑远端 CI / 做生产验收。
 
 ### 4.4 文档漂移修正批次（2026-09-20，已完成、本地提交、未 push）
 
@@ -158,6 +160,33 @@
 - 口径知会（不构成 REJECT）：assembly 内 `include_router` 朴素子串计数为 44，多出的 1 处在模块 docstring 文本；AST 实测调用恰为 43。
 - 本轮清理：`664c7c5`（删除 HANDOFF.md 第 142 行残留重复行）。
 - **证据边界**：以上均为**本地**只读实测与本地提交；**未 push、未跑远端 CI、未做生产验收**。
+### 4.6 第三轮：画布 CAS 绑定统一 + 端口统一（2026-09-20，已完成、本地提交、未 push）
+
+> 用户 2026-09-20 就「统一画布 CAS 两种绑定语义」「端口统一 2077」两项作出裁决并授权执行；均在 **release 仓** `D:\Working\Code Pro\Gods-Workbench-release`（分支 `main`）实施，本洁净仓只记台账。
+
+**1) 画布 CAS 两种绑定语义统一（提交 `40ab81cb`）**
+
+- 统一方向 = **晚绑定调用式**：依赖字段 `canvas_lock` 由值快照统一为 `Callable[[], Any]`，消费端统一为 `with self._deps.canvas_lock():`（保留 `patch.object(main,"CANVAS_LOCK")` 补丁面）。
+- 覆盖范围（7 文件）：`asset_registry/canvas_api.py`（字段 + 4 处消费点）、`asset_registry/canvas_lifecycle_api.py`（字段 + 3 处单上下文 + 1 处多上下文 `with ... canvas_lock(), ... canvas_mutation_lock(canvas_id):`）、`main.py`（`CANVAS_CAS_DEPENDENCIES` / `CANVAS_LIFECYCLE_API_DEPENDENCIES` 两处 `canvas_lock=CANVAS_LOCK` 改为 `lambda: CANVAS_LOCK`）、`asset_registry/openapi_contract.py`（契约替身 2 处改为 `lambda: _ContractCanvasLock()`）、三个测试构造点同步为 0 参工厂。
+- 冻结不变量零漂移：路由身份 **361** / `eb79bd54...900a`；OpenAPI **579853 B** / `48c4cf7d...dfcac`；`deps` 长度 **1**。
+
+**2) 端口统一 2077（提交 `8b85d4c5` + `006f3ddc`）**
+
+- 终结原三口径并存（`main.py` 3000 / `Dockerfile` 3333 / 洁净仓 `AGENTS.md` 2077），统一为 **2077**。
+- 同步载体：`main.py::server_port()` 默认值与越界回退、`run.bat`（探测/回退区间 2077..2176）、`mac-start-service.sh`、`Dockerfile`（`EXPOSE 2077` / `CMD --port 2077`）、`docker-compose.yml`、`docker-compose.coolify.yml`、`.github/workflows/ci.yml`、`.circleci/config.yml`、`tools/exercise_docker_recovery.py`、Chrome 导入插件、Photoshop 连接器 manifest、当前有效用户文档（GETTING-STARTED / MAC-USER-GUIDE / README / DOCKER / BACKUP-RESTORE / COOLIFY-DEPLOYMENT / docs/diagrams/atlas.html）与 4 个门禁用例。
+- **保留不改**：`docs/**` 带日期的历史快照、`ROADMAP.md` 历史记录中的 3333；`asset_registry/canvas_asset_check_api.py` 的 `urls[:3000]`（非端口）。根级 `用户-新增需求或者设计文档.md` 原文不改，追加 2026-09-20 更正注记（`006f3ddc`）。
+- 冻结不变量零漂移（同上）。
+
+**3) 独立审核（两个独立审核代理，`codex exec` 独立进程）**
+
+| 审核代理 | 范围 | 结论 |
+|---|---|---|
+| **V1** | 画布 CAS 绑定统一（8 条断言） | **PASS** —— 8/8 ACCEPT：字段类型/消费点/lambda 晚绑定/契约替身/三个测试构造点/`patch.object` 动态端到端/冻结不变量/`40ab81cb` 改动集合；定向测试 21 passed / 12 subtests、`-k canvas` 327 passed / 7 skipped / 895 subtests |
+| **V2** | 端口统一 2077（8 条断言） | **PASS** —— 8/8 ACCEPT：`server_port()`/各载体/插件与连接器/用户文档/门禁用例/**残留扫描**（当前有效载体无 3000/3333 残留，剩余命中均归类为历史快照或非端口数字）/冻结不变量/两提交范围 |
+
+- **证据边界**：以上均为**本地**门禁、**本地**提交与**本地**只读复核；**未 push、未跑远端 CI、未做生产验收**，不等于生产就绪。
+- 全量 `pytest -q`（release 仓，2026-09-20 本地复跑）：**2677 passed / 271 skipped / 3476 subtests / 7 failed**（7 条均为与本次两项改动无关的既有 static 前端契约失败；见 §5 与 TASK-NOTES）。
+
 ---
 
 ## 5. 踩过的坑（绝对不要再踩）
