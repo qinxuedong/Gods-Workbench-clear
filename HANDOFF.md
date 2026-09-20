@@ -2,6 +2,7 @@
 
 > 生成时间：2026-09-20（滚动更新；最新一次：第三轮——用户 2026-09-20 裁决「统一画布 CAS 绑定语义 / 端口统一 2077」均已落地 release 仓，并由两个独立审核代理 V1/V2 复核 **PASS**；此前第二轮独立审核代理 Godel 复核 PASS）　｜　用途：让下一个代理无需回溯对话即可继续。
 > 本文件是**交接说明**，不是真源；一切以仓库文件与 `git log` 为准。
+> **状态：已完成（本地）**；本轮只完成本地读证与交接文档收口，未 push、未跑远端 CI、未做生产验收，不等于发布就绪。
 
 ---
 
@@ -13,7 +14,7 @@
 
 - `main.py` E7 基线（HEAD `5c377a77`，**历史快照**）：**16782 行**（`split("\n")` 口径）/ **741731 B** / 顶层定义 **722** 个 /
   （历史）`app.include_router(...)` **42 处（另 1 处在 `app_runtime/routers/assembly.py`，合计 43）** / `@app.*` 原地 HTTP 路由 **95 条**。
-- **当前 `main.py`（HEAD `0d607c97`，Phase G 之后）**：**16461 行**（`split("\n")` 口径，`splitlines()` 为 16460）/ **732931 B** / SHA-256 `e252ae9c68321404a826d09cf3c7d1bc9076ecb3d8f88224c372e76970ebd514` / `app.include_router(...)` **0 处**（43 处全部在 `app_runtime/routers/assembly.py`）。
+- **当前 `main.py`（HEAD `006f3ddce51cd1c022c51f2b963f91380cee6072`；2026-09-20 实测快照）**：**16461 行**（`split("\n")` 口径，`splitlines()` 为 16460）/ **732947 B** / SHA-256 `c54f368a48cd0123a74733d3b0423eebabe7cf9f7e3af98522ff3ed0fee8e89a` / `app.include_router(...)` **0 处**（43 处全部在 `app_runtime/routers/assembly.py`）/ `@app.get|post|put|patch|delete|options|head` **95 条**。
 - 方案文档：`docs/architecture/MAIN-PY-DECOMPOSITION-PLAN.md`（Phase A–G）。
 - 硬性目标：**拆分不等于重构**——URL、方法、状态码、响应结构、认证依赖顺序、启动方式全部保持兼容。
 
@@ -38,7 +39,7 @@
 | **Phase D 第 1 项** | 更新 / 备份 / 回滚 / 自重启 | **完成** | D1–D6-C 见下 |
 | Phase E | API 路由抽离 | **完成（本地门禁全绿）**：E0–E10 全部落地，43 处 `include_router` 收敛进 `app_runtime/routers/assembly.py`，`main.py` `include_router` 归零 | E0 `ba32e1c9`、勘察 `25216c1b`、E1 `2896db12`、E2 `f04334fb`+`987d3442`、E3 `847fad0d`、E4 `00bf6492`、E5 `a94af7f1`、E6 `5db98092`、E7 `5c377a77`、E8 `a9f223f2`、E9 `16926f81`、E10 `1bd5bcf6` |
 | Phase F | 生命周期 / WebSocket / 全局协程 / 关闭派发辅助 | **完成（本地门禁全绿）**：F1 WebSocket 连接管理器、F2 生命周期/启动维护/全局协程、F3 关闭与派生派发辅助，均迁至 `app_runtime/runtime/`，main 保留同名薄委托 | F1 `497db84b`、F2 `03f81f54`、F3 `8043ac4a` |
-| Phase G | 入口收敛（`create_app()`） | **完成（本地门禁全绿）**：按 `_g1/RECON.md` §4.2 方案 A 引入 `create_app()`，保留模块级 `app = create_app()`；`main:app` 启动串零改动 | `0d607c97` |
+| Phase G | 入口收敛（`create_app()`） | **完成（本地门禁全绿）**：按 `_g1/RECON.md` §4.2 方案 A 引入 `create_app()`，保留模块级 `app = create_app()`；`main:app` 启动串零改动 | `0d607c97`（历史快照） |
 
 ### 2.2 Phase D 第 1 项：60 符号 → **56 迁出 + 4 设计保留**
 
@@ -108,7 +109,7 @@
 
 - **E8 / E9 / E10（43 处 `include_router` 收敛）**：**已完成**（`a9f223f2` / `16926f81` / `1bd5bcf6`）。`main.py` 内 `app.include_router(...)` 已归零；**实测路由类型分布与路由身份均未变化**（361 条 / `eb79bd54…900a`、APIRoute=95 / _IncludedRouter=43 / 合计 146），变的只有 `main=0 / assembly=43`。
 - **Phase F（生命周期 / WebSocket / 全局协程 / 关闭派发辅助）**：**已完成**（F1 `497db84b` / F2 `03f81f54` / F3 `8043ac4a`）。
-- **Phase G（`create_app()` 入口收敛）**：**已完成**（`0d607c97`）。采用方案 A——保留模块级 `app = create_app()`，**不切换** `uvicorn main:create_app --factory`；`main:app` 调用方无需迁移。
+- **Phase G（`create_app()` 入口收敛）**：**已完成**（`0d607c97`，历史快照提交）。采用方案 A——保留模块级 `app = create_app()`，**不切换** `uvicorn main:create_app --factory`；`main:app` 调用方无需迁移。
 - **第三轮：画布 CAS 绑定统一 + 端口统一 2077**：**已完成**（CAS `40ab81cb`；端口 `8b85d4c5` + `006f3ddc`）。独立审核代理 V1（CAS）/ V2（端口）各自 **PASS**（8/8 ACCEPT）。
 - **工作区状态（写入时，2026-09-20）**：release 仓仅余他人未跟踪文件与勘察脚本目录 `_e9/` `_e10/` `_f3/` `_g1/` 等（**不动**）；release `main` 已 ahead origin/main **41 个提交**（Phase A–G 全部批次 + 文档漂移修正 `546061df` + 独立审核报告 `15699e64` + 本轮 CAS 统一 `40ab81cb` / 端口统一 `8b85d4c5` / 根级文档更正 `006f3ddc`），**未 push**。
 - **当前唯一阻塞（只能由用户拍板，不得代决）**：**是否 push** / **是否跑远端 CI** / **是否做生产验收**。其余设计与实现项均无剩余阻塞。
@@ -203,7 +204,7 @@
 5. 提交信息统一中文，用 `git commit -F <utf8文件>`；提交前删临时文件。
 6. 别混淆两个仓：release 有 `main.py`；洁净室仓**没有** `main.py`，**不要**在洁净仓建 `main.py`
    或复制旧仓实现（洁净室铁律）。洁净仓严禁提交任何图片/截图/音频/视频/压缩包/可执行文件，
-   字体只允许 3 个思源黑体 `.otf`。
+   字体仅允许以下 3 条精确白名单路径：`src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf`、`src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf`、`src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf`；其余字体及图片/音视频/压缩包/可执行文件仍一律禁止。**开源字体放行不等于公开分发授权**；洁净仓仍为 `NOT AUTHORIZED FOR PUBLIC DISTRIBUTION`。
 
 ### 5.2 代码 / 路由（最危险）
 
@@ -310,3 +311,11 @@ python -m pytest tests/test_phase_e_route_identity_gate.py tests/test_phase_e1_u
 #    test_m3_asset_manager_module_contract / test_release_metadata / test_signal_flow_design_system_contract
 python -m pytest -q
 ```
+---
+
+## 8. 2026-09-20 收口说明
+
+- 本轮 T-handoff 已按任务书完成：release 仓只读实测快照已回填 §1，`HANDOFF-2.md` 已建立，且本报告记录命令、输出摘要与证据边界。
+- 当前 release 快照以 HEAD `006f3ddce51cd1c022c51f2b963f91380cee6072` 为准：`main.py` 732947 B、SHA-256 `c54f368a48cd0123a74733d3b0423eebabe7cf9f7e3af98522ff3ed0fee8e89a`、`split("\n")` 16461 行、`splitlines()` 16460 行、`app.include_router(...)` 0 处、HTTP `@app.*` 路由 95 条。
+- `0d607c97`、16461/732931 B、`e252ae9c…d514` 仍作为历史记录保留，并已在历史语境中标注；当前值不得与历史快照混用。
+- 本地完成不等于远端 CI 或生产验收；push、远端 CI、生产验收仍须由主代理/用户按治理流程决定和执行。

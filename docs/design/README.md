@@ -30,4 +30,4 @@
 3. 字体统一为**思源黑体 Source Han Sans CN（Bold/Medium/Normal 三档，本地 `static/vendor/fonts/`，经 `static/vendor/css/fonts.css` 声明）**；禁止运行时外链字体 CDN。
 4. 新增设计文档必须在文件头声明 `CURRENT`/`SUPPORTING`/`ARCHIVED` 状态、来源、迁移日期。
 5. 预览图、概念数据与参考图不得进入业务代码、数据库、API payload 或权限真源。
-6. 本目录严禁提交任何图片、截图、字体等二进制资源。
+6. 本目录严禁提交任何图片、截图、音视频等二进制资源；字体仅允许 `AGENTS.md` §1.2 白名单的 3 个开源思源黑体，其余字体不得入库。

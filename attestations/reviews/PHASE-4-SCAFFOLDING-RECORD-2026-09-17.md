@@ -39,3 +39,15 @@
 ## 结论与后续阶段授权
 
 **历史记录不再构成当前阶段批准**。当前实现路径和契约输入必须按修订后的审计报告重新验证。
+
+---
+
+## 后续状态更新（2026-09-20）
+
+用户 2026-09-18 指示并已落地：`AGENTS.md` §1.2 设立**唯一二进制白名单**，逐条精确路径放行 3 个开源思源黑体（Source Han Sans CN，OFL-1.1）：
+
+- `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf`
+- `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf`
+- `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf`
+
+因此，本文档中「无图片、字体资源」「零二进制」等表述只反映 **2026-09-17/18 当时快照**，现已过时；按本仓库历史记录保护原则，**原文不追溯改写**，以本节为准。图片、截图、音视频、用户数据、凭据及白名单外字体仍一律禁止。

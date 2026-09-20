@@ -226,14 +226,14 @@
     if (/transcode|convert/.test(value)) return 'transcode';
     if (/review|approval/.test(value)) return 'review';
     if (/index|ingest|thumbnail|asset\./.test(value)) return 'index';
-    if (/generate|generation|canvas|video|image|runninghub|jimeng|online/.test(value)) return 'generation';
+    if (/generate|generation|canvas|video|image|jimeng|online/.test(value)) return 'generation';
     return 'system';
   }
 
   const TASK_ACTION_NAMES = Object.freeze([
     [/generation\.(?:online_)?image|online-image|image-generation/i, ['生成图片', 'Generate image']],
     [/generation\.(?:video|tudou)|video-generation|video\.generate/i, ['生成视频', 'Generate video']],
-    [/generation\.(?:comfyui|runninghub)|workflow/i, ['执行工作流', 'Run workflow']],
+    [/generation\.workflow|workflow/i, ['执行工作流', 'Run workflow']],
     [/transcode|convert/i, ['转码视频', 'Transcode video']],
     [/thumbnail/i, ['生成缩略图', 'Generate thumbnail']],
     [/asset\.(?:index|ingest)|index|ingest/i, ['索引素材', 'Index assets']],

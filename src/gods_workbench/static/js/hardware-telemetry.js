@@ -651,8 +651,6 @@
       const modal = document.getElementById('settingsModal');
       if (!modal) return;
 
-      const comfyVal = localStorage.getItem('v2_comfyui_endpoint') || 'http://127.0.0.1:8188';
-
       modal.innerHTML = `
         <div class="hw-modal-dialog w-[500px] p-4 text-slate-200">
           <div class="flex items-center justify-between pb-2 mb-3 border-b border-white/10">
@@ -674,21 +672,9 @@
                   <i data-lucide="key" class="w-3.5 h-3.5 text-[#dfc384]"></i>
                   <span class="font-bold text-[11px]">API 设置</span>
                 </div>
-                <div class="text-[8px] font-mono text-slate-400 leading-tight">大模型Key、RunningHub与CLI管理</div>
+                <div class="text-[8px] font-mono text-slate-400 leading-tight">大模型 Key 与 CLI 管理</div>
                 <div class="mt-2 flex items-center justify-between text-[8px] font-mono text-slate-500">
                   <span>/api-settings</span>
-                  <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
-                </div>
-              </a>
-
-              <a href="/static/comfyui-settings.html" target="_blank" class="bay-inset p-2.5 rounded-xl flex flex-col justify-between group hover:border-cyan-400/50 transition border border-white/5">
-                <div class="flex items-center space-x-1.5 mb-1 text-slate-100 group-hover:text-cyan-300 transition">
-                  <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-400"></i>
-                  <span class="font-bold text-[11px]">ComfyUI 设置</span>
-                </div>
-                <div class="text-[8px] font-mono text-slate-400 leading-tight">工作流引擎、节点与参数暴露</div>
-                <div class="mt-2 flex items-center justify-between text-[8px] font-mono text-slate-500">
-                  <span>/comfyui-settings</span>
                   <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
                 </div>
               </a>
@@ -706,18 +692,6 @@
               </a>
             </div>
 
-            <!-- 快捷参数调试槽 -->
-            <div class="bay-inset p-3 rounded-xl border border-white/5 space-y-2">
-              <div class="text-[10px] font-mono text-slate-300 font-bold flex items-center justify-between">
-                <span>ComfyUI 本地后端地址快调</span>
-                <span class="text-[8px] font-mono text-cyan-400">HTTP / WS</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <input type="text" id="hwSettingsComfyInput" value="${comfyVal}" class="flex-1 bg-[#0a0c10] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-[#dfc384]">
-                <button type="button" class="tactile-keycap px-3 py-1.5 rounded-lg text-xs font-bold text-[#eddab3]" onclick="HardwareDeck.saveSettingsConfig()">保存端点</button>
-              </div>
-              <div class="text-[8px] font-mono text-slate-500">修改后将直接生效于工作台全流程绘图节点调度。</div>
-            </div>
 
             <div class="pt-2 border-t border-white/10 flex items-center justify-between">
               <span class="text-[9px] font-mono text-slate-500">系统模式: 曜石香槟钛金拟物硬件总线 (v2.0)</span>
@@ -731,10 +705,6 @@
     },
 
     saveSettingsConfig: function() {
-      const comfyInput = document.getElementById('hwSettingsComfyInput');
-      if (comfyInput) {
-        localStorage.setItem('v2_comfyui_endpoint', comfyInput.value.trim());
-      }
       this.closeModal('settingsModal');
     },
 

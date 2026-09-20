@@ -625,3 +625,52 @@
 > **证据边界**：以上均为**本地**门禁、**本地**提交与**本地**只读复核；**未 push、未跑远端 CI、未做生产验收**。
 > 剩余**只能由用户拍板**的项：是否 push / 跑远端 CI / 做生产验收。
 
+
+## 12. 2026-09-20 范围口径统一与 comfyui/runninghub 移除
+
+> 本节为**追加记录**，不改写 §1–§11 任何历史章节。
+
+### 12.1 用户四条裁决
+
+1. **开源字体放行 + 修复文档漂移**：3 个思源黑体 Source Han Sans CN（Bold / Medium / Normal，OFL-1.1）为开源字体，按 `AGENTS.md` §1.2 三条**精确路径**列入唯一二进制白名单；`CLEANROOM-CHARTER.md`、`CLEANROOM-STATUS.md` 等处“不得提交字体”的过时表述已更正为「除 `AGENTS.md` §1.2 三条精确路径白名单外禁止任何字体」。
+2. **迁移范围**：`src/gods_workbench/static/v2/**` **整体保留**；画布/工具**只保留“入口首页”内容**；**快捷工具入口及其内部内容不迁移**；**comfyui / runninghub 不迁移**。
+3. **P3 标签更新**：`HANDOFF.md` §1 的「当前 `main.py`」标签由历史 HEAD `0d607c97` 更新为当前 release HEAD `006f3ddce51cd1c022c51f2b963f91380cee6072`（`main.py` 732947 B / SHA-256 `c54f368a48cd0123a74733d3b0423eebabe7cf9f7e3af98522ff3ed0fee8e89a`），历史快照按「历史记录不改写 + 追加注记」保留。
+4. **交接文档**：`HANDOFF.md` 标记完成；新建 `HANDOFF-2.md` 记录本轮新内容并给出文档路径索引。
+
+### 12.2 来源分类口径统一（四类）
+
+重写 `docs/provenance/CLEANROOM-CODE-CLASSIFICATION-2026-09-17.md` 为四类归属：
+- ① **用户自有原创切片**（仅 2 个日期选择器，源/目标 SHA-256 已登记并复核 MATCH）
+- ② **按契约/夹具自行重写**（项目中心、画布、智能画布业务实现等）
+- ③ **第三方资产**（`vendor/**`、`prompt-registry/**`，注明许可）
+- ④ **隔离 / 不迁移**（无限画布旧实现、连接器、comfyui、runninghub 等）
+
+新建 `docs/provenance/STATIC-SCOPE-REGISTRY-2026-09-20.md`：对 `src/gods_workbench/static/**` **逐文件**清点（相对路径 + 字节数 + 四类归属 + 依据），并汇总计数（工作树现存 109 文件 / 3520 万字节级）。
+
+### 12.3 comfyui / runninghub 移除
+
+- **删除文件**：`static/comfyui-settings.html`、`static/css/comfyui-settings.css`、`static/js/comfyui-settings.js`、`static/js/i18n/comfyui-settings.js`、`static/runninghub/api_providers.json`（备份于 `%TEMP%\gw-scope-purge-20260920\`）。
+- **清理实现**：`static/js/api-settings.js`、`static/api-settings.html`、`static/css/{api-settings,signal-flow,obsidian-gold-settings,theme}.css`、`static/js/{episode-pipeline,task-center,floating-dismissal}.js`、i18n 5 文件等移除 RunningHub / ComfyUI 专属实现与调用。
+- **共用类改名（不保留 rh- 前缀）**：`.rh-key-item` / `.rh-key-head` / `.rh-key-title` / `.rh-key-desc` / `.rh-card-title-field` / `.onboarding-rh-*` 被 Volcengine / 即梦 CLI / AI Platform CLI / Antigravity / ModelScope 面板共用，因此**不能删除**；但 `rh-` 前缀源自 RunningHub 语义，本轮统一**改名为中性名**：`.provider-key-item` / `.provider-key-head` / `.provider-key-title` / `.provider-key-desc` / `.provider-card-title-field` / `.onboarding-provider-*`，并同步 `api-settings.html` 与 `api-settings.js` 的 class 引用（HTML/JS/CSS 三处一致，脚本已校验“无用到未定义类”）。RunningHub 专属类（`.rh-paste-input`、`.rh-card-*`、`.rh-config-card`、`.rh-thumb`、`.rh-empty`、`.rh-workflow-editor-*`、`.rh-preview-*`、`.rh-node-popover` 等）已随规则一并移除。
+- **卫生用例收紧**：`tests/hygiene/test_cleanroom_hygiene.py` 不再把 comfyui / runninghub 列为放行，新增“已删文件不得重现、保留页面不得引用已删路径”断言。
+
+### 12.4 证据边界
+
+- 以上均为**本地工作树**实测与本地文档登记。
+- **未 push、未跑远端 CI、未做生产验收**；`D:\Working\Code Pro\Gods-Workbench-release` 全程只读。
+- 洁净仓当前仍为 `NOT AUTHORIZED FOR PUBLIC DISTRIBUTION`。
+
+### 12.5 T-prov 实测补充（2026-09-20）
+
+- 四类来源口径与 `CLEANROOM-CODE-CLASSIFICATION-2026-09-17.md`、`STATIC-SCOPE-REGISTRY-2026-09-20.md` 对齐：① 2 个日期选择器；② 契约/夹具自行重写；③ `vendor/**` 与 `prompt-registry/**` 第三方；④ 无限画布旧实现、连接器、comfyui、runninghub 隔离/不迁移。
+- 静态层本次工作树实测：108 个现存文件、35,024,949 字节；类别计数为 ① 2 / 10,385 字节，② 90 / 4,266,643 字节，③ 15 / 30,723,433 字节，④ 1 / 24,488 字节。`git ls-files` 共 113 条，其中 5 条 comfyui/runninghub 路径已从工作树移除，不计入现存字节汇总。
+- 日期选择器目标文件实测 SHA-256 与 `AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` 一致；旧 SHA/字节/行数仅作历史快照，不覆盖本轮实测。
+- 本补充仅追加，不改写 §1–§12.4；未执行 git add、git commit、git push、git remote，未执行远端 CI 或生产验收。
+
+### 12.6 修正注记：静态层字节汇总（2026-09-20）
+
+§12.5 记录的静态层汇总「108 个现存文件、35,024,949 字节」为**当时快照**；随后本轮 4 个 CSS 文件完成 comfyui/runninghub 规则清理与共用类改名（`.rh-*` → `.provider-key-*` / `.provider-card-title-field` / `.onboarding-provider-*`），字节数已变化。
+
+- **当前实测（`Get-ChildItem -Recurse -File src/gods_workbench/static`）**：108 个文件 / **35,041,179 字节**。
+- 与 `docs/provenance/STATIC-SCOPE-REGISTRY-2026-09-20.md` 的合计行 **108 / 35041179** 一致；类别计数不变：① 2（10,385 字节）、② 90（4,282,873 字节）、③ 15（30,723,433 字节）、④ 1（24,488 字节）。
+- 本注记为**追加更正**，不改写 §12.1–§12.5 任何一行；历史快照数字保留在 §12.5 中并以此注记覆盖其时效。

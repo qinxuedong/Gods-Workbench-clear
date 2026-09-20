@@ -50,3 +50,15 @@
 - 当前实测：`python -m pytest -q --no-header -p no:cacheprovider` → **5 failed / 35 passed（共 40 项）**。
 - 同时，上表「受限资源扫描 通过」「静态旧集成标记扫描 通过」两项与当前实测不符：本仓现存 13 项受限二进制资源（5 图片 / 5 缩略图 / 3 字体）与 173 条旧集成标记，相关用例当前为 FAILED，登记见 `docs/governance/TASKS.md` 第二节与 `docs/governance/BINARY-AND-NAMING-BASELINE-2026-09-18.md`。
 - 因此本记录**不得作为当前证据**；当前状态以 `docs/governance/TASKS.md` 与 `docs/governance/FILE-GOVERNANCE-2026-09-18.md` 为准。
+
+---
+
+## 后续状态更新（2026-09-20）
+
+用户 2026-09-18 指示并已落地：`AGENTS.md` §1.2 设立**唯一二进制白名单**，逐条精确路径放行 3 个开源思源黑体（Source Han Sans CN，OFL-1.1）：
+
+- `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf`
+- `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf`
+- `src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf`
+
+因此，本文档中「无图片、字体资源」「零二进制」等表述只反映 **2026-09-17/18 当时快照**，现已过时；按本仓库历史记录保护原则，**原文不追溯改写**，以本节为准。图片、截图、音视频、用户数据、凭据及白名单外字体仍一律禁止。

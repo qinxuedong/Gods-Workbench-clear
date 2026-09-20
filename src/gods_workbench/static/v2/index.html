@@ -1138,10 +1138,6 @@
             <i data-lucide="key" class="w-4 h-4 text-amber-400"></i>
             <span>API 与密钥配置</span>
           </button>
-          <button type="button" data-section="comfyui" class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition cursor-pointer">
-            <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i>
-            <span>ComfyUI 节点引擎</span>
-          </button>
           <button type="button" data-section="permissions" class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition cursor-pointer">
             <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
             <span>席位与资产权限</span>
@@ -1378,29 +1374,6 @@
           </div>
         </section>
 
-        <!-- 分区 4: ComfyUI 节点引擎 (data-panel="comfyui") -->
-        <section class="h-full flex flex-col overflow-hidden" data-panel="comfyui">
-          <div class="flex items-center justify-between mb-2.5 pb-2.5 border-b border-white/10 shrink-0">
-            <div>
-              <h2 class="text-base font-bold text-slate-100 flex items-center space-x-2">
-                <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i>
-                <span>ComfyUI 节点引擎与后端实例</span>
-              </h2>
-              <p class="text-[11px] text-slate-400 mt-0.5 font-mono">管理本地及集群 ComfyUI 后端服务器节点、拓扑工作流与参数暴露映射</p>
-            </div>
-            <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded bg-black/60 border border-cyan-500/20 font-mono text-[9px] text-cyan-300">NODE RUNTIME</span>
-              <a href="/static/comfyui-settings.html" target="_blank" class="tactile-keycap px-2.5 py-1 rounded text-[10px] text-slate-300 hover:text-white flex items-center space-x-1" title="新标签页打开独立配置窗口">
-                <i data-lucide="external-link" class="w-3 h-3"></i>
-                <span>独立窗口</span>
-              </a>
-            </div>
-          </div>
-          <div class="flex-1 w-full h-full min-h-0 bay-inset rounded-xl overflow-hidden border border-white/10 relative">
-            <iframe id="iframeComfySettings" src="/static/comfyui-settings.html?embedded=1" class="w-full h-full border-0 bg-transparent" title="ComfyUI节点引擎配置视窗"></iframe>
-          </div>
-        </section>
-
         <!-- 分区 5: 席位与资产权限 (data-panel="permissions") -->
         <section class="h-full flex flex-col overflow-hidden" data-panel="permissions">
           <div class="flex items-center justify-between mb-2.5 pb-2.5 border-b border-white/10 shrink-0">
@@ -1534,8 +1507,8 @@
         </div>
 
         <div>
-          <label class="block text-[10px] font-mono text-slate-400 mb-1">生图引擎服务端点 (ComfyUI / FLUX API)</label>
-          <input type="text" value="http://127.0.0.1:8188" class="w-full bg-[#0a0c10] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#eddab3] focus:outline-none focus:border-[#dfc384]">
+          <label class="block text-[10px] font-mono text-slate-400 mb-1">生图引擎服务端点 (FLUX API)</label>
+          <input type="text" value="" class="w-full bg-[#0a0c10] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#eddab3] focus:outline-none focus:border-[#dfc384]">
         </div>
 
         <div class="grid grid-cols-2 gap-2">

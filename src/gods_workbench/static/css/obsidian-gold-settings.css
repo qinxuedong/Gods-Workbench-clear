@@ -7,8 +7,7 @@ body.studio-theme-dark,
 html.studio-theme-dark body,
 html.workspace-embedded body,
 .api-settings-page,
-.gw-page--api-settings,
-.gw-page--comfyui-settings {
+.gw-page--api-settings {
   --bg: #090a0d !important;
   --panel: #101218 !important;
   --soft: #171a22 !important;
@@ -68,11 +67,14 @@ body {
   text-transform: uppercase !important;
 }
 
+
 /* 隐藏所有网站 / 服务商图片 Logo 图标，改用文字展示 */
+
+
+
 .provider-card-banner img,
 .provider-card-banner .ms-icon-light,
 .provider-card-banner .ms-icon-dark,
-.provider-card-banner .runninghub-icon,
 .provider-card-banner .volcengine-icon,
 .provider-card-banner .lingjing-icon,
 .provider-card-banner svg:not(.lucide) {
@@ -229,15 +231,18 @@ body {
   color: #94a3b8 !important;
 }
 
+
 /* 输入框与控件：深黑曜石拟物嵌槽，高度与字号等比缩减 10% */
+
+
+
 input,
 select,
 textarea,
 .field-frame,
 .key-panel,
 .model-row,
-.rh-paste-input,
-.rh-key-item,
+.provider-key-item,
 .lora-row,
 .input-row {
   background-color: #07090c !important;
@@ -326,14 +331,17 @@ button.save-btn:hover,
   box-shadow: 0 1px 4px rgba(223, 195, 132, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.8) !important;
 }
 
+
 /* 2. 次级拟物触感按钮 (统一高 31px、圆角 7px、文字 11px) */
+
+
+
 .side-add-btn,
 .add-provider-btn,
 .ws-side-add,
 .add-btn,
 .tool-btn,
 .cli-quick-btn,
-.rh-card-action,
 .api-link-btn,
 .recommend-guide-key-btn,
 .onboarding-key-btn,
@@ -373,7 +381,6 @@ button.action-btn:not(.save-btn):not(.danger-btn),
 .add-btn:hover,
 .tool-btn:hover,
 .cli-quick-btn:hover,
-.rh-card-action:hover,
 .api-link-btn:hover,
 .upload-btn:hover,
 .ghost-btn:hover,
@@ -452,8 +459,16 @@ button.action-btn:not(.save-btn):not(.danger-btn),
   color: #fee2e2 !important;
 }
 
+
 /* 辅助文本、代码与标签 */
-.hint, .cli-quick-note, .ms-hint, .runninghub-hint, .apimart-hint, .volcengine-hint {
+
+
+
+.hint,
+.cli-quick-note,
+.ms-hint,
+.apimart-hint,
+.volcengine-hint {
   color: #717d8f !important;
   font-size: 10px !important;
 }
@@ -478,7 +493,7 @@ button.action-btn:not(.save-btn):not(.danger-btn),
   font-size: 11px !important;
 }
 
-/* ComfyUI 画布与节点高光定制 */
+
 .graph-svg-wrap {
   background: #07080c !important;
   border: 1px solid rgba(223, 195, 132, 0.22) !important;

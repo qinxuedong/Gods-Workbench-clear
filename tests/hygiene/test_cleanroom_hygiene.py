@@ -72,22 +72,37 @@ def test_plugin_protocol_exclusion(repo_root: Path):
 def test_static_layer_has_no_legacy_integration_markers(repo_root: Path):
     """确保重写的静态层没有旧路径、经典页面或不健康集成。
 
-    口径（用户 2026-09-19 裁决）：
+    口径（用户 2026-09-20 裁决）：
       * 保留范围：V2 前端整体保留（static/v2/**）；画布/工具仅保留“入口首页”内容。
-        因此 V2 页面互相引用的 storyboard.html / production.html / agents.html /
+        V2 页面互相引用的 storyboard.html / production.html / agents.html /
         collab.html / settings.html、CDN 图标库 lucide、unsplash.com 占位图源、
-        window.V2Projects 命名空间，以及仍在 V2 链路内合法使用的 asset-manager.html /
-        comfyui / runninghub 等业务标识，不再作为禁用标记（重定义前曾造成 130+ 处误报）。
+        window.V2Projects 命名空间，以及仍在 V2 链路内合法使用的 asset-manager.html
+        等保留内容不作为禁用标记。
       * 禁用范围：
         1. 已删除的 V1 经典页面入口：/static/home.html、/static/index.html、
            /static/gpt-chat.html、/static/project-board.html、/static/settings.html；
-        2. 已删除的经典集成端点关键字：chrome-local。
+        2. 已删除的经典集成端点关键字：chrome-local；
+        3. 已删除的 comfyui / runninghub 文件与路径不得重现，也不得被保留页面引用。
 
     依据：AGENTS.md（洁净室铁律与 Lucide CDN 合规）、
     docs/migration/CLASSIC-REMOVAL-PLAN-2026-09-18.md、
     docs/governance/TASK-NOTES-2026-09-18.md 第 4 节（T13）。
     """
     static_dir = repo_root / "src" / "gods_workbench" / "static"
+    deleted_paths = (
+        static_dir / "comfyui-settings.html",
+        static_dir / "css" / "comfyui-settings.css",
+        static_dir / "js" / "comfyui-settings.js",
+        static_dir / "js" / "i18n" / "comfyui-settings.js",
+        static_dir / "runninghub",
+    )
+    reappeared = [
+        path.relative_to(repo_root).as_posix()
+        for path in deleted_paths
+        if path.exists()
+    ]
+    assert not reappeared, f"已删除的 comfyui/runninghub 文件或目录重现: {reappeared}"
+
     forbidden_markers = (
         "/static/home.html",
         "/static/index.html",
@@ -104,6 +119,33 @@ def test_static_layer_has_no_legacy_integration_markers(repo_root: Path):
                 if marker in content:
                     violations.append(f"{path.relative_to(repo_root)}: {marker}")
     assert not violations, f"静态层发现旧集成残留: {violations}"
+
+    deleted_reference_markers = (
+        "/static/runninghub/",
+        "comfyui-settings.html",
+        "comfyui-settings.js",
+        "comfyui-settings.css",
+    )
+    reference_violations = []
+    for path in static_dir.rglob("*"):
+        if path.is_file() and path.suffix.lower() in {".html", ".css", ".js"}:
+            content = path.read_text(encoding="utf-8").lower()
+            for marker in deleted_reference_markers:
+                if marker in content:
+                    reference_violations.append(f"{path.relative_to(repo_root)}: {marker}")
+    assert not reference_violations, f"保留页面引用已删除路径: {reference_violations}"
+
+    scope_marker_violations = []
+    for path in static_dir.rglob("*"):
+        if path.is_file() and path.suffix.lower() in {".html", ".css", ".js"}:
+            content = path.read_text(encoding="utf-8").lower()
+            for marker in ("comfyui", "runninghub", "running-hub"):
+                if marker in content:
+                    scope_marker_violations.append(f"{path.relative_to(repo_root)}: {marker}")
+    assert not scope_marker_violations, (
+        "静态层不得保留 comfyui/runninghub 业务标识或调用: "
+        f"{scope_marker_violations}"
+    )
 
 
 def test_accepted_non_canvas_slices_match_migration_manifest(repo_root: Path):

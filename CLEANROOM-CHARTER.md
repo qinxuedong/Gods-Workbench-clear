@@ -2,7 +2,7 @@
 
 ## 仓库定位
 
-本仓库是 **Gods-Workbench-clear 的私有洁净实现仓**。当前发布状态为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。不得提交图片、字体、截图、音视频、用户数据、凭据、旧 `.git`、提交历史或未经审查的第三方资源。
+本仓库是 **Gods-Workbench-clear 的私有洁净实现仓**。当前发布状态为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。不得提交图片、截图、音视频、用户数据、凭据、旧 `.git`、提交历史或未经审查的第三方资源；除 AGENTS.md 第 1 节第 2 条所列 3 个开源思源黑体（Source Han Sans CN，OFL-1.1）逐条精确路径白名单外，不得提交任何字体（白名单见 `AGENTS.md` §1.2）。
 
 旧仓库不是本仓库的默认实现输入。用户本次明确授权的例外仅是：来源根目录 `D:\Working\Code Pro\Gods-Workbench-release` 中，能够证明属于用户且与画布完全无关的非画布代码切片。例外必须逐文件登记，不能把整仓库或整目录视为授权。
 

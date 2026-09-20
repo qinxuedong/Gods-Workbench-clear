@@ -22,3 +22,13 @@
 ## 结论
 
 **当前门禁重开（GATE REOPENED）**。历史记录不再证明契约已冻结；实现必须遵循修订后的来源分类和洁净重构边界。仓库发布状态继续保持为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## 后续状态更新（2026-09-20）
+
+本文件以上内容保留为历史快照，不改写原结论。当前重新取证请参阅：
+
+- [Phase 3 契约冻结重签记录](PHASE-3-CONTRACT-RE-FREEZE-2026-09-20.md)：绑定确切 HEAD 和脏工作树时点；本轮冻结未批准，需后续人工外审。
+- [当前快照审计](CURRENT-SNAPSHOT-AUDIT-2026-09-20.md)：记录真实测试阻塞、哈希核算、字体白名单与静态层观察。
+
+机器自证不等于独立第三方审计；字体白名单不等于分发授权。当前仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

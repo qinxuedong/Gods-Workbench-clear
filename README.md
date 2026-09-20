@@ -40,5 +40,6 @@ pytest -v
 - 自有代码分类：`docs/provenance/CLEANROOM-CODE-CLASSIFICATION-2026-09-17.md`
 - 迁移哈希：`docs/provenance/AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt`
 - 行为/契约/夹具输入：`docs/behavior/`、`docs/contracts/`、`docs/fixtures/`
-- 无限画布、智能画布旧实现、Chrome/Photoshop 连接器、生成适配器、图片字体媒体、用户数据和 `PLUGIN-PROTOCOL-SPEC.md` 均不作为当前实现输入。
+- 无限画布、智能画布旧实现、Chrome/Photoshop 连接器、生成适配器、ComfyUI/RunningHub 工具页、图片/音视频媒体、用户数据和 `PLUGIN-PROTOCOL-SPEC.md` 均不作为当前实现输入。
+- 字体例外：仅 `AGENTS.md` §1.2 白名单的 3 个开源思源黑体（Source Han Sans CN，OFL-1.1）允许本地自托管，其余字体不得入库。
 - 历史阶段证明已标记为历史材料；最终独立复核尚未完成。

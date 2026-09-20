@@ -1,36 +1,58 @@
 # 自有代码迁移与洁净重构分类表
 
-## 记录信息
+记录日期：2026-09-20  
+来源根目录：`D:\Working\Code Pro\Gods-Workbench-release`  
+目标根目录：`D:\Working\Code Pro\Gods-Workbench-clear-all\Gods-Workbench-clear`  
+当前分支：`master`  
+发布状态：`NOT AUTHORIZED FOR PUBLIC DISTRIBUTION`
 
-- 记录日期：2026-09-17
-- 用户授权来源根目录：`D:\Working\Code Pro\Gods-Workbench-release`
-- 目标根目录：当前 `Gods-Workbench-clear`
-- 依据：用户本次“自有代码迁移与画布洁净重构计划”及修订后的独立审计报告。
-- 规则：只记录路径、哈希、依赖结论和处理决定，不把旧仓源码或用户数据写入证明文件。
+> 本表只记录来源判定、范围和哈希，不复制旧仓源码实现；静态层逐文件事实以 `docs/provenance/STATIC-SCOPE-REGISTRY-2026-09-20.md` 为准。
 
-## 分类结果
+## 四类归属口径
 
-| 来源范围/目标路径 | 分类 | 依赖闭包检查 | 处理决定 |
+| 类别 | 定义 | 处理 |
+|---|---|---|
+| ① 用户自有原创切片 | 仅限经依赖复核、与画布/智能任务/插件协议解耦且可逐字节复现的用户自有代码 | 允许迁入；当前仅 2 个日期选择器文件 |
+| ② 按契约/夹具自行重写 | 依据 `docs/behavior/`、`docs/contracts/`、`docs/fixtures/` 自行实现，不复制旧仓整文件 | 允许存在；须受契约与卫生用例约束 |
+| ③ 第三方资产 | `vendor/` 与 `prompt-registry/` 等明确外部来源内容 | 仅按已登记许可、署名和发布门禁使用 |
+| ④ 隔离 / 不迁移 | 无限画布旧提示词、旧画布实现、连接器、comfyui、runninghub 等明确排除项 | 不迁移；已删除项不得回流 |
+
+## 2026-09-20 范围裁决
+
+- `src/gods_workbench/static/v2/**` 整体保留。
+- 画布/工具只保留入口首页；快捷工具入口及其内部实现不迁移。
+- comfyui / runninghub 不迁移：专属页面、脚本、样式、目录、导航、接口调用和文案均移除。
+- 本地二进制仅允许 `AGENTS.md` §1.2 三条思源黑体精确路径；开源许可不等于公开分发授权。
+
+## 类别①：用户自有原创切片（2 个）
+
+| 目标相对路径 | 来源 SHA-256 | 目标 SHA-256 | 结果 |
 |---|---|---|---|
-| `static/v2/js/project-date-range.js` → `src/gods_workbench/static/v2/js/project-date-range.js` | 可迁移自有非画布切片 | 仅日期选择器 DOM、浏览器日期 API；未发现画布、智能任务、插件、生成器、资产路由或用户数据依赖 | 接受迁移；保留为唯一实际迁移切片，并登记源/目标哈希 |
-| `static/v2/css/project-date-range.css` → `src/gods_workbench/static/v2/css/project-date-range.css` | 可迁移自有非画布样式切片 | 仅日期选择器样式；未发现画布、插件、资产或外部服务依赖 | 接受迁移；登记源/目标哈希 |
-| `static/v2/projects.html`、`static/v2/js/projects-controller.js` | 画布耦合的旧整文件候选 | 含画布回收站、旧页面、资产管理、旧 API 和跨页面旧壳层依赖 | 不接受整文件迁移；以项目中心行为规范重写 |
-| `static/v2/js/v2-shell.js`、`static/css/hardware-design-system.css`、`static/js/hardware-telemetry.js` | 共享依赖/待确认 | 含旧路由、固定身份、资产/团队/ComfyUI/插件等跨域引用 | 不迁移；以最小洁净壳层和状态脚本重写 |
-| `static/v2/workshop.html` | 无限画布/智能画布入口 | 与 `god-canvas` 入口及画布交互边界耦合 | 禁止复制旧实现；以契约重写普通画布最小 UI |
-| `asset_registry/canvas_engine/`、`asset_registry/storage_bridge/`、`backend/comfyui/` | 画布直接依赖/共享依赖 | 直接处理画布资产、工作流或运行桥接 | 隔离，不迁移 |
-| `tools/chrome-local-asset-importer/`、`tools/photoshop-asset-connector/` | 工具排除区 | 项目/画布插件协议耦合 | 隔离，不迁移 |
-| `backend/generation_api/providers/*.py`、`tools/route_permissions.py` | 待确认共享依赖 | 存在画布提示词、资产命名、智能任务或路由能力耦合 | 拒绝本轮迁移 |
-| `main.py`、`static/` 其他文件、`data/`、`assets/`、`tests/`、`docs/`、`.git/` | 明确排除/非实现输入 | 含入口闭包、资源、数据、历史或不可证明的实现细节 | 不复制、不作为实现输入 |
+| `src/gods_workbench/static/v2/js/project-date-range.js` | `3607B19926040C0F40590781451964003616AA3BC436D7E8674E055C5378A593` | `3607B19926040C0F40590781451964003616AA3BC436D7E8674E055C5378A593` | MATCH |
+| `src/gods_workbench/static/v2/css/project-date-range.css` | `794B0E20B8DAC4A48BD1E3ACEE1C1F4D7087B1EAC412B9F34D69DE5F0563197A` | `794B0E20B8DAC4A48BD1E3ACEE1C1F4D7087B1EAC412B9F34D69DE5F0563197A` | MATCH |
 
-## 哈希证明
+哈希登记与授权决定：`docs/provenance/AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt`。
 
-以下哈希只用于证明实际接受的两个无画布切片来源关系；不构成对其他旧仓文件的迁移授权。哈希值由本次执行重新生成。
+## 类别②：按契约/夹具自行重写
 
-| 相对路径 | 来源 SHA-256 | 目标 SHA-256 | 结果 |
-|---|---|---|---|
-| `static/v2/js/project-date-range.js` | 见 `AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` | 见 `AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` | MATCH |
-| `static/v2/css/project-date-range.css` | 见 `AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` | 见 `AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` | MATCH |
+当前静态层除上述 2 个文件、`vendor/**`、`prompt-registry/**` 和隔离项外，均按洁净仓行为规范、接口契约与黄金夹具自行重写。包括 V2 项目中心、入口页、设置页、普通画布/智能画布业务壳、API 设置及任务/资产 UI。该分类不表示复制旧仓，也不表示生产验收完成。
 
-## 迁移结论
+## 类别③：第三方资产
 
-本轮允许的代码迁移仅限上述两个日期选择器切片。项目中心、普通画布和智能画布的业务实现均按当前行为规范、接口契约和黄金夹具重新编写；不把旧仓整文件副本当作实现输入。任何无法证明与画布完全解耦的新候选，自动回到“待确认/隔离”状态。
+- `src/gods_workbench/static/vendor/**`：Lucide（ISC/Feather 派生 MIT）、Three.js 0.160.0（MIT）、Source Han Sans CN 三个 OTF（SIL OFL-1.1）及本地加载配置；细节见 `vendor/MANIFEST.md`。
+- `src/gods_workbench/static/prompt-registry/**`：外部提示词快照；MIT 与 CC BY 4.0 的来源、署名和限制见 `prompt-registry/NOTICE.md`。
+- 第三方存在不改变仓库当前 `NOT AUTHORIZED FOR PUBLIC DISTRIBUTION` 状态。
+
+## 类别④：隔离 / 不迁移
+
+| 范围 | 判定依据 | 当前状态 |
+|---|---|---|
+| `src/gods_workbench/static/system-prompts/infinite-canvas-prompt-templates.md` | 无限画布旧提示词，属于明确隔离范围 | 工作树保留为隔离登记，不进入运行迁移链路 |
+| comfyui 专属页面/脚本/样式 | 用户 2026-09-20 裁决不迁移 | 工作树已删除，卫生用例禁止重现 |
+| `static/runninghub/` 与 RunningHub 专属实现 | 用户 2026-09-20 裁决不迁移 | 工作树已删除并清除保留层引用 |
+| 旧无限画布/智能画布实现、连接器及插件协议 | 根 `AGENTS.md` 排除项与洁净室边界 | 不迁移；不得由静态层隐式引入 |
+
+## 证据边界
+
+- 以上为当前工作树与已登记清单的本地证据，不是远端 CI、生产验收、法律意见或公开发布授权。
+- 未执行 `git add`、`git commit`、`git push`、`git remote`；未使用 orca 或非 Codex 工具。

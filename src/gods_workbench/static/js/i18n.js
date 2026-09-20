@@ -13,7 +13,6 @@
         '/static/js/i18n/api-settings.js',
         '/static/js/i18n/canvas.js',
         '/static/js/i18n/smart-canvas.js',
-        '/static/js/i18n/comfyui-settings.js',
         '/static/js/i18n/task-center.js',
         '/static/js/i18n/governance.js',
     ];

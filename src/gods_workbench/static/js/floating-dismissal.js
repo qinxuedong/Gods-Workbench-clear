@@ -12,7 +12,6 @@
     // explicit data-floating contract.
     const LEGACY_SURFACE_DEFINITIONS = [
         {selector: '.picker-overlay', kind: 'modal', content: '[data-floating-content], .picker-modal'},
-        {selector: '.rh-workflow-editor-overlay', kind: 'modal', content: '[data-floating-content], .rh-workflow-editor-modal'},
         {selector: '.gallery-lightbox', kind: 'modal', content: '[data-floating-content], #lightboxFrame, #lightboxCard'},
         {selector: '.output-lightbox', kind: 'modal', content: '[data-floating-content], .output-lightbox-shell, #outputPromptPanel'},
         {selector: '.prompt-template-modal', kind: 'modal', content: '[data-floating-content], .prompt-template-panel'},
@@ -37,7 +36,6 @@
         {selector: '.asset-operation-error-overlay', kind: 'modal', content: '[data-floating-content], [role="alertdialog"]'},
         {selector: '.asset-review-layer', kind: 'modal', content: '[data-floating-content], [role="dialog"], [role="alertdialog"], .asset-review-drawer, .asset-share-modal, .asset-account-modal, .asset-team-modal'},
         {selector: '.asset-detail-viewer', kind: 'modal', content: '[data-floating-content], [role="dialog"], .asset-detail-viewer-page'},
-        {selector: '.rh-node-popover', kind: 'popover', content: 'self'},
         {selector: '.smart-log-lightbox', kind: 'modal', content: '[data-floating-content], img'},
     ];
     const AUTO_DIALOG_SELECTOR = 'dialog, [role="dialog"], [role="alertdialog"]';
@@ -119,7 +117,7 @@
             return [];
         }
         // A small number of legacy overlays use a sibling as their content node
-        // (for example the Comfy node popup and its separate backdrop).
+        // (for example a node popup and its separate backdrop).
         try {
             return Array.from(document.querySelectorAll(selector));
         } catch (_) {
@@ -321,7 +319,7 @@
 
     function defaultKind(element) {
         if (isNativeDialog(element)) return 'native-dialog';
-        if (element.matches?.('.smart-popover, .rh-node-popover, [role="menu"], [role="listbox"]')) return 'popover';
+        if (element.matches?.('.smart-popover, [role="menu"], [role="listbox"]')) return 'popover';
         return 'overlay';
     }
 

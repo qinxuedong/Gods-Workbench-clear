@@ -533,9 +533,6 @@ body.gw-page--asset-manager .asset-review-toast { background: var(--sf-surface) 
 body.gw-page--api-settings :is(.page, .wrap, .layout, .content, .block, .provider-onboarding-card) { color: var(--sf-text) !important; border-color: var(--sf-line) !important; }
 body.gw-page--api-settings :is(.layout > .sidebar, .content, .block, .provider-onboarding-card, .provider-list, .provider-item) { background: var(--sf-content) !important; border-radius: var(--sf-radius-control) !important; }
 body.gw-page--api-settings .provider-item.active { border-color: var(--sf-cyan) !important; background: rgba(105, 214, 255, .12) !important; }
-body.gw-page--comfyui-settings :is(.page, .wrap, .layout, .sidebar, .content, .side-card, .graph-card, .workflow-list) { color: var(--sf-text) !important; border-color: var(--sf-line) !important; }
-body.gw-page--comfyui-settings :is(.side-card, .graph-card, .workflow-list) { background: var(--sf-content) !important; border-radius: var(--sf-radius-control) !important; box-shadow: none !important; }
-body.gw-page--comfyui-settings .preview-pill { border-radius: var(--sf-radius-tight) !important; color: var(--sf-mint) !important; border-color: rgba(99, 226, 176, .4) !important; background: rgba(99, 226, 176, .1) !important; }
 
 @media (max-width: 980px) {
   body.gw-signal :is(.workspace-page, .asset-page, .page, .container-box) { padding-inline: 16px !important; }
@@ -1606,37 +1603,44 @@ body:is(.gw-page--zimage, .gw-page--enhance, .gw-page--klein, .gw-page--angle, .
   border-color: var(--sf-line) !important;
 }
 
+
 /* Tables, lists and dialog chrome use a predictable dense rhythm on the
    project, observability, asset and settings routes. */
-body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) :is(table, .task-table) {
+
+
+
+body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings) :is(table, .task-table) {
   border-collapse: separate;
   border-spacing: 0;
   color: var(--sf-text);
 }
-body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) :is(th, td) {
+body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings) :is(th, td) {
   min-height: 40px;
   border-color: var(--sf-line) !important;
   color: var(--sf-text) !important;
   font-size: var(--sf-fs-body);
 }
-body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) :is(th, .panel-heading, .section-head, .view-heading) {
+body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings) :is(th, .panel-heading, .section-head, .view-heading) {
   color: var(--sf-muted) !important;
   font-size: var(--sf-fs-title);
   font-weight: var(--sf-fw-semibold);
 }
+
 /* Table headers stay compact captions above dense rows. */
-body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) th {
+
+
+body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings) th {
   font-size: var(--sf-fs-caption) !important;
   font-weight: var(--sf-fw-medium) !important;
 }
-body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) :is(.production-dialog, .task-detail-dialog, dialog, .asset-review-drawer, .asset-account-modal, .asset-team-modal, .asset-share-modal) {
+body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings) :is(.production-dialog, .task-detail-dialog, dialog, .asset-review-drawer, .asset-account-modal, .asset-team-modal, .asset-share-modal) {
   border: 1px solid var(--sf-line-strong) !important;
   border-radius: var(--sf-radius-panel) !important;
   background: var(--sf-surface) !important;
   color: var(--sf-text) !important;
   box-shadow: var(--sf-shadow-float) !important;
 }
-body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) dialog::backdrop { background: rgba(4, 9, 14, .72); }
+body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager, .gw-page--settings, .gw-page--api-settings) dialog::backdrop { background: rgba(4, 9, 14, .72); }
 
 @media (max-width: 900px) {
   body.gw-signal:not(.gw-page--home) :is(.workspace-page, .container-box, .page, .wrap, .layout) { padding-inline: 16px !important; }
@@ -1677,7 +1681,7 @@ body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager,
     transform: none !important;
     transform-origin: 0 0 !important;
   }
-  html.studio-ui-scaled body.gw-signal:is(.gw-page--project-board, .gw-page--episode-pipeline, .gw-page--zimage, .gw-page--enhance, .gw-page--klein, .gw-page--angle, .gw-page--online, .gw-page--video, .gw-page--gpt-chat, .gw-page--canvas, .gw-page--asset-manager, .gw-page--task-center, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) {
+  html.studio-ui-scaled body.gw-signal:is(.gw-page--project-board, .gw-page--episode-pipeline, .gw-page--zimage, .gw-page--enhance, .gw-page--klein, .gw-page--angle, .gw-page--online, .gw-page--video, .gw-page--gpt-chat, .gw-page--canvas, .gw-page--asset-manager, .gw-page--task-center, .gw-page--settings, .gw-page--api-settings) {
     width: 100% !important;
     min-width: 0 !important;
     min-height: 100vh !important;
@@ -1686,13 +1690,13 @@ body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager,
     transform-origin: 0 0 !important;
     overflow-x: auto !important;
   }
-  html.studio-ui-scaled body.gw-signal:is(.gw-page--project-board, .gw-page--episode-pipeline, .gw-page--zimage, .gw-page--enhance, .gw-page--klein, .gw-page--angle, .gw-page--online, .gw-page--video, .gw-page--gpt-chat, .gw-page--canvas, .gw-page--asset-manager, .gw-page--task-center, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) > :is(.app-shell, .shell, .asset-page) {
+  html.studio-ui-scaled body.gw-signal:is(.gw-page--project-board, .gw-page--episode-pipeline, .gw-page--zimage, .gw-page--enhance, .gw-page--klein, .gw-page--angle, .gw-page--online, .gw-page--video, .gw-page--gpt-chat, .gw-page--canvas, .gw-page--asset-manager, .gw-page--task-center, .gw-page--settings, .gw-page--api-settings) > :is(.app-shell, .shell, .asset-page) {
     width: 100% !important;
     min-width: 0 !important;
     min-height: 100vh !important;
     height: auto !important;
   }
-  body.gw-signal:is(.gw-page--project-board, .gw-page--episode-pipeline, .gw-page--zimage, .gw-page--enhance, .gw-page--klein, .gw-page--angle, .gw-page--online, .gw-page--video, .gw-page--gpt-chat, .gw-page--canvas, .gw-page--asset-manager, .gw-page--task-center, .gw-page--settings, .gw-page--api-settings, .gw-page--comfyui-settings) :is(button, input, select, textarea) {
+  body.gw-signal:is(.gw-page--project-board, .gw-page--episode-pipeline, .gw-page--zimage, .gw-page--enhance, .gw-page--klein, .gw-page--angle, .gw-page--online, .gw-page--video, .gw-page--gpt-chat, .gw-page--canvas, .gw-page--asset-manager, .gw-page--task-center, .gw-page--settings, .gw-page--api-settings) :is(button, input, select, textarea) {
     min-height: 36px !important;
   }
 }
@@ -1700,12 +1704,12 @@ body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager,
 /* Narrow roots must fill the viewport even while the legacy scale class is
    present. This affects only page chrome; canvas node/board zoom stays local. */
 @media (max-width: 900px) {
-  html:has(body.gw-signal:is(.gw-page--project-board, .gw-page--zimage, .gw-page--gpt-chat, .gw-page--comfyui-settings)) {
+  html:has(body.gw-signal:is(.gw-page--project-board, .gw-page--zimage, .gw-page--gpt-chat)) {
     width: 100vw !important;
     min-width: 0 !important;
     background: var(--sf-bg) !important;
   }
-  html:has(body.gw-signal:is(.gw-page--project-board, .gw-page--zimage, .gw-page--gpt-chat, .gw-page--comfyui-settings)) body {
+  html:has(body.gw-signal:is(.gw-page--project-board, .gw-page--zimage, .gw-page--gpt-chat)) body {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 0 !important;
@@ -1716,15 +1720,13 @@ body:is(.gw-page--project-board, .gw-page--task-center, .gw-page--asset-manager,
   body.gw-page--project-board > .workspace-page,
   body.gw-page--zimage > :is(header, main),
   body.gw-page--gpt-chat > .chat-shell,
-  body.gw-page--gpt-chat .chat-main,
-  body.gw-page--comfyui-settings > .page {
+  body.gw-page--gpt-chat .chat-main {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 0 !important;
     margin-inline: 0 !important;
   }
-  body.gw-page--zimage :is(.layout-container, .console-card, #masonry),
-  body.gw-page--comfyui-settings :is(.wrap, .layout, .content, .sidebar) {
+  body.gw-page--zimage :is(.layout-container, .console-card, #masonry) {
     width: 100% !important;
     min-width: 0 !important;
   }
@@ -1861,8 +1863,7 @@ body.gw-signal:not(.gw-page--home) .center-titlebar {
 }
 body.gw-page--project-board .topbar,
 body.gw-page--gpt-chat .chat-main > .topbar,
-body.gw-page--canvas .topbar,
-body.gw-page--comfyui-settings .page-head {
+body.gw-page--canvas .topbar {
   background: var(--sf-surface) !important;
   background-color: var(--sf-surface) !important;
 }
@@ -2220,15 +2221,15 @@ body.gw-page--api-settings :is(.layout > .sidebar, .provider-list) {
   border-color: var(--sf-line) !important;
   color: var(--sf-text) !important;
 }
-body.gw-page--api-settings :is(.block, .provider-onboarding-card, .recommend-card, .recommend-platform-card, .recommend-inline-card, .recommend-guide-source, .recommend-guide-save, .onboarding-step-panel, .onboarding-key-entry, .onboarding-rh-source-group, .onboarding-rh-source-panel, .onboarding-rh-submit-panel, .api-card, .rh-key-item, .rh-card-group, .rh-config-card, .field-frame, .key-panel, .model-row, .input-row, .picker-modal, .provider-card) {
+body.gw-page--api-settings :is(.block, .provider-onboarding-card, .recommend-card, .recommend-platform-card, .recommend-inline-card, .recommend-guide-source, .recommend-guide-save, .onboarding-step-panel, .onboarding-key-entry, .onboarding-provider-source-group, .onboarding-provider-source-panel, .onboarding-provider-submit-panel, .api-card, .provider-key-item, .field-frame, .key-panel, .model-row, .input-row, .picker-modal, .provider-card) {
   background: var(--sf-content) !important;
   border-color: var(--sf-line) !important;
   color: var(--sf-text) !important;
   box-shadow: none !important;
 }
-body.gw-page--api-settings :is(.block-title, .editor-title, .recommend-platform-title, .recommend-group-title, .rh-key-title, .label, .page-head .title) { color: var(--sf-text) !important; }
-body.gw-page--api-settings :is(.sub, .editor-sub, .block-desc, .hint, .page-head .sub, .page-head .status, .recommend-platform-desc, .rh-key-desc, .side-section-title, .provider-meta) { color: var(--sf-muted) !important; }
-body.gw-page--api-settings :is(input, select, textarea, .field-frame input, .model-row input, .rh-paste-input, .rh-card-main input, .onboarding-key-field input) {
+body.gw-page--api-settings :is(.block-title, .editor-title, .recommend-platform-title, .recommend-group-title, .provider-key-title, .label, .page-head .title) { color: var(--sf-text) !important; }
+body.gw-page--api-settings :is(.sub, .editor-sub, .block-desc, .hint, .page-head .sub, .page-head .status, .recommend-platform-desc, .provider-key-desc, .side-section-title, .provider-meta) { color: var(--sf-muted) !important; }
+body.gw-page--api-settings :is(input, select, textarea, .field-frame input, .model-row input, .onboarding-key-field input) {
   background: var(--sf-raised) !important;
   border-color: var(--sf-line-strong) !important;
   color: var(--sf-text) !important;
@@ -2259,20 +2260,20 @@ body.gw-page--api-settings :is(.danger-btn, .key-clear) {
 html body.gw-page--api-settings :is(.page, .wrap, .layout, .content) { background: transparent !important; color: var(--sf-text) !important; }
 html body.gw-page--api-settings :is(.layout > .sidebar, .provider-list) { background: var(--sf-sidebar) !important; border-color: var(--sf-line) !important; color: var(--sf-text) !important; }
 html body.gw-page--api-settings :is(.page-head, .content-head) { background: var(--sf-surface) !important; border-color: var(--sf-line) !important; color: var(--sf-text) !important; }
-html body.gw-page--api-settings :is(.provider-onboarding-card, .recommend-inline-card, .onboarding-head, .recommend-api-body, .recommend-inline-body, .recommend-card, .recommend-platform-card, .recommend-platform-info, .recommend-platform-setup, .recommend-guide-source, .recommend-guide-save, .recommend-note, .recommend-seedance-private-note, .recommend-group-head, .onboarding-step-panel, .onboarding-key-entry, .onboarding-rh-source-group, .onboarding-rh-source-panel, .onboarding-rh-submit-panel, .api-card, .rh-key-item, .rh-card-group, .rh-config-card, .field-frame, .key-panel, .model-row, .input-row, .picker-modal, .provider-card) {
+html body.gw-page--api-settings :is(.provider-onboarding-card, .recommend-inline-card, .onboarding-head, .recommend-api-body, .recommend-inline-body, .recommend-card, .recommend-platform-card, .recommend-platform-info, .recommend-platform-setup, .recommend-guide-source, .recommend-guide-save, .recommend-note, .recommend-seedance-private-note, .recommend-group-head, .onboarding-step-panel, .onboarding-key-entry, .onboarding-provider-source-group, .onboarding-provider-source-panel, .onboarding-provider-submit-panel, .api-card, .provider-key-item, .field-frame, .key-panel, .model-row, .input-row, .picker-modal, .provider-card) {
   background: var(--sf-content) !important;
   border-color: var(--sf-line) !important;
   color: var(--sf-text) !important;
   box-shadow: none !important;
 }
 html body.gw-page--api-settings :is(.onboarding-head, .recommend-api-body, .recommend-inline-body, .recommend-platform-info, .recommend-platform-setup, .recommend-note, .recommend-seedance-private-note) :is(div, span, p, strong, small) { color: inherit !important; }
-html body.gw-page--api-settings :is(.page-head .title, .block-title, .editor-title, .recommend-platform-title, .recommend-group-title, .rh-key-title, .label) { color: var(--sf-text) !important; }
-html body.gw-page--api-settings :is(.sub, .editor-sub, .block-desc, .hint, .page-head .sub, .page-head .status, .recommend-platform-desc, .rh-key-desc, .side-section-title, .provider-meta) { color: var(--sf-muted) !important; }
-html body.gw-page--api-settings :is(input, select, textarea, .field-frame input, .model-row input, .rh-paste-input, .rh-card-main input, .onboarding-key-field input) { background: var(--sf-raised) !important; border-color: var(--sf-line-strong) !important; color: var(--sf-text) !important; }
+html body.gw-page--api-settings :is(.page-head .title, .block-title, .editor-title, .recommend-platform-title, .recommend-group-title, .provider-key-title, .label) { color: var(--sf-text) !important; }
+html body.gw-page--api-settings :is(.sub, .editor-sub, .block-desc, .hint, .page-head .sub, .page-head .status, .recommend-platform-desc, .provider-key-desc, .side-section-title, .provider-meta) { color: var(--sf-muted) !important; }
+html body.gw-page--api-settings :is(input, select, textarea, .field-frame input, .model-row input, .onboarding-key-field input) { background: var(--sf-raised) !important; border-color: var(--sf-line-strong) !important; color: var(--sf-text) !important; }
 html body.gw-page--api-settings :is(button, .action-btn, .add-btn, .api-link-btn, .cli-quick-btn, .key-btn, .tool-btn, .icon-btn) { background: var(--sf-surface) !important; border-color: var(--sf-line-strong) !important; color: var(--sf-text) !important; }
 html body.gw-page--api-settings :is(.save-btn, .recommend-guide-save-btn, .onboarding-save-btn) { background: var(--sf-cyan) !important; border-color: var(--sf-cyan) !important; color: #071018 !important; }
 html body.gw-page--api-settings :is(.danger-btn, .key-clear) { background: rgba(255, 127, 120, .1) !important; border-color: rgba(255, 127, 120, .5) !important; color: var(--sf-coral) !important; }
-html body.api-settings-page.gw-page--api-settings :is(.content-head, .layout > .sidebar, .provider-list, .provider-onboarding-card, .recommend-inline-card, .onboarding-head, .recommend-api-body, .recommend-inline-body, .recommend-card, .recommend-platform-card, .recommend-platform-info, .recommend-platform-setup, .recommend-guide-source, .recommend-guide-save, .recommend-note, .recommend-seedance-private-note, .recommend-group-head, .onboarding-step-panel, .onboarding-key-entry, .onboarding-rh-source-group, .onboarding-rh-source-panel, .onboarding-rh-submit-panel, .api-card, .rh-key-item, .rh-card-group, .rh-config-card, .field-frame, .key-panel, .model-row, .input-row, .picker-modal, .provider-card) {
+html body.api-settings-page.gw-page--api-settings :is(.content-head, .layout > .sidebar, .provider-list, .provider-onboarding-card, .recommend-inline-card, .onboarding-head, .recommend-api-body, .recommend-inline-body, .recommend-card, .recommend-platform-card, .recommend-platform-info, .recommend-platform-setup, .recommend-guide-source, .recommend-guide-save, .recommend-note, .recommend-seedance-private-note, .recommend-group-head, .onboarding-step-panel, .onboarding-key-entry, .onboarding-provider-source-group, .onboarding-provider-source-panel, .onboarding-provider-submit-panel, .api-card, .provider-key-item, .field-frame, .key-panel, .model-row, .input-row, .picker-modal, .provider-card) {
   background: var(--sf-content) !important;
   border-color: var(--sf-line) !important;
   color: var(--sf-text) !important;
@@ -2281,7 +2282,7 @@ html body.api-settings-page.gw-page--api-settings :is(.content-head, .layout > .
 html body.api-settings-page.gw-page--api-settings .layout > .sidebar { background: var(--sf-sidebar) !important; }
 html body.api-settings-page.gw-page--api-settings :is(.page-head, .content-head) { background: var(--sf-surface) !important; }
 html body.api-settings-page.gw-page--api-settings :is(.onboarding-head, .recommend-api-body, .recommend-inline-body, .recommend-platform-info, .recommend-platform-setup, .recommend-note, .recommend-seedance-private-note) :is(div, span, p, strong, small) { color: inherit !important; }
-html body.api-settings-page.gw-page--api-settings :is(input, select, textarea, .field-frame input, .model-row input, .rh-paste-input, .rh-card-main input, .onboarding-key-field input) { background: var(--sf-raised) !important; border-color: var(--sf-line-strong) !important; color: var(--sf-text) !important; }
+html body.api-settings-page.gw-page--api-settings :is(input, select, textarea, .field-frame input, .model-row input, .onboarding-key-field input) { background: var(--sf-raised) !important; border-color: var(--sf-line-strong) !important; color: var(--sf-text) !important; }
 html body.api-settings-page.gw-page--api-settings :is(button, .action-btn, .add-btn, .api-link-btn, .cli-quick-btn, .key-btn, .tool-btn, .icon-btn) { background: var(--sf-surface) !important; border-color: var(--sf-line-strong) !important; color: var(--sf-text) !important; }
 html body.api-settings-page.gw-page--api-settings :is(.save-btn, .recommend-guide-save-btn, .onboarding-save-btn) { background: var(--sf-cyan) !important; border-color: var(--sf-cyan) !important; color: #071018 !important; }
 html body.api-settings-page.gw-signal.gw-page--api-settings :is(.page-head, .content-head) { background-color: var(--sf-surface) !important; background: var(--sf-surface) !important; }
@@ -2311,58 +2312,10 @@ html body.api-settings-page.gw-signal.gw-page--api-settings #recommendPanel :is(
 html body.api-settings-page.gw-signal.gw-page--api-settings #recommendPanel input::placeholder,
 html body.api-settings-page.gw-signal.gw-page--api-settings #recommendPanel textarea::placeholder { color: var(--sf-muted) !important; -webkit-text-fill-color: var(--sf-muted) !important; opacity: 1 !important; }
 
-body.gw-page--comfyui-settings {
-  --bg: var(--sf-bg) !important;
-  --panel: var(--sf-surface) !important;
-  --soft: var(--sf-raised) !important;
-  --line: var(--sf-line) !important;
-  --line-strong: var(--sf-line-strong) !important;
-  --text: var(--sf-text) !important;
-  --muted: var(--sf-muted) !important;
-  --faint: var(--sf-faint) !important;
-  --accent: var(--sf-cyan) !important;
-  background: var(--sf-bg) !important;
-  color: var(--sf-text) !important;
-}
-body.gw-page--comfyui-settings :is(.page, .wrap, .layout, .content) {
-  background: transparent !important;
-  color: var(--sf-text) !important;
-}
-body.gw-page--comfyui-settings .page {
-  min-height: 100vh !important;
-  max-width: none !important;
-  margin: 0 !important;
-  padding: 12px 24px 18px !important;
-}
-body.gw-page--comfyui-settings .wrap { max-width: none !important; margin: 0 !important; }
-body.gw-page--comfyui-settings :is(.page-head, .content-head, .graph-card, .side-card, .workflow-list, .node-list, .nodes-toggle, .preview-empty, .graph-svg-wrap, .graph-ctrl-btn, .graph-zoom-pill) {
-  background: var(--sf-content) !important;
-  border-color: var(--sf-line) !important;
-  color: var(--sf-text) !important;
-  box-shadow: none !important;
-}
-body.gw-page--comfyui-settings .layout > .sidebar { background: transparent !important; }
-body.gw-page--comfyui-settings :is(.page-head .title, .content-head .editor-title, .graph-head .editor-title, .workflow-name, .preview-title) { color: var(--sf-text) !important; }
-body.gw-page--comfyui-settings :is(.page-head .sub, .page-head .status, .editor-sub, .workflow-meta, .preview-desc, .preview-empty) { color: var(--sf-muted) !important; }
-body.gw-page--comfyui-settings :is(.workflow-card, .workflow-icon, .upload-btn, .action-btn) { background: var(--sf-surface) !important; border-color: var(--sf-line-strong) !important; color: var(--sf-text) !important; }
-body.gw-page--comfyui-settings :is(.workflow-card.active, .workflow-card:hover, .workflow-card:focus-visible) { background: rgba(105, 214, 255, .12) !important; border-color: var(--sf-cyan) !important; color: var(--sf-cyan) !important; }
-body.gw-page--comfyui-settings :is(.save-btn, .primary-btn) { background: var(--sf-cyan) !important; border-color: var(--sf-cyan) !important; color: #071018 !important; }
 /* Workflow nodes must stay on the graphite canvas even when the legacy
    stylesheet's light theme is active. Category colors remain semantic but
    use restrained dark fills so the page cannot flash back to pastel blocks. */
-body.gw-page--comfyui-settings .graph-svg-wrap { background: var(--sf-bg) !important; background-color: var(--sf-bg) !important; background-image: radial-gradient(rgba(173, 205, 220, .10) 1px, transparent 1px) !important; background-size: 18px 18px !important; }
-body.gw-page--comfyui-settings .gnode rect { fill: var(--sf-content) !important; stroke: var(--sf-line-strong) !important; }
-body.gw-page--comfyui-settings .gnode.cat-prompt rect { fill: rgba(242, 198, 109, .14) !important; stroke: var(--sf-amber) !important; }
-body.gw-page--comfyui-settings .gnode.cat-loader rect { fill: rgba(105, 214, 255, .14) !important; stroke: var(--sf-cyan) !important; }
-body.gw-page--comfyui-settings .gnode.cat-lora rect,
-body.gw-page--comfyui-settings .gnode.cat-controlnet rect { fill: rgba(255, 127, 120, .12) !important; stroke: var(--sf-coral) !important; }
-body.gw-page--comfyui-settings .gnode.cat-sampler rect,
-body.gw-page--comfyui-settings .gnode.cat-latent rect { fill: rgba(154, 167, 255, .14) !important; stroke: var(--sf-indigo) !important; }
-body.gw-page--comfyui-settings .gnode.cat-image rect { fill: rgba(99, 226, 176, .14) !important; stroke: var(--sf-mint) !important; }
-body.gw-page--comfyui-settings .gnode.cat-output rect { fill: var(--sf-raised) !important; stroke: var(--sf-line-strong) !important; }
-body.gw-page--comfyui-settings .gnode :is(.gn-title, .gn-sub, .gn-icon) { fill: var(--sf-text) !important; }
-body.gw-page--comfyui-settings .gnode .gn-sub { fill: var(--sf-muted) !important; }
-body.gw-page--comfyui-settings .gbadge { fill: var(--sf-amber) !important; }
+
 
 body.gw-page--canvas {
   --page: var(--sf-bg) !important;
@@ -2466,46 +2419,42 @@ body.gw-page--governance .btn.danger { background: rgba(255, 127, 120, .1) !impo
     box-sizing: border-box !important;
   }
 
+  
   /* Settings pages: stack the navigation and editor instead of allowing a
      fixed desktop column to push the editor outside the viewport. */
-  body.gw-page--api-settings .page,
-  body.gw-page--comfyui-settings .page {
+
+
+  
+  body.gw-page--api-settings .page {
     padding: 10px 12px 18px !important;
   }
-  body.gw-page--api-settings .layout,
-  body.gw-page--comfyui-settings .layout {
+  body.gw-page--api-settings .layout {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 12px !important;
   }
   body.gw-page--api-settings .layout > .sidebar,
-  body.gw-page--api-settings .layout > .content,
-  body.gw-page--comfyui-settings .layout > .sidebar,
-  body.gw-page--comfyui-settings .layout > .content {
+  body.gw-page--api-settings .layout > .content {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
     position: static !important;
   }
-  body.gw-page--api-settings .layout > .sidebar,
-  body.gw-page--comfyui-settings .layout > .sidebar {
+  body.gw-page--api-settings .layout > .sidebar {
     max-height: none !important;
     overflow: visible !important;
   }
-  body.gw-page--api-settings :is(.form, .model-grid, .endpoint-grid, .rh-card-columns, .recommend-flow, .recommend-platform-grid),
-  body.gw-page--comfyui-settings :is(.form, .model-grid, .endpoint-grid, .rh-card-columns) {
+  body.gw-page--api-settings :is(.form, .model-grid, .endpoint-grid, .recommend-flow, .recommend-platform-grid) {
     grid-template-columns: minmax(0, 1fr) !important;
   }
-  body.gw-page--api-settings :is(.content-head, .page-head, .block, .provider-onboarding-card, .recommend-card, .recommend-platform-card),
-  body.gw-page--comfyui-settings :is(.content-head, .page-head, .graph-card, .side-card) {
+  body.gw-page--api-settings :is(.content-head, .page-head, .block, .provider-onboarding-card, .recommend-card, .recommend-platform-card) {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
   }
-  body.gw-page--api-settings :is(.content-head, .page-head),
-  body.gw-page--comfyui-settings :is(.content-head, .page-head, .graph-head) {
+  body.gw-page--api-settings :is(.content-head, .page-head) {
     flex-wrap: wrap !important;
     row-gap: 8px !important;
   }
@@ -3088,14 +3037,9 @@ body.gw-page--api-settings :is(.model-row, .model-id-field) code,
 body.gw-page--api-settings :is(.key-value, .key-input, input[type="password"]) { font-family: var(--sf-font-mono); font-size: var(--sf-fs-caption); }
 body.gw-page--api-settings .provider-item { font-size: var(--sf-fs-body); font-weight: var(--sf-fw-medium); }
 
-/* ComfyUI workflow settings calibration against reference 16: workflow cards,
-   side captions and node list rhythm. */
-body.gw-page--comfyui-settings :is(.side-title, .preview-title) { font-size: var(--sf-fs-heading); font-weight: var(--sf-fw-semibold); }
-body.gw-page--comfyui-settings .preview-desc { color: var(--sf-muted) !important; font-size: var(--sf-fs-caption); }
-body.gw-page--comfyui-settings .workflow-card strong,
-body.gw-page--comfyui-settings .workflow-card .workflow-name { color: var(--sf-text) !important; font-size: 12.5px; font-weight: var(--sf-fw-semibold); }
-body.gw-page--comfyui-settings .workflow-meta { color: var(--sf-muted) !important; font-family: var(--sf-font-mono); font-size: var(--sf-fs-micro); }
-body.gw-page--comfyui-settings .node-list :is(strong, .node-name) { font-size: var(--sf-fs-body); font-weight: var(--sf-fw-medium); }
+
+/*side captions and node list rhythm. */
+
 
 /* Final narrow-home override after the legacy search layout rules above. */
 @media (max-width: 620px) {
@@ -3272,18 +3216,23 @@ body.gw-page--comfyui-settings .node-list :is(strong, .node-name) { font-size: v
     backdrop-filter: none !important;
   }
 
-  /* API and ComfyUI pages were given a second shared padding layer by the
-     broad surface calibration. Remove that wrapper inset so their header starts
+  
+  /*broad surface calibration. Remove that wrapper inset so their header starts
      on the same 12px baseline as the other standalone pages. */
-  html body.gw-signal.gw-page--api-settings > .page > .wrap,
-  html body.gw-signal.gw-page--comfyui-settings > .page > .wrap {
+
+
+  
+  html body.gw-signal.gw-page--api-settings > .page > .wrap {
     padding: 0 !important;
   }
 
-  /* API and ComfyUI use the same breadcrumb row as the standalone workspace
-     pages. Their descriptions remain available in the markup but do not add a
+  
+  /*pages. Their descriptions remain available in the markup but do not add a
      second line to the shared header. */
-  html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) .page-head .breadcrumbs {
+
+
+  
+  html body.gw-signal:is(.gw-page--api-settings) .page-head .breadcrumbs {
     display: flex !important;
     align-items: center !important;
     gap: 8px !important;
@@ -3292,14 +3241,14 @@ body.gw-page--comfyui-settings .node-list :is(strong, .node-name) { font-size: v
     font-weight: 400 !important;
     letter-spacing: 0 !important;
   }
-  html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) .page-head .breadcrumbs .title {
+  html body.gw-signal:is(.gw-page--api-settings) .page-head .breadcrumbs .title {
     color: var(--sf-text) !important;
     font-size: 14px !important;
     line-height: 1 !important;
     font-weight: 700 !important;
     letter-spacing: 0 !important;
   }
-  html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) .page-head .sub {
+  html body.gw-signal:is(.gw-page--api-settings) .page-head .sub {
     display: none !important;
   }
 }
@@ -3328,10 +3277,10 @@ html body.gw-signal.gw-page--asset-manager:has(#assetManagerRoot) .asset-page-he
   background-color: transparent !important;
   background-image: none !important;
 }
-html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) > .page > .wrap {
+html body.gw-signal:is(.gw-page--api-settings) > .page > .wrap {
   padding: 0 !important;
 }
-html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) .page-head .breadcrumbs {
+html body.gw-signal:is(.gw-page--api-settings) .page-head .breadcrumbs {
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
@@ -3345,19 +3294,19 @@ html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) .page
 html body.gw-signal.gw-page--asset-manager .asset-page-head .asset-breadcrumbs {
   transform: translateY(1px);
 }
-html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) .page-head .breadcrumbs span:first-child::after {
+html body.gw-signal:is(.gw-page--api-settings) .page-head .breadcrumbs span:first-child::after {
   content: "/";
   margin-left: 8px;
   color: var(--sf-faint) !important;
 }
-html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) .page-head .breadcrumbs .title {
+html body.gw-signal:is(.gw-page--api-settings) .page-head .breadcrumbs .title {
   color: var(--sf-text) !important;
   font-size: 14px !important;
   line-height: 1 !important;
   font-weight: 700 !important;
   letter-spacing: 0 !important;
 }
-html body.gw-signal:is(.gw-page--api-settings, .gw-page--comfyui-settings) .page-head .sub {
+html body.gw-signal:is(.gw-page--api-settings) .page-head .sub {
   display: none !important;
 }
 
