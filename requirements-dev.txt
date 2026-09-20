@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # 测试与本地质量门禁依赖
 -r requirements.txt
 pytest>=8,<10

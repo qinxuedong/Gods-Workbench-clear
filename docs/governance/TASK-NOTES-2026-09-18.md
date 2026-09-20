@@ -743,3 +743,47 @@
 - **本地通过 ≠ 远端 CI ≠ 生产验收**。上一轮远端 CI `success` 绑定 `8c955e2`~`c2d3758`，**不覆盖本轮工作树**。
 - 未闭环：真实外部 IdP（模块**不接线**）、许可证最终结论（提示词快照与 Tailwind CDN 闭包）、**生产部署证据**、哈希锁、SBOM 签名/来源证明、Linux 容器闭包。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## 14. Phase 5：可复现性与证据闭环（2026-09-20/21，滚动更新）
+
+本节仅追加，不改动上方任何历史行。
+
+### 14.1 任务与产物
+
+| 任务 | 负责人 | 产物 | 结果 |
+|---|---|---|---|
+| P5-A1 哈希锁与按锁重装 | 代理 A1 → 主代理补完 | `requirements.lock.hashes`、`docs/governance/agent-reports-2026-09-20/T-hashlock.md` | 完成（31 行版本 / 38 个 sha256） |
+| P5-A2 Linux 闭包实测 | 代理 A2 → 主代理补完 | `docs/provenance/LINUX-CLOSURE-2026-09-21.txt`、`docs/governance/agent-reports-2026-09-20/T-linux-closure.md` | 完成（WSL2 Ubuntu 24.04.4） |
+| P5-A3 许可证闭包清点 | 代理 A3 | `docs/provenance/THIRD-PARTY-INVENTORY-2026-09-21.md`、`docs/governance/agent-reports-2026-09-20/T-license-inventory.md` | 完成（47 条；闭环 0 项） |
+| P5-B1 独立终审 | 审核代理 B1（四轮） | `attestations/reviews/PHASE-5-INDEPENDENT-REVIEW-2026-09-21.md` | R1/R2 不可提交 → 修正 → R3/R4 闭合 |
+
+### 14.2 哈希锁与跨平台实测
+
+- `requirements.lock.hashes`：31 行版本、38 个 `--hash=sha256:`；`uvloop==0.22.1 ; sys_platform != "win32"` 单独一行。
+- Windows（CPython 3.11.9 / pip 24.0，新建 venv）：`pip install --require-hashes` 成功、`pip check` 无冲突、`pytest` **63 passed**。
+- Linux（WSL2 Ubuntu 24.04.4 / CPython 3.11.15 / pip 24.0，新建 venv）：同上，`uvloop` 正确装入（0.22.1）、`pytest` **63 passed**。
+- Linux 与 Windows 主表差集：**仅 `+uvloop`（Linux）/ `−colorama`（Windows）**，其余 29 条版本完全一致。
+- 篡改实验：修改任一哈希 → `THESE PACKAGES DO NOT MATCH THE HASHES` 硬失败，证明哈希强制校验真实生效。
+
+### 14.3 独立终审发现并由主代理修复的真实缺陷（重要，不得删除）
+
+1. **65 位错误哈希**：A3 清单把 `three-0.160.0.module.js` 的 sha256 写成 65 字符（多插一个 `e`），长度非法。主代理复算磁盘真值（64 位）后修正两处。
+2. **6 个 source 路径不可复算**：清单把 6 个源文件写成裸 `sources/*.json`，按原文路径只 9/15 命中。已改为完整路径 `src/gods_workbench/static/prompt-registry/sources/*.json`，修正后 15/15。
+3. **cp936 下依赖清单不可解析（P0）**：四个依赖文件含中文注释却无编码声明；pip 24.0 的 `auto_decode()`
+   在无 BOM / 无 `coding:` 声明时回退 `locale.getpreferredencoding(False)` = cp936，直接 `UnicodeDecodeError`。
+   影响：中文 Windows 默认区域设置下**按锁重装与依赖安装完全不可用**（此前 A1/A2 因 `PYTHONUTF8=1` 未暴露）。
+   修复：四个文件首行追加 `# -*- coding: utf-8 -*-`；修复后 Windows 与 Linux 双平台按锁重装均成功。
+   因追加首行，`requirements.lock.hashes` 全文 sha256 由
+   `cdf4f469a88bd45d71352335023c11721db333f85b4e86a718f93463fcb7b087`
+   变为 **`0527bd488dc104060b5482de1ced562376a54dafe8788bc7cc65bf2ba97e6f56`**。
+4. **标题计数错误**：`## 2` 实为 31 条（30 主表 + uvloop），`## 4` 实为 8 个文件；均已更正。
+5. **`requirements.txt` 混入 CRLF**：`.gitattributes` 要求 `eol=lf`；已归一为 LF。
+
+### 14.4 证据边界
+
+- **本地通过 ≠ 远端 CI ≠ 生产验收**。本轮全部为本地 / WSL2 证据，远端 CI 需提交后读回。
+- 许可证义务闭环 **0 项**；`colorama` SPDX 缺失、Tailwind CDN 未钉版本、prompt-registry 内容权利链、
+  字体/JS 许可正文通知包等均**待用户/法务裁决**。
+- 未创建根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`（依 `AGENTS.md` §1.4）。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

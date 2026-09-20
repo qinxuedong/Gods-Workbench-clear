@@ -1,0 +1,173 @@
+Linux 闭包实测原始证据（P5-A2）
+日期：2026-09-21（Asia/Shanghai）
+执行者：主代理 /root 在 WSL Ubuntu 24（真实 Linux）中执行；代理 A2 沙箱受 Wsl/Service/CreateInstance/E_ACCESSDENIED 限制无法进入 WSL，
+故本文件为**主代理复跑的真实原始输出**，A2 的失败记录另行保留在报告 §6（不改写）。
+
+================================================================
+复现命令（PowerShell -> WSL）
+================================================================
+脚本以 LF 换行写入 %TEMP%，再：
+  wsl -- bash /mnt/c/Users/qinxuedong/AppData/Local/Temp/gw-root-20260920/linux-full.sh
+
+脚本内容要点：
+  export PATH="$HOME/.local/bin:$PATH"
+  REPO='/mnt/d/Working/Code Pro/Gods-Workbench-clear-all/Gods-Workbench-clear'
+  rm -rf /tmp/gw-root-linux2 && python3.11 -m venv /tmp/gw-root-linux2
+  /tmp/gw-root-linux2/bin/python -m pip install -q --upgrade pip
+  cd "$REPO"
+  /tmp/gw-root-linux2/bin/python -m pip install -r requirements-dev.txt
+  /tmp/gw-root-linux2/bin/python -m pip check
+  /tmp/gw-root-linux2/bin/python -m pip freeze
+  /tmp/gw-root-linux2/bin/python -m pytest -q --no-header -p no:cacheprovider
+
+================================================================
+原始输出（完整）
+================================================================
+## 环境
+Linux qin-home 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Ubuntu 24.04.4 LTS
+Python 3.11.15
+
+## 安装（干净 venv）
+Using cached pycparser-3.0-py3-none-any.whl (48 kB)
+Installing collected packages: websockets, uvloop, typing-extensions, pyyaml, python-dotenv, pygments, pycparser, pluggy, packaging, iniconfig, idna, httptools, h11, click, certifi, annotated-types, annotated-doc, uvicorn, typing-inspection, pytest, pydantic-core, httpcore, cffi, anyio, watchfiles, starlette, pydantic, httpx, cryptography, fastapi
+
+Successfully installed annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 certifi-2026.7.22 cffi-2.1.1 click-8.5.0 cryptography-46.0.7 fastapi-0.141.1 h11-0.16.0 httpcore-1.0.9 httptools-0.8.0 httpx-0.28.1 idna-3.20 iniconfig-2.3.0 packaging-26.3 pluggy-1.6.0 pycparser-3.0 pydantic-2.13.5 pydantic-core-2.46.5 pygments-2.21.0 pytest-9.1.1 python-dotenv-1.2.3 pyyaml-6.0.3 starlette-1.6.0 typing-extensions-4.16.0 typing-inspection-0.4.4 uvicorn-0.53.0 uvloop-0.22.1 watchfiles-1.2.0 websockets-17.1
+
+## pip check
+No broken requirements found.
+
+## pip freeze（完整）
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.7.22
+cffi==2.1.1
+click==8.5.0
+cryptography==46.0.7
+fastapi==0.141.1
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.8.0
+httpx==0.28.1
+idna==3.20
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+pycparser==3.0
+pydantic==2.13.5
+pydantic_core==2.46.5
+Pygments==2.21.0
+pytest==9.1.1
+python-dotenv==1.2.3
+PyYAML==6.0.3
+starlette==1.6.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.53.0
+uvloop==0.22.1
+watchfiles==1.2.0
+websockets==17.1
+
+## pytest
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+63 passed, 2 warnings in 4.98s
+
+## uvloop
+uvloop==0.22.1
+
+## colorama（Windows 专有）
+NO_COLORAMA
+
+================================================================
+与 requirements.lock 主表 30 条的逐条差集
+================================================================
+Linux 包数：30（主表 30 条）
+仅 Linux 存在：
+  + uvloop==0.22.1
+仅 Windows 主表存在：
+  - colorama==0.4.6
+版本不同：
+  （无）
+
+================================================================
+uvloop（Linux 专有）哈希
+================================================================
+下载命令（WSL 内）：
+  /tmp/gw-root-linux2/bin/python -m pip download --no-deps --only-binary=:all: -d /tmp/gw-uvloop uvloop==0.22.1
+
+wheel：uvloop-0.22.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+sha256：56a2d1fae65fd82197cb8c53c367310b3eabe1bbb9fb5a04d28e3e3520e4f702
+
+================================================================
+结论
+================================================================
+1. 真实 Linux（Ubuntu 24.04.4 / glibc / CPython 3.11.15）按 requirements-dev.txt 安装成功，63 passed。
+2. Linux 闭包相对 Windows 主表：多 uvloop==0.22.1，少 colorama（Windows 专有），其余 29 条版本一致。
+3. 因此 requirements.lock.hashes 的 Windows 段不可直接用于 Linux：
+   - 需并入 uvloop（含上列 sha256）；
+   - 需允许 colorama 在 Linux 缺失。
+4. 该证据为本地 Linux（WSL2）实测，不等于生产容器验收，也不等于远端 CI（远端 CI 为 GitHub ubuntu-latest，已另有 run 证据）。
+
+
+================================================================
+补充：跨平台哈希锁在 Linux 的实测（2026-09-21）
+================================================================
+命令（WSL 内，干净 venv）：
+  rm -rf /tmp/gw-cross && python3.11 -m venv /tmp/gw-cross
+  cd '/mnt/d/Working/Code Pro/Gods-Workbench-clear-all/Gods-Workbench-clear'
+  /tmp/gw-cross/bin/python -m pip install --require-hashes -r requirements.lock.hashes
+
+原始输出（节选）：
+  Installing collected packages: websockets, uvloop, typing_extensions, PyYAML, python-dotenv, Pygments, pycparser, pluggy, packaging, iniconfig, idna, httptools, h11, colorama, click, certifi, annotated-types, annotated-doc, uvicorn, typing-inspection, pytest, pydantic_core, httpcore, cffi, anyio, watchfiles, starlette, pydantic, httpx, cryptography, fastapi
+  
+  Successfully installed PyYAML-6.0.3 Pygments-2.21.0 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 certifi-2026.7.22 cffi-2.1.1 click-8.5.0 colorama-0.4.6 cryptography-46.0.7 fastapi-0.141.1 h11-0.16.0 httpcore-1.0.9 httptools-0.8.0 httpx-0.28.1 idna-3.20 iniconfig-2.3.0 packaging-26.3 pluggy-1.6.0 pycparser-3.0 pydantic-2.13.5 pydantic_core-2.46.5 pytest-9.1.1 python-dotenv-1.2.3 starlette-1.6.0 typing-inspection-0.4.4 typing_extensions-4.16.0 uvicorn-0.53.0 uvloop-0.22.1 watchfiles-1.2.0 websockets-17.1
+  === EXIT of install above follows ===
+  No broken requirements found.
+  === uvloop on linux ===
+  uvloop==0.22.1
+  === colorama on linux ===
+  colorama==0.4.6
+  === pytest ===
+  -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+  63 passed, 2 warnings in 4.83s
+
+结论：
+1. 跨平台哈希锁（含 uvloop 的 sys_platform != "win32" 标记）在 Linux 安装**成功**，63 passed。
+2. Windows 侧同一文件亦实测成功（uvloop 正确跳过），见 T-hashlock.md。
+3. **口径差异（诚实登记）**：按 requirements-dev.txt 的**区间解析**在 Linux **不安装 colorama**
+   （其依赖带平台标记）；但哈希锁把 colorama 列为普通依赖，**在 Linux 也会安装 colorama==0.4.6**。
+   即哈希锁在 Linux 上是区间闭包的**超集**（多一个纯 Python 包），不影响功能与测试，但需在交付说明中写明。
+
+
+================================================================
+附：编码修复后的跨平台哈希锁复测（主代理，2026-09-21，P5-B1/R2 之后）
+================================================================
+背景：requirements.txt / requirements-dev.txt / requirements.lock / requirements.lock.hashes
+      原含中文注释但无编码声明，在 cp936(GBK) 区域设置下被 pip 拒绝解析（UnicodeDecodeError）。
+修复：四个文件首行追加 PEP 263 声明  # -*- coding: utf-8 -*-（仅追加首行，不改依赖与哈希）。
+
+--- Windows（cp936，未设 PYTHONUTF8，新建 venv，pip 24.0）---
+$ python -m venv <venv>
+$ <venv>\Scripts\python -m pip install --require-hashes -r requirements.lock.hashes
+Successfully installed PyYAML-6.0.3 ... websockets-17.1   (30 包，uvloop 按 sys_platform 标记跳过)
+$ <venv>\Scripts\python -m pip check
+No broken requirements found.
+$ <venv>\Scripts\python -m pytest -q --no-header -p no:cacheprovider
+63 passed, 2 warnings in 0.47s
+
+--- Linux (WSL2 Ubuntu 24.04.4, CPython 3.11.15, 新建 venv, pip 24.0) ---
+$ python3.11 -m venv /tmp/gw-r5
+$ /tmp/gw-r5/bin/python -m pip install --require-hashes -r requirements.lock.hashes
+(30 包安装成功)
+$ /tmp/gw-r5/bin/python -m pip check
+No broken requirements found.
+$ /tmp/gw-r5/bin/python -c "import uvloop;print(uvloop.__version__)"
+0.22.1
+$ /tmp/gw-r5/bin/python -m pytest -q --no-header -p no:cacheprovider
+63 passed, 2 warnings in 4.97s
+$ sha256sum requirements.lock.hashes
+0527bd488dc104060b5482de1ced562376a54dafe8788bc7cc65bf2ba97e6f56  requirements.lock.hashes
+
+边界：以上为本地 WSL2 实测，不等于生产容器验收；macOS / aarch64 未覆盖。

@@ -60,3 +60,27 @@
 - 独立审核代理 B1 两轮对抗式终审：R1 判**不可提交**（提出 3 处报告口径缺陷）→ 主代理修正 → R2 判**本地证据范围内可提交**。详见 `attestations/reviews/PHASE-4-INDEPENDENT-REVIEW-2026-09-20.md`。
 
 **仍然阻断发布的判定不变**：真实外部 IdP 未接入（`verify_jwt` 未被任何生产路径调用）、许可证/第三方闭包未闭环、无 Linux/容器与生产部署证据、无发布授权。仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## Phase 5 状态更新（2026-09-21 追加）
+
+本节仅追加，不改动上方任何历史行。
+
+- 依赖治理由「版本锁」升级为**跨平台哈希锁**：`requirements.lock.hashes`（31 行版本 / 38 个 sha256，
+  覆盖 Windows 与 Linux manylinux x86_64；`uvloop==0.22.1 ; sys_platform != "win32"` 单独一行）。
+- 按锁精确重装**双平台实测通过**：Windows（CPython 3.11.9 / pip 24.0）与 Linux（WSL2 Ubuntu 24.04.4 /
+  CPython 3.11.15 / pip 24.0）均 `pip check` 无冲突、`pytest` **63 passed**；篡改哈希即硬失败。
+- Linux 闭包差集：**仅 `+uvloop`（Linux）/ `−colorama`（Windows）**，其余 29 条版本完全一致；
+  原始输出见 `docs/provenance/LINUX-CLOSURE-2026-09-21.txt`。
+- 许可证清点：`docs/provenance/THIRD-PARTY-INVENTORY-2026-09-21.md`，**47 条**（Python 31 + vendor 7 +
+  prompt-registry 8 + Tailwind CDN 1），15/15 本地资产 SHA-256 实算；**发布义务闭环 0 项**。
+- 独立审核代理 B1 **四轮**对抗式终审：R1/R2 判**不可提交**（65 位错误哈希、6 个 source 路径不可复算、
+  cp936 下依赖清单不可解析、`requirements.txt` 混入 CRLF）→ 主代理逐条修正 → R3/R4 确认**闭合**。
+  详见 `attestations/reviews/PHASE-5-INDEPENDENT-REVIEW-2026-09-21.md`。
+- **本轮修复的真实缺陷（保留记录）**：四个依赖文件因“中文注释 + 无编码声明”在 cp936 区域设置下被 pip
+  拒绝解析（`UnicodeDecodeError`），已通过首行 `# -*- coding: utf-8 -*-` 修复；该修复使
+  `requirements.lock.hashes` 全文 sha256 由 `cdf4f469…` 变为 **`0527bd488dc104060b5482de1ced562376a54dafe8788bc7cc65bf2ba97e6f56`**。
+
+**阻断发布的判定不变**：真实外部 IdP 未接入（`verify_jwt` 未被任何生产路径调用）、许可证/第三方闭包未闭环、
+无生产容器部署证据、无发布授权。仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+**本地通过 ≠ 远端 CI ≠ 生产验收**。
