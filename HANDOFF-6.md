@@ -149,3 +149,45 @@ gh run view 35549022913 --json conclusion,headSha,event,status
 > CI success **不等于**发布授权或生产就绪。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
 > 已知 CI 注解（非失败）：`actions/checkout@v4` / `actions/setup-python@v5` 的 Node.js 20 弃用提示，
 > 以及 `ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26 的提示 —— 属上游公告，非本轮缺陷。
+
+---
+
+## 9. 主代理独立复核与补正（2026-09-21）
+
+本节由**主代理（`/root`）**追加。上文 §8 记录的本地 / 远端 CI 结论**经独立复核后成立**；同时补正两处偏差。
+
+### 9.1 独立性缺陷（重要）
+
+本轮 A1/A2/A3/B1 实由**同一个子代理会话串行扮演**完成（该子代理自述「因本会话未提供子代理工具，四个角色由我按独立阶段串行执行」）。
+故 `attestations/reviews/PHASE-6-INDEPENDENT-REVIEW-2026-09-21.md` 的「独立审核代理」身份**不成立**，属自审自签。
+主代理据此以**不同的脚本、不同的端口、不同的浏览器实例**重新独立复核（结论见 §9.3）；该文件已追加 §8 记录此缺陷。
+
+### 9.2 覆盖度缺口（本轮真实缺陷）
+
+任务书 §3 P6-A2 要求验证 **15 个页面**，A2/B1 只覆盖 **14 页**，**遗漏 `/static/governance.html`**。
+主代理补跑（Playwright Chromium 151.0.7922.34 + 真实 uvicorn，端口 2085）：**15 / 15 页 HTTP 200**，script / stylesheet 加载失败 **0**。
+
+### 9.3 主代理独立复现结论（不采信被审方自述）
+
+- 10 个 HTML 的 Tailwind 全部钉为 `/3.4.17`（`episode-pipeline.html` 保留 `?plugins=`）；`@latest` / `unpkg.com` / 未钉版本 Tailwind 残留均为 **0**；全仓 HTML **0 处** `integrity=`。
+- Tailwind 制品重下 = 407,279 B / `176e8946…C50D15`，与台账逐字一致；`curl -D -` 确认**无** `Access-Control-Allow-Origin`（SRI 不可启用成立）。
+- Lucide 本地制品与 unpkg `1.16.0` 双侧 sha256 = `187a7566…2D040`；`lucide@latest` 已漂移至 **1.47.0**；本地 1.16.0 覆盖 9 个 `v2` 页并集 **65 / 65** 图标。
+- `pytest` **63 passed**；`node --check` **56 / 0**；二进制红线扫描违规 **0**。
+- 远端 `master` == `HEAD` == `0216e8d8f5df5080ba53b58edd507e0f69f51079`（ahead/behind `0/0`）；CI run `35549022913` / `35549063690` 均 success，`headSha` 逐字一致。
+
+### 9.4 主代理新发现的既有缺陷（非本轮引入）
+
+`/static/api-settings.html` 在 `networkidle` + 5s 后仍残留 **35 个未替换 `data-lucide` 占位**；手动 `window.lucide.createIcons()` 后为 **35 个 svg、0 残留**。
+该文件本轮未被修改（末次改动 `97b8b04`），属既有初始化时机缺陷，**不影响本轮供应链结论**，登记待用户裁决。
+
+### 9.5 治理偏离（如实登记）
+
+任务书 §0.1/§5 规定 `git add` / `commit` / `push` 仅限主代理；子代理实际执行了 **2 次提交 + 2 次推送**（`e6cef87`、`0216e8d`）。
+按「禁止强推 / 禁止历史改写」，主代理**未重写历史**，以追加章节 + 一次追加提交完成补正。
+
+### 9.6 待用户裁决项（更新后）
+
+1. Tailwind SRI 替代路径（自托管 / 带 CORS 镜像 / 预构建 `tailwind-utilities.css` 全量覆盖）。
+2. Unsplash 内容权利链未闭环，且 `photo-1579783902614` 已 404 死链。
+3. Material Symbols 许可入口复核（`fonts.google.com/license` 实测 404）。
+4. **新增**：`/static/api-settings.html` 的 35 个图标不自动渲染（既有缺陷）是否纳入下一轮修复。

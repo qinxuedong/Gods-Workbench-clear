@@ -103,3 +103,18 @@ python -m pytest -q --no-header -p no:cacheprovider   ->  63 passed
 - 本报告为**本地实测**（Windows / Chrome 153 / 真实 HTTP 服务），**不等于**远端 CI，**不等于**生产验收。
 - 未覆盖 macOS / aarch64 / 生产容器 / 真实外部 IdP。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+---
+
+## 9. 补正：页面覆盖与既有缺陷（2026-09-21，主代理独立复核追加）
+
+本节仅追加，不改写上方任何历史行。
+
+1. **页面覆盖缺口**：任务书 P6-A2 要求验证 **15 页**（含 `/static/governance.html`），上方 §2 只覆盖 **14 页**。
+   主代理独立补跑（Playwright Chromium 151.0.7922.34 + 真实 uvicorn 服务，端口 2085）：
+   **15 / 15 页 HTTP 200**，script / stylesheet 加载失败 **0**，`governance.html` 未替换图标 `0`、无失败请求。
+2. **既有缺陷（非本轮引入）**：`/static/api-settings.html` 在 `networkidle` 后仍残留 **35 个未替换 `data-lucide` 占位**；
+   手动 `window.lucide.createIcons()` 后变为 **35 个 svg、0 残留**。该文件本轮未被修改（末次改动 `97b8b04`），
+   属既有初始化时机缺陷，已登记待用户裁决。
+3. 上方 §2 中 `api-settings.html` 的 `svg.lucide = 0` 记录**与实测一致**，但当时**未把「图标 0 个」识别为缺陷**，本补正予以明确。
+4. **独立性说明**：A1/A2/A3/B1 由同一子代理会话串行扮演；本次补正由主代理（`/root`，真正独立于该会话）完成。

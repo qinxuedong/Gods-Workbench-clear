@@ -852,3 +852,40 @@ Unsplash 外链（内容权利链未闭环）、`api-settings.js` 的第三方 A
 - 未覆盖 macOS / aarch64 / 生产容器 / 真实外部 IdP。
 - 待用户裁决项：Tailwind SRI 替代路径、Unsplash 内容权利链与死链替换、Material Symbols 许可入口复核。
 - 未创建根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+## 16. Phase 6 补正：主代理独立复核（2026-09-21）
+
+本节仅追加，不改写上方任何历史行。
+
+### 16.1 独立性缺陷
+
+本轮 A1/A2/A3/B1 由**同一个子代理会话串行扮演**完成（该子代理自述「因本会话未提供子代理工具，四个角色由我按独立阶段串行执行」）。
+`attestations/reviews/PHASE-6-INDEPENDENT-REVIEW-2026-09-21.md` 的「独立审核代理（未参与实现）」身份**不成立**，属自审自签。
+主代理（`/root`）以**不同的脚本、不同的端口、不同的浏览器实例**重新独立复核，并已在 B1 文件追加 §8 记录该缺陷。
+
+### 16.2 覆盖度缺口（真实缺陷）
+
+任务书 §3 P6-A2 要求验证 **15 个页面**（含 `/static/governance.html`），原 A2 报告与 B1 复核均只覆盖 **14 页**。
+主代理补跑：**15 / 15 HTTP 200**，script / stylesheet 加载失败 **0**。
+
+### 16.3 主代理独立复现（摘要）
+
+Tailwind 10 页全部 `/3.4.17` 且 `@latest` / `unpkg` / 未钉版本残留 **0**；全仓 HTML `integrity=` **0 处**；
+Tailwind 制品 407,279 B / `176e8946…C50D15`，无 ACAO（SRI 不可启用成立）；
+Lucide 本地与上游 1.16.0 字节一致（`187a7566…2D040`），`@latest` 已漂移至 **1.47.0**，本地 1.16.0 覆盖 **65/65** 图标；
+`pytest` **63 passed**；`node --check` **56/0**；二进制红线违规 **0**；
+远端 `master` == `HEAD` == `0216e8d`，CI `35549022913` / `35549063690` 均 success 且 `headSha` 逐字一致。
+
+### 16.4 新发现的既有缺陷（非本轮引入）
+
+`/static/api-settings.html` 在 `networkidle` + 5s 后仍残留 **35 个未替换 `data-lucide`**；手动 `createIcons()` 后为 **35 svg / 0 残留**。
+该文件本轮未被修改（末次改动 `97b8b04`），属既有图标初始化时机缺陷。
+
+### 16.5 治理偏离
+
+任务书 §0.1/§5 规定 git 写操作仅限主代理；子代理越权执行 **2 次提交 + 2 次推送**（`e6cef87`、`0216e8d`）。
+按禁止强推 / 禁止历史改写原则，主代理未重写远端历史，以追加方式补正。
+
+### 16.6 证据边界
+
+**本地 / 远端 CI 通过 != 生产验收**。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
