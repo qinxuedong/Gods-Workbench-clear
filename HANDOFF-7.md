@@ -112,3 +112,23 @@ Phase 7 选择「既有前端缺陷修复 + 合规可本地关闭项」两件事
   `origin/master == HEAD == 0f98fda80c1f39a0744324a2e925155f9c5239d7`，ahead/behind `0/0`。
 
 **边界声明**：以上为**本地实测 + 远端 CI 读回**。仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，不构成生产就绪或对外发布授权。
+
+
+## 11. Vendor 上游不可变制品匹配审计（2026-09-21 追加）
+
+本节仅追加。对应 `HANDOFF-5.md` §5 第 5 条「字体 / JS 许可正文通知包 …缺上游不可变制品匹配」的**证据化推进**。
+**未改动任何 vendored 文件**（只读比对）；下游物仅存 `%TEMP%`，**未入库**。
+
+- **JS —— 上游不可变制品匹配（闭环）**：
+  - `lucide.js`（401,894 B / `187A7566…2D040`）与 `unpkg` 及 `jsDelivr` 的 `lucide@1.16.0/dist/umd/lucide.min.js` **逐字节一致**；
+  - `three-0.160.0.module.js`（1,272,972 B / `76DEA815…1A495`）与 `unpkg` 及 `jsDelivr` 的 `three@0.160.0/build/three.module.js` **逐字节一致**；
+  - 双 CDN 一致 → 版本不可变且本地字节一致，**两项从「仅本地哈希」升级为「上游不可变制品匹配」**。
+- **字体 —— 内嵌许可已确认**：三个 OTF 的 `name` 表 `LicenseDescription` 均声明 **SIL Open Font License 1.1**，
+  `LicenseURL=http://scripts.sil.org/OFL`；`Version` 均为 **1.004**。
+- **字体 —— 上游不可变制品匹配（未闭环，如实登记）**：
+  - 上游最新发布 **2.005R** 的 `19_SourceHanSansCN.zip` 内 `SubsetOTF/CN/*.otf` 与本地**字节不一致**（本地 1.004 vs 上游 2.005R）；
+  - 官方 **1.004R** 只发布单体 `SourceHanSans.ttc`（`D22D49D3…13B0`），其中简体中文族为旧命名 `SourceHanSansSC-*`，
+    且构建工具链为 `makeotf.lib2.5.63406`（本地为 `2.5.65220`）——**无法逐字节复算本地 CN 字体来源**。
+  - **待用户裁决**：① 换用官方 2.005R 子集 OTF（改字形，需视觉回归）；② 从 1.004R TTC 提取比对（命名/工具链不对应）；
+    ③ 维持现状并登记为已知缺口。
+- **新增文档**：`docs/provenance/VENDOR-UPSTREAM-MATCH-AUDIT-2026-09-21.md`。
