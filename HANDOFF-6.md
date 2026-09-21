@@ -191,3 +191,16 @@ gh run view 35549022913 --json conclusion,headSha,event,status
 2. Unsplash 内容权利链未闭环，且 `photo-1579783902614` 已 404 死链。
 3. Material Symbols 许可入口复核（`fonts.google.com/license` 实测 404）。
 4. **新增**：`/static/api-settings.html` 的 35 个图标不自动渲染（既有缺陷）是否纳入下一轮修复。
+
+
+## 10. 主代理补正提交与远端 CI 实测证据（2026-09-21 追加）
+
+本节仅追加，不改动上方任何历史行。
+
+- **补正提交**：`185213f`（父提交 `0216e8d`），6 文件纯追加（190 行新增、0 行删除），提交信息
+  「Phase 6 补正：主代理独立复核（独立性缺陷、15 页覆盖与既有图标缺陷登记）」。
+- **推送实测**：`0216e8d..185213f  master -> master`；`origin/master == HEAD == 185213fc83acb8e784d8e7524e2af5e4128cfa04`，ahead / behind = `0 / 0`。
+- **远端 CI 实测**：run `35549562816`，`gh run view` 返回 `status=completed` / `conclusion=success`，`headSha` 逐字一致（`185213f…cfa04`）。
+  历史绿态一并复核：`35549022913`（`e6cef87`）与 `35549063690`（`0216e8d`）均 success，`headSha` 逐字一致。
+
+**边界声明**：以上为**本地实测 + 远端 CI 读回**。仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，不构成生产就绪或对外发布授权。
