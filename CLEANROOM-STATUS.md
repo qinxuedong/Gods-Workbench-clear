@@ -175,3 +175,58 @@
 
 - **JS 闭环**：`lucide.js`（1.16.0）与 `three-0.160.0.module.js` 经 unpkg + jsDelivr **双 CDN 逐字节一致**。
 - **字体未闭环**：本地 1.004（OFL-1.1 已内嵌声明）与上游 2.005R 子集 OTF 字节不一致；1.004R 仅发布 SC 命名单体 TTC（工具链不同），无法复算。**待用户裁决**。
+
+### Phase 7 第三批：P7-A3 项目中心稳定实体 ID 修复（2026-09-21 追加）
+
+- **缺陷**：`/static/v2/projects.html`（默认落地页）首屏抛 `TypeError: Cannot read properties of undefined (reading 'slice')`
+  （`projects-controller.js:479` 的 `` S${(p.id.slice(-1) || '1')} ``），项目卡片全部不渲染。**既有缺陷**。
+- **根因**：契约 / 黄金夹具的稳定实体 ID 字段为 `project_id`（夹具**不含 `id`**），控制器摄取处却直接 `state.projects = list;`。
+- **修复**：在摄取边界归一化 `state.projects = list.map(p => ({ ...p, id: p.id || p.project_id }));`（1 行逻辑 + 3 行中文注释，渲染路径不改）。
+- **真实浏览器对照**（端口 2350，真实 `uvicorn.Server` + Chromium）：`pageerrors 1 -> 0`、卡片 `0 -> 1`、首卡命中 `示例项目 A`。
+- **回归守卫**：新增 `tests/contracts/test_phase7_projects_id_contract.py`（3 用例，纯 Python），
+  经 `git show HEAD:` 回放验证对修复前**确定失败**、修复后通过。
+- **门禁（本地）**：`pytest` **68 passed**（65 + 3）；`node --check` **56/0**；二进制红线 **0**；SBOM JSON 合法。
+- **未闭环**：`refreshGlobalTrash()` 的 `p.id` 用法依赖 `/api/asset-registry/governance/overview`，
+  该 endpoint 当前 **404（后端未实现）**，**无法取证**，本轮未改并登记为待办。
+
+**阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
+仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。
+
+### Phase 7 第三批补遗：P7-A3 扩散面 7 处入口（2026-09-21 追加）
+
+- 同一根因（契约 `project_id` vs 前端内部 `id`）在前端共 **7 处**入口，已全部在**摄取边界**归一化：
+  `projects-controller.js`（列表 + 新建）、`home-controller.js`（列表 + 新建）、`workshop.html`（目录 + 单项目）、
+  `hardware-telemetry.js`（排期弹窗）、`episode-pipeline.js`（列表 + 单项目）、`canvas-list.js`（`normalizeProject`）、
+  `asset-manager.js`（列表 + 新建）。
+- **真实浏览器取证**：首页卡片 `data-project-id` 由 `""` 恢复为 `prj-0001`（点击后 localStorage 正确写入）；
+  排期弹窗按键 ID 由 `""` 恢复为 `prj-0001`（点击可跳转）；工坊标题由内置演示工程恢复为 `示例项目 A`；
+  canvas-list 项目行由字符串 `"undefined"` 恢复为 `prj-0001`；projects 页新建后卡片 **1→2**。
+- **后端字段取证（真实 HTTP）**：`GET /projects` 项**不含 `id`**；`POST /projects` 仅回传 `{project_id, version, ...}`（**无 `id`、无 `name`**）。
+- **回归守卫**：`tests/contracts/test_phase7_projects_id_contract.py` → **9 用例**；以 `git show HEAD:` 还原修复前文本，
+  **7/7 确定失败**（`REPRO-PROOF-OK`）。
+- **门禁（扩展后）**：`pytest` **74 passed**；`node --check` **56/0**；二进制红线 **0**；SBOM JSON 合法。
+- **取证边界**：`asset-manager.html` 项目树需以路由桩隔离既有 `GET /api/asset-registry/assets` **404**；
+  前端不发送认证头，写入类接口实测 **401**，新建路径 E2E 仅在**注入测试认证头**下成立，
+  **不得**外推为生产可用；本轮未实现任何认证接线。
+
+**阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
+仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。
+
+### Phase 7 第三批补遗二：`updateNavPillsProject` ReferenceError（2026-09-21 追加）
+
+- **缺陷（既有）**：`v2/js/home-controller.js` 新建项目分支调用 **本文件作用域内不存在** 的
+  `updateNavPillsProject()`（仅定义于 `projects-controller.js` 的 `V2Projects` 模块内），
+  抛 `ReferenceError` 后被同层 `try` 的**外层 catch 吞掉**，导致紧随其后的 `renderProjectsList()`
+  **永不执行** —— 新建项目卡片不出现（`localStorage` 却已写入，症状隐蔽）。
+- **最小修复**：改调本文件自身的等价辅助函数 `updateNavPills(created.id)`（`home-controller.js:365`）。
+- **修复后实测**（端口 2454，真实浏览器）：卡片 **1 → 2**、ID 无空值、导航胶囊三处 `project_id`
+  同步为新建项目、`pageerror=0` 且无 `ReferenceError`。
+- **更正**：`HANDOFF-7.md` §12.6 表中「`home-controller.js`（新建）→ 卡片递增」一行在修复前**不成立**，
+  已在 §12.7 显式更正。
+- **回归守卫**：新增第 10 个用例（先剥离注释再断言）；对 `git show HEAD:` 修复前文本**确定失败**。
+- **全站防漏网**：静态扫描命中项经人工复核**均为误报**；真实浏览器扫描 **16 个 HTML 页面
+  `pageerror` 全为 0**、`ReferenceError` 合计 **0**。
+- **门禁（缺陷二修复后）**：`pytest` **75 passed**；`node --check` **56/0**；二进制红线 **0**；全站浏览器 `pageerror` **0**。
+
+**阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
+仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。

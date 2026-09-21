@@ -69,7 +69,10 @@ window.V2Home = (function () {
 
       const list = data?.projects || data || [];
       if (Array.isArray(list) && list.length > 0) {
-        state.projects = list;
+        // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml
+        // 与 docs/fixtures/projects-hub-list-active.json）；此处统一归一化为前端内部使用的 id，
+        // 避免后端返回 project_id 时卡片 data-project-id 为空、点击与双击均失效。
+        state.projects = list.map(p => ({ ...p, id: p.id || p.project_id }));
       } else {
         // 无数据或空工程时展示默认初始化工程（覆盖电影、剧集、概念艺术三种典型，包含缩略图与状态）
         state.projects = [
@@ -464,12 +467,20 @@ window.V2Home = (function () {
       });
       if (res.ok) {
         const resData = await res.json();
-        const created = resData.project || resData;
+        const raw = resData.project || resData;
+        // 契约对齐：创建接口只回传 project_id / version（见 PROJECTS-HUB-INTERFACE-CATALOG.yaml 的
+        // create_project.response_200_201），不含 id 与 name；此处归一化并补全本地渲染所需名称，
+        // 否则新建后不写 localStorage、不刷新导航胶囊，且卡片 data-project-id 为空。
+        const created = { ...raw, id: raw.id || raw.project_id, name: raw.name || payload.name };
         state.projects.unshift(created);
         if (created.id) {
           localStorage.setItem('workspace_project_id', created.id);
           localStorage.setItem('workspace_project_name', created.name || created.title || payload.name);
-          updateNavPillsProject();
+          // 既有缺陷修复：原调用 updateNavPillsProject() 在本文件作用域内并不存在
+          // （它只定义于 projects-controller.js 的 V2Projects 模块内），会抛 ReferenceError 并被
+          // 外层 catch 吞掉，导致随后的 renderProjectsList() 永不执行、新建卡片不出现。
+          // 本文件自身的等价辅助函数为 updateNavPills(targetId)。
+          updateNavPills(created.id);
         }
         HardwareDeck.closeModal('newProjectModal');
         nameInput.value = '';

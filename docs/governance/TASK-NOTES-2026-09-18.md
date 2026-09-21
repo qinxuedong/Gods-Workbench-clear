@@ -958,3 +958,217 @@ Lucide 本地与上游 1.16.0 字节一致（`187a7566…2D040`），`@latest` �
   正确指标为 `i[data-lucide]` 与 `svg.lucide`。
 - **独立性/治理（如实登记）**：子代理委派 4 机制 7 次全失败，A1/A2/B1 由主代理执行/复核，**无真正第三方独立审核**；
   全历史 fork 子代理**越权 2 次提交 + 2 次推送**（`70bd21a`、`0f98fda`），按禁止改写历史原则未重写远端。
+
+
+## 18. Phase 7 第三批：项目中心稳定实体 ID 缺陷修复（2026-09-21 追加）
+
+本节仅追加，不改动上方任何历史内容。
+
+### 18.1 缺陷归属与定位
+
+- 页面：`/static/v2/projects.html`（项目中心默认落地页）。
+- 现象：首屏 `pageerror` 一条 —— `TypeError: Cannot read properties of undefined (reading 'slice')`。
+- 崩溃点：`src/gods_workbench/static/v2/js/projects-controller.js` 第 **479** 行，渲染模板 `` S${(p.id.slice(-1) || '1')} ``。
+- 归属：**既有缺陷**（本轮之前即存在），非本轮引入。
+
+### 18.2 根因
+
+契约与黄金夹具把项目稳定实体 ID 命名为 `project_id`：
+
+- `docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml` → `list_projects.response_200.projects[].project_id: string`
+- `docs/fixtures/projects-hub-list-active.json` → `{"project_id": "prj-0001", ...}`，**不含 `id` 字段**
+
+而控制器 `load()` 在摄取处执行 `state.projects = list;`，渲染期 `p.id === undefined`，`.slice` 抛 `TypeError`。
+这与根 `AGENTS.md` §3.1「统一稳定 ID 规范」一致 —— 前端内部字段名不是契约字段名，必须显式归一化。
+
+### 18.3 修复口径（最小增量）
+
+仅改摄取边界，渲染路径不动：
+
+```diff
+-        state.projects = list;
++        state.projects = list.map(p => ({ ...p, id: p.id || p.project_id }));
+```
+
+`p.id || p.project_id` 兼容既有演示数据（`getDemoProjects` 内部使用 `id`），避免破坏离线降级路径。
+修复后文件 SHA-256：`EB659C992320E666CBD76B0470E16D3599809EF9593EBE72C9B7B1E65B173884`。
+
+### 18.4 真实浏览器对照实测
+
+真实 `uvicorn.Server`（`GW_RELOAD=false`，端口 **2350**）+ Playwright Chromium（显式 `executable_path`）：
+
+```text
+[BEFORE] pageerrors=1  project_cards=0  has_示例项目A=False
+[AFTER]  pageerrors=0  project_cards=1  has_示例项目A=True
+```
+
+### 18.5 回归守卫与可复现性证明
+
+新增 `tests/contracts/test_phase7_projects_id_contract.py`（**纯 Python**，3 用例）：
+契约字段口径、摄取边界必须映射归一化、渲染路径确实消费 `p.id`。
+
+以 `git show HEAD:` 还原修复前文本注入同一断言函数：
+
+```text
+HEAD(before)     => FAIL  (no map ingest)
+workspace(after) => PASS  (ok)
+REPRO-PROOF-OK
+[BEFORE] pytest guard => FAIL as expected
+[AFTER]  pytest guard => PASS
+```
+
+### 18.6 门禁与边界
+
+| 门禁 | 结果 |
+|---|---|
+| `python -m pytest -q --no-header -p no:cacheprovider` | **68 passed**（65 + 3 新增） |
+| `node --check`（全部已跟踪 `.js`） | 56 通过 / 0 失败 |
+| 二进制红线（白名单外） | 违规 **0** |
+| `docs/provenance/SBOM-2026-09-20.cdx.json` | JSON 合法（39 组件） |
+
+未闭环：`refreshGlobalTrash()` 的 `p.id` 用法依赖 `/api/asset-registry/governance/overview`，
+该 endpoint 当前 **404（后端未实现）**，**无法取证**，登记为待办而非宣称已修。
+
+## 19. Phase 7 第三批扩散面：稳定实体 ID 归一化（2026-09-21 追加）
+
+本节仅追加，不改动上方任何历史内容。
+
+### 19.1 根因
+
+契约与实现一致使用 **`project_id`** 作为项目稳定实体 ID：
+
+- `docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml` → `list_projects.response_200.projects[].project_id`
+- `docs/fixtures/projects-hub-list-active.json` → 项目对象**不含 `id`**
+- 真实 HTTP 实测：`GET /api/asset-registry/projects?archived=false` 返回项 keys 含 `project_id`、**不含 `id`**；
+  `POST /api/asset-registry/projects` 返回 `{"project":{"project_id":"prj-0002","version":1,...}}`，**无 `id`、无 `name`**
+
+前端多处按内部字段 `id` 直接取值，故在只返回 `project_id` 的真实后端下得到 `undefined`。
+
+### 19.2 受影响入口（7 个文件 / 9 条路径）
+
+| 文件 | 路径 | 修复前症状 | 修复后实测 |
+|---|---|---|---|
+| `v2/js/projects-controller.js` | 列表摄取 | `pageerror=1`、卡片 0 | `pageerror=0`、卡片 1 |
+| `v2/js/projects-controller.js` | 新建响应 | 不写 localStorage、不选中、渲染抛错 | 卡片 1→2、`ls=prj-0002` |
+| `v2/js/home-controller.js` | 列表摄取 | `data-project-id=""`、点击无效果 | `prj-0001`、点击写入 localStorage |
+| `v2/js/home-controller.js` | 新建响应 | 同上 | 卡片递增、无空属性 |
+| `v2/workshop.html` | 目录 / 单项目 | 项目名回退到内置演示工程 | `示例项目 A · 影视工坊流水线` |
+| `js/hardware-telemetry.js` | 排期弹窗 | 排期条 ID 为空、点击静默失效 | ID `prj-0001`、可跳转 |
+| `js/episode-pipeline.js` | 列表 / 单项目 | 项目名显示为 `prj-0001` | `示例项目 A` |
+| `js/canvas-list.js` | `normalizeProject` | 行 ID 为字符串 `"undefined"` | `prj-0001` |
+| `js/asset-manager.js` | 列表 / 新建 | 项目树不渲染 | `data-project="prj-0001"` |
+
+### 19.3 归一化口径
+
+统一在**摄取边界**做一次映射，消费/渲染路径不改：
+
+```js
+const id = item.id || item.project_id;      // 兼容既有 id，优先保留契约字段
+{ ...item, id }                             // 列表项
+const created = { ...raw, id: raw.id || raw.project_id, name: raw.name || payload.name };  // 新建响应
+```
+
+### 19.4 回归守卫与可复现性
+
+`tests/contracts/test_phase7_projects_id_contract.py` → **9 用例**（覆盖 7 个文件）。
+以 `git show HEAD:<path>` 还原全部修复前文本注入同一批断言：
+
+```text
+home-controller.js / workshop.html / hardware-telemetry.js / episode-pipeline.js /
+canvas-list.js / asset-manager.js / projects-controller.js
+BEFORE(HEAD): FAIL(expected) ×7      AFTER(workspace): PASS ×7
+REPRO-PROOF-OK
+```
+
+### 19.5 门禁（扩展后）
+
+| 门禁 | 结果 |
+|---|---|
+| `python -m pytest -q --no-header -p no:cacheprovider` | **74 passed**（65 + 9） |
+| `node --check`（全部已跟踪 `.js`） | 56 通过 / 0 失败 |
+| 二进制红线（白名单外） | 违规 **0** |
+| `docs/provenance/SBOM-2026-09-20.cdx.json` | JSON 合法（39 组件） |
+
+### 19.6 取证边界（不得外推）
+
+- `asset-manager.html` 项目树取证需以 Playwright **路由桩**隔离既有 `GET /api/asset-registry/assets` **404**；
+  该后端缺口**不在本轮范围**，登记为既有未实现项。
+- 前端**不发送** `Authorization` / `X-User-Role`（全目录 `git grep` 证实），写入类接口实测 **401**；
+  本轮新建路径 E2E 仅在**注入测试认证头**下成立，**不得**外推为「新建功能生产可用」；
+  本轮**未**实现任何认证接线（真实 IdP 仍是未闭环项）。
+- `refreshGlobalTrash()` 依赖的 `/api/asset-registry/governance/overview` 仍为 **404**，未取证未改。
+
+## 20. Phase 7 第三批补遗：`updateNavPillsProject` ReferenceError 修复（2026-09-21 追加）
+
+本节仅追加，不改动上方任何历史内容。
+
+### 20.1 发现经过
+
+对 `home-controller.js` 新建路径做浏览器 E2E 时，**首轮未通过**：卡片数恒为 1，但
+`localStorage.workspace_project_id` 已是 `prj-0002`。控制台原文：
+
+```text
+新建项目网络异常: ReferenceError: updateNavPillsProject is not defined
+    at Object.handleCreateProject (…/v2/js/home-controller.js)
+```
+
+### 20.2 定性
+
+- `updateNavPillsProject` 全仓仅 **1 处定义**，位于 `projects-controller.js:740` 的 `V2Projects` 模块内部；
+  在 `home-controller.js` 作用域**不可见**。
+- `home-controller.js` 在 `handleCreateProject()` 的 `res.ok` 分支调用它 → `ReferenceError`
+  → 被同层 `try` 的**外层 `catch` 吞掉**（catch 只 `console.warn`）
+  → 紧随的 `renderProjectsList()` **永不执行** → 新建卡片不出现。
+- **归属**：**既有缺陷**。`git show HEAD:` 复核同样为「定义 0 次 / 调用 1 次」，与本轮改动无因果。
+- 本文件自身的等价辅助函数为 `updateNavPills(targetId)`（`home-controller.js:365`），语义相同。
+
+### 20.3 最小修复
+
+```diff
+-          updateNavPillsProject();
++          updateNavPills(created.id);
+```
+
+### 20.4 修复后复测（真实浏览器，端口 2454）
+
+```text
+cards: 1 -> 2
+{"cards":2,"ids":["prj-0002","prj-0001"],"empty_attr":0,
+ "ls":"prj-0002","ls_name":"P7A3 index 复验",
+ "nav_hrefs":["projects.html?project_id=prj-0002",
+              "workshop.html?project_id=prj-0002",
+              "production.html?project_id=prj-0002"]}
+pageerrors: 0        console ReferenceError: 无
+```
+
+### 20.5 回归守卫
+
+`tests/contracts/test_phase7_projects_id_contract.py` 第 10 个用例
+`test_home_controller_create_path_does_not_call_out_of_scope_helper`：
+**先剥离行注释与块注释**再断言（首版未剥离，把本次新增说明文字误判为调用，已修正），
+断言不存在 `updateNavPillsProject(` 调用与本地定义，并正向断言改为 `updateNavPills(created.id)`。
+对 `git show HEAD:` 修复前文本**确定失败**。
+
+### 20.6 全站同类缺陷扫描
+
+1. **静态扫描**：剥离注释 / 字符串 / 模板串后比对「被调用标识符 vs 本文件定义集 + 浏览器全局集」，
+   命中项逐条人工复核**均为误报**（关键字残留、跨模块解构导出、CDN 全局 API 等）。
+   例：`home-controller.js` 的 `reloadAssetOverview` / `renderDirectives` / `setupKeyboardShortcuts` / `switchView`
+   均在本文件内定义（`:1107` / `:1318` / `:426` / `:842`）。
+2. **全站真实浏览器扫描**（16 个 HTML 页面，真实 `uvicorn.Server` + Chromium）：
+
+```text
+HTML 页面数: 16
+每页 pageerror = 0        （api-settings / asset-manager / asset-share / canvas-list /
+episode-pipeline / governance / task-center / v2 全部 9 页）
+含 ReferenceError 的页面数: 0 | 总计: 0
+```
+
+### 20.7 门禁（缺陷二修复后）
+
+| 门禁 | 结果 |
+|---|---|
+| `python -m pytest -q --no-header -p no:cacheprovider` | **75 passed**（65 + 10 新增） |
+| `node --check`（全部已跟踪 `.js`） | 56 通过 / 0 失败 |
+| 二进制红线（白名单外） | 违规 **0** |
+| 真实浏览器全站 16 页 | `pageerror` **0** |

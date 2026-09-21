@@ -57,7 +57,11 @@ function projectSortOrder(project){
 
 function normalizeProject(project){
     const value = project && typeof project === 'object' ? project : {};
-    return {...value, order:projectSortOrder(value)};
+    // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml，
+    // 黄金夹具 docs/fixtures/projects-hub-list-active.json 不含 id）；此处归一化为内部 id，
+    // 否则项目行 data-project-id 变成字符串 "undefined"，项目切换与画布归属全部错乱。
+    const id = value.id || value.project_id;
+    return {...value, id, order:projectSortOrder(value)};
 }
 
 // Keep canvas tones aligned with the project-board type palette.  Scope and the

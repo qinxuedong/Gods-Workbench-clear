@@ -1843,7 +1843,11 @@
         api('/api/prompt-libraries').catch(() => ({ libraries: [{ id: 'episode', name: '系统剧集提示词库', items: [] }] })),
         api('/api/providers').catch(() => ({ providers: [] })),
       ]);
-      state.projects = projects.projects || DEMO_PROJECTS_FALLBACK;
+      // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml，
+// 黄金夹具 docs/fixtures/projects-hub-list-active.json 不含 id 字段）；此处归一化为内部 id，
+// 否则项目下拉与项目名回退全部失效。
+state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
+  .map(item => ({ ...item, id: item.id || item.project_id }));
       const libraryPayload = libraries.library && typeof libraries.library === 'object' ? libraries.library : libraries;
       state.libraries = Array.isArray(libraryPayload.libraries) ? libraryPayload.libraries : [{ id: 'episode', name: '系统剧集提示词库', items: [] }];
       state.providers = Array.isArray(providers.providers) ? providers.providers : [];
@@ -1852,8 +1856,9 @@
         try {
           const singleP = await api(`/api/asset-registry/projects/${encodeURIComponent(state.projectId)}`).catch(() => api(`/api/projects/${encodeURIComponent(state.projectId)}`)).catch(() => null);
           const pObj = singleP?.project || singleP;
-          if (pObj && pObj.id) {
-            state.projects.unshift({ id: pObj.id, name: pObj.name || pObj.id, title: pObj.name || pObj.id });
+          const pObjId = pObj && (pObj.id || pObj.project_id);
+          if (pObjId) {
+            state.projects.unshift({ id: pObjId, name: pObj.name || pObjId, title: pObj.name || pObjId });
           } else {
             const cachedName = localStorage.getItem('workspace_project_name') || state.projectId;
             state.projects.unshift({ id: state.projectId, name: cachedName, title: cachedName });

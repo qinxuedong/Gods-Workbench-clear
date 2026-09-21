@@ -113,10 +113,13 @@
         const current = new Date(value);
         return Math.floor(Date.UTC(current.getFullYear(), current.getMonth(), current.getDate()) / 86400000);
       };
-      const scheduled = projects.filter(project => time(project.start_at) && time(project.due_at) && time(project.due_at) >= time(project.start_at));
-      const unscheduled = projects.length - scheduled.length;
+      // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml），
+      // 此处归一化为内部 id，否则排期条 data-project-calendar-project 为空、点击跳转静默失效。
+      const normalized = projects.map(project => ({ ...project, id: project.id || project.project_id }));
+      const scheduled = normalized.filter(project => time(project.start_at) && time(project.due_at) && time(project.due_at) >= time(project.start_at));
+      const unscheduled = normalized.length - scheduled.length;
       if (summary) summary.textContent = `${scheduled.length} 个项目已排期 · ${unscheduled} 个项目未排期`;
-      const unscheduledProjects = projects.filter(project => !scheduled.includes(project));
+      const unscheduledProjects = normalized.filter(project => !scheduled.includes(project));
       const unscheduledMarkup = unscheduledProjects.length
         ? `<section class="gw-calendar-unscheduled"><h3>未排期项目</h3><div>${unscheduledProjects.map(project => `<button type="button" data-project-calendar-project="${esc(project.id)}"><span>${esc(project.name || project.title || '未命名项目')}</span><small>${esc(project.id || '')}</small></button>`).join('')}</div></section>`
         : '';

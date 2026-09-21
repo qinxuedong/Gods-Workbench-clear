@@ -577,9 +577,12 @@
           const list = data?.projects || data || [];
           if (Array.isArray(list) && list.length > 0) {
             const map = { ...defaultProjectCatalog };
+            // 契约对齐：稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml），
+            // 归一化为内部 id，否则真实项目会被 `p.id` 判空全部丢弃、目录回退到内置演示工程。
             list.forEach(p => {
-              if (p && p.id) {
-                map[p.id] = { id: p.id, name: p.name || p.id };
+              const pid = p && (p.id || p.project_id);
+              if (pid) {
+                map[pid] = { id: pid, name: p.name || pid };
               }
             });
             projects = Object.values(map);
@@ -594,9 +597,10 @@
               if (pRes.ok) {
                 const pData = await pRes.json();
                 const projObj = pData?.project || pData;
-                if (projObj && projObj.id) {
-                  projects.unshift({ id: projObj.id, name: projObj.name || projObj.id });
-                  cachedProjectName = projObj.name || projObj.id;
+                const projId = projObj && (projObj.id || projObj.project_id);
+                if (projId) {
+                  projects.unshift({ id: projId, name: projObj.name || projId });
+                  cachedProjectName = projObj.name || projId;
                   try {
                     localStorage.setItem('workspace_project_name', cachedProjectName);
                   } catch (_) {}

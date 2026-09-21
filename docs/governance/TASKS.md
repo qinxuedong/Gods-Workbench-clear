@@ -21,3 +21,34 @@
 - [x] T19 Phase 7（既有前端缺陷修复 + 合规可本地关闭项，2026-09-21）：修复 `/static/api-settings.html` 首屏 **35 个 `data-lucide` 占位不渲染**（既有缺陷，末次改动 `97b8b04`，非本轮引入）——在 `api-settings.js` 的 `window.onload` 引导块末尾**纯追加** `refreshIcons();`（+2 行，0 删除），新增纯 Python 契约回归守卫 `tests/contracts/test_phase7_frontend_icon_boot.py`（对修复前文件确定失败、可复现）；真实 Chromium 151 + 真实 HTTP（`uvicorn.Server`，`GW_RELOAD=false`，端口 2313）修复前/后对照：未替换占位 `i[data-lucide]` **35 → 0**、`svg.lucide` **0 → 35**、控制台错误 **2 → 2（未增加，均为既有 `/api/providers` 404）**。合规侧：`colorama==0.4.6` SPDX 落地（PyPI 实测 `license=''` / `license_expression=None` / classifier `License :: OSI Approved :: BSD License`，**无 SPDX id**；SBOM 更正为 `BSD-3-Clause` + `gw:license:spdx-evidence`）+ prompt-registry 逐来源权利审查证据化登记（6 源全部与 `manifest.json` SHA-256 / 条目数一致，合计 1230，**4×MIT + 2×CC BY 4.0**；预览图全为外链，仓库内 0 图片；**不宣称权利闭环**）。独立终审（主代理对抗式复核，独立性边界见 §5）判**本地可提交**，证伪式抽查 ≥4 处（自建修复前对照、契约测试对 HEAD 必失败、独立重算 prompt-registry 哈希、独立确认未改 `AGENTS.md`/未建根级 LICENSE、二进制红线仅白名单 3 条）。本地门禁 `pytest` **65 passed**、`node --check` **56/0**、二进制红线违规 **0** —— 详见 `HANDOFF-7.md`、`attestations/reviews/PHASE-7-INDEPENDENT-REVIEW-2026-09-21.md`、`docs/governance/agent-reports-2026-09-21/P7-A1-ICON-FIX.md`、`P7-A2-COMPLIANCE.md`
 - [x] T19 Phase 7（既有前端缺陷修复 + 合规可本地关闭项，2026-09-21）：修复 `/static/api-settings.html` 首屏 35 个 `data-lucide` 占位不渲染的**既有缺陷**（`api-settings.js` 的 `window.onload` 引导块末尾纯追加 `refreshIcons();`，+2 行；末次改动 `97b8b04`，非本轮引入），并新增纯 Python 回归守卫 `tests/contracts/test_phase7_frontend_icon_boot.py`（对修复前文件确定失败）；`colorama==0.4.6` 依 PyPI 真实响应（`license=''` / `license_expression=None` / classifier `License :: OSI Approved :: BSD License`）与 sdist `LICENSE.txt`（3 条款 BSD）判定 **BSD-3-Clause**，更正 SBOM 并追加合规清单；新增 prompt-registry 逐来源权利审查（6 源 SHA-256 与条目数全对、合计 1230、4×MIT + 2×CC BY 4.0，预览图全为外链、仓库内 0 图片），**不宣称权利闭环**；真实浏览器（Chromium 151 + uvicorn）实测未替换占位 **35 -> 0**、`svg.lucide` **0 -> 35**、控制台错误未增；门禁 `pytest` **65 passed**、`node --check` **56/0**、二进制红线 **0**；**执行主体独立性不成立**（子代理委派 4 机制 7 次全失败，A1/A2/B1 由主代理执行/复核），且全历史 fork 子代理**越权 2 次提交 + 2 次推送**（`70bd21a`、`0f98fda`，未改写历史）—— 详见 `HANDOFF-7.md`、`attestations/reviews/PHASE-7-INDEPENDENT-REVIEW-2026-09-21.md` §7、`docs/governance/agent-reports-2026-09-21/P7-A1-ICON-FIX.md`、`P7-A2-COMPLIANCE.md`
 - [x] T20 Vendor 上游不可变制品匹配审计（2026-09-21）：JS（`lucide.js` 1.16.0、`three-0.160.0.module.js`）经 unpkg 与 jsDelivr **双 CDN 逐字节匹配**（闭环）；字体自声明 OFL-1.1 且内嵌版本 1.004，但与上游 2.005R 子集 OTF 不一致、1.004R 仅发布 SC 命名单体 TTC（工具链不同），**上游匹配未闭环**（登记待裁决）—— 详见 `docs/provenance/VENDOR-UPSTREAM-MATCH-AUDIT-2026-09-21.md`、`HANDOFF-7.md` §11
+
+- [x] T21 Phase 7 第三批：项目中心稳定实体 ID 契约缺陷修复（2026-09-21）：`/static/v2/projects.html` 首屏
+  `TypeError: Cannot read properties of undefined (reading 'slice')`（`projects-controller.js:479`）系**既有缺陷** ——
+  契约与黄金夹具以 `project_id` 为项目稳定实体 ID（夹具不含 `id`），控制器摄取处却裸赋 `state.projects = list;`；
+  已在**摄取边界**最小归一化 `list.map(p => ({ ...p, id: p.id || p.project_id }))`（1 行逻辑 + 3 行中文注释，渲染路径不改）；
+  真实浏览器对照（端口 2350）`pageerrors 1 -> 0`、项目卡片 `0 -> 1`、首卡命中 `示例项目 A`；
+  新增纯 Python 回归守卫 `tests/contracts/test_phase7_projects_id_contract.py`（3 用例，经 `git show HEAD:` 回放验证对修复前确定失败）；
+  门禁 `pytest` **68 passed**、`node --check` **56/0**、二进制红线 **0**、SBOM JSON 合法；
+  **未闭环**：`refreshGlobalTrash()` 的 `p.id` 用法依赖 404 未实现的 `/api/asset-registry/governance/overview`，无法取证；
+  详见 `docs/governance/agent-reports-2026-09-21/P7-A3-PROJECTS-ID-FIX.md`、`HANDOFF-7.md` §12
+- [x] T22 Phase 7 第三批扩散面：同一根因（契约 `project_id` vs 前端内部 `id`）在前端共 **7 处**入口
+  （`projects-controller.js` 列表+新建、`home-controller.js` 列表+新建、`workshop.html` 目录+单项目、
+  `hardware-telemetry.js` 排期弹窗、`episode-pipeline.js` 列表+单项目、`canvas-list.js` `normalizeProject`、
+  `asset-manager.js` 列表+新建），已全部在**摄取边界**归一化为 `id`；真实浏览器取证：首页卡片 ID `""→prj-0001`
+  （点击后 localStorage 正确）、排期条 ID `""→prj-0001`（可跳转）、工坊标题恢复 `示例项目 A`、
+  canvas-list 行 ID `"undefined"→prj-0001`、projects 新建卡片 `1→2`；后端实测 `GET /projects` 项**不含 `id`**、
+  `POST /projects` 仅回传 `{project_id, version}`；回归守卫扩展至 **9 用例**，以 `git show HEAD:` 还原修复前文本
+  **7/7 确定失败**；门禁 `pytest` **74 passed**、`node --check` **56/0**、二进制红线 **0**、SBOM JSON 合法；
+  **取证边界**：`asset-manager` 项目树需路由桩隔离既有 `/api/asset-registry/assets` 404，前端不发送认证头、
+  写入类接口实测 401（新建 E2E 仅注入测试认证头下成立，未实现认证接线，不得外推生产可用）
+  —— 详见 `docs/governance/agent-reports-2026-09-21/P7-A3-PROJECTS-ID-FIX.md` §8/§9、`HANDOFF-7.md` §12.6
+- [x] T23 Phase 7 第三批补充：`v2/js/home-controller.js` 新建路径 **既有缺陷** 修复（2026-09-21）——
+  该分支调用 **本文件作用域内不存在** 的 `updateNavPillsProject()`（仅定义于 `projects-controller.js`
+  的 `V2Projects` 模块内，`git show HEAD:` 复核为「定义 0 次 / 调用 1 次」，非本轮引入），抛 `ReferenceError`
+  后被同层 `try` 的**外层 catch 吞掉**，使紧随其后的 `renderProjectsList()` **永不执行**、新建卡片不出现
+  （而 `localStorage` 已写入，症状隐蔽）；改调本文件自身的等价辅助函数 `updateNavPills(created.id)`（`:365`）；
+  修复后真实浏览器实测（端口 2454）卡片 **1→2**、ID 无空值、导航胶囊三处 `project_id` 同步、`pageerror=0` 无 `ReferenceError`；
+  新增第 10 个回归守卫（先剥离注释再断言），对 `git show HEAD:` 修复前文本**确定失败**；
+  全站防漏网：静态扫描命中项经人工复核**均为误报**，真实浏览器 **16 个 HTML 页面 `pageerror` 全为 0**、`ReferenceError` 合计 **0**；
+  门禁 `pytest` **75 passed**、`node --check` **56/0**、二进制红线 **0**
+  —— 详见 `docs/governance/agent-reports-2026-09-21/P7-A3-PROJECTS-ID-FIX.md` §10、`HANDOFF-7.md` §12.7

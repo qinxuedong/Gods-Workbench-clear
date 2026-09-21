@@ -225,3 +225,69 @@ completed success 追加 Phase 6 推送 ...   35549063690
 - A2（合规登记）：**属实、未越界、结论如实**（未宣称权利闭环）。
 - 综合：**本地可提交**；**不构成**发布 / 生产就绪 / 对外分发授权。
   真正第三方独立审计仍应在发布前另行安排。
+
+---
+
+## 8. P7-A3 第三批独立复核（2026-09-21 追加）
+
+> 本节仅追加，不改动上方任何历史内容。
+
+### 8.1 复核对象与触发
+
+P7-A3 第三批（项目中心稳定实体 ID 契约缺陷修复 + 7 处扩散面 + 第二个既有缺陷 `updateNavPillsProject`）。
+被审范围：工作区相对 `3d426ba` 的全部未提交改动。
+
+### 8.2 独立复跑证据（主代理 `/root`，与 A3 施工进程不同：独立端口 2451 / 2454 / 2455、独立脚本）
+
+```text
+== C1 契约/夹具独立读取 ==
+  yaml has project_id: string -> True
+  yaml has standalone 'id:' field -> False
+  fixture item keys -> [archived_at, deleted_at, due_at, name, progress, project_id,
+                        project_type, stage, start_at, version]   (无 id)
+== C4 后端真实字段（独立 uvicorn + httpx）==
+  GET item has id: False | has project_id: True
+  POST item keys: [archived_at, deleted_at, project_id, version] | has id: False | has name: False
+  no-auth POST status: 401
+```
+
+### 8.3 证伪式抽查（≥4 处）
+
+| # | 证伪目标 | 手法 | 结果 |
+|---|---|---|---|
+| 1 | 「修复是否只是空改」 | 以 `git show HEAD:<path>` 还原 **7 个文件**修复前文本，注入同一批守卫断言 | **7/7 确定失败**，修复后 7/7 通过 → 非空断言 |
+| 2 | 「是否引入大范围重写 / 误删」 | `git diff --numstat` 逐文件统计 + 删除行语义 token 反查 | 源文件删除行 1–5 行，且**删除 token 全部在新增行中出现**（语义等价，无信息丢失） |
+| 3 | 「`home-controller.js` 新建路径是否真能渲染」 | 真实浏览器 E2E（端口 2454）：点击「新建」→ 填名 → 提交 | 首轮**失败**（卡片恒为 1）→ 暴露 `ReferenceError` → 修复后 **1→2**、导航胶囊 3 处同步 → 非自述采信 |
+| 4 | 「是否还有其他同类未定义调用」 | ① 静态扫描（剥离注释/字符串/模板串）② 全站真实浏览器 16 页扫描 | 静态命中项经逐条复核**均为误报**（`reloadAssetOverview`/`renderDirectives`/`setupKeyboardShortcuts`/`switchView` 均本文件已定义）；浏览器 **16/16 页 `pageerror=0`、`ReferenceError=0`** |
+| 5 | 「是否越权 / 改历史」 | 核对根级 `LICENSE`、`THIRD_PARTY_NOTICES.md`、`AGENTS.md`、`PLUGIN-PROTOCOL-SPEC.md`、`HEAD` | 均**未创建/未修改**；`HEAD == origin/master == 3d426ba…`，**未改写历史** |
+| 6 | 「门禁数字是否真实」 | 独立复跑 `pytest` / `node --check` / 二进制红线 / SBOM | `pytest` **75 passed**；`node --check` **56/0**；红线 **0**；SBOM 合法（39 组件） |
+
+### 8.4 本轮**自证的缺陷**（先失败、后修复，如实记录）
+
+| 项 | 内容 |
+|---|---|
+| 失败现象 | `home-controller.js` 新建路径卡片数恒为 1（`localStorage` 却已写入，症状隐蔽） |
+| 首轮错误结论 | §8 表中「`home-controller.js`（新建）→ 卡片递增」一行**在当时并不成立** |
+| 根因 | 调用本文件作用域内**不存在**的 `updateNavPillsProject()`（仅定义于 `projects-controller.js:740` 的 `V2Projects` 模块）→ `ReferenceError` → 被同层 `try` 的**外层 catch 吞掉** → 其后 `renderProjectsList()` 永不执行 |
+| 归属 | **既有缺陷**（`git show HEAD:` 复核为「定义 0 次 / 调用 1 次」，非本轮引入） |
+| 修复 | 改调本文件自身的等价辅助函数 `updateNavPills(created.id)`（`:365`） |
+| 更正 | 已在 `HANDOFF-7.md` §12.7、P7-A3 报告 §10 显式更正原结论 |
+
+> 记录此失误本身即为**审核价值**：若不坚持真实浏览器取证，两处缺陷都会被「代码看起来已修」所掩盖。
+
+### 8.5 独立性边界（重要，不得省略）
+
+- **子代理委派再次失败**：本轮 `spawn_agent(fork_turns=all)`（`p7a3_review`）与 `followup_task`（`p7_probe`）
+  **均未返回实质审核内容**（长时间 running / 回执为「未收到任务」），与 Phase 7 前序 4 机制 7 次失败同因。
+- 因此本节的 §8.2–§8.4 **全部由主代理 `/root` 执行**（与施工进程**同一主体**）。
+- **结论：本轮不存在真正第三方独立审核**。上表「独立」仅指**独立脚本 / 独立端口 / 独立浏览器实例 / 独立复核路径**，
+  **不等于独立性成立**。真正第三方独立审计仍应在发布前另行安排（沿用 `ATTESTATION-INDEPENDENCE-2026-09-21.md` 口径）。
+
+### 8.6 本轮判定
+
+| 项 | 判定 |
+|---|---|
+| A3 实体 ID 归一化（7 文件 / 9 路径） | **可提交**（守卫可复现性成立，浏览器取证闭合） |
+| 缺陷二 `updateNavPillsProject` 修复 | **可提交**（真实浏览器先失败后成功，守卫对修复前确定失败） |
+| 独立终审 | **不可提交**（独立性不成立，见 §8.5）—— 仅作为**主代理自我复核**证据 |
+| 发布 / 生产验收 | **不可提交对应结论**（真实 IdP 未接线、前端无认证头且写入接口实测 401、许可证闭包与生产部署均未闭环） |

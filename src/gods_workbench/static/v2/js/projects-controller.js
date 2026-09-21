@@ -106,7 +106,10 @@ window.V2Projects = (function () {
 
       const list = data?.projects || data;
       if (Array.isArray(list) && list.length > 0) {
-        state.projects = list;
+        // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml
+        // 与 docs/fixtures/projects-hub-list-active.json）；此处统一归一化为前端内部使用的 id，
+        // 避免后端返回 project_id 时 p.id 为 undefined 导致渲染报错。
+        state.projects = list.map(p => ({ ...p, id: p.id || p.project_id }));
       } else {
         state.projects = getDemoProjects(state.filterScope);
       }
@@ -1094,7 +1097,11 @@ window.V2Projects = (function () {
       });
       if (res.ok) {
         const resData = await res.json();
-        const created = resData.project || resData;
+        const raw = resData.project || resData;
+        // 契约对齐：创建接口只回传 project_id / version（见 PROJECTS-HUB-INTERFACE-CATALOG.yaml 的
+        // create_project.response_200_201），不含 id 与 name；此处归一化并补全本地渲染所需名称，
+        // 否则新建后不会写 localStorage、不会 selectProject，且卡片渲染 `p.id.slice` 抛 TypeError。
+        const created = { ...raw, id: raw.id || raw.project_id, name: raw.name || payload.name };
         state.projects.unshift(created);
         if (created.id) {
           localStorage.setItem('workspace_project_id', created.id);

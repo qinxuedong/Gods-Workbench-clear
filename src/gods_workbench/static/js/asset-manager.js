@@ -5145,7 +5145,11 @@ async function loadRegistryBootstrap(requestId=beginRegistryBootstrapRequest()){
         };
         registryStatus = statusData && typeof statusData === 'object' ? statusData : {ready:false, overview:{}};
         registryPresets = Array.isArray(presetData.presets) ? presetData.presets : [];
-        projects = Array.isArray(projectData.projects) ? projectData.projects : [];
+        // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml，
+        // 黄金夹具 docs/fixtures/projects-hub-list-active.json 不含 id）；归一化为内部 id，
+        // 否则 activeProjectId 为 undefined、项目看板不加载、项目按钮 data-project 为空。
+        projects = (Array.isArray(projectData.projects) ? projectData.projects : [])
+            .map(item => ({...item, id:item.id || item.project_id}));
         if(!activeProjectId && projects.length) activeProjectId = projects[0].id;
         if(activeProjectId) await loadProjectBoard(activeProjectId, false);
         if(requestId !== registryRequestSeq) return false;
@@ -9297,8 +9301,12 @@ async function createRegistryProject(){
     const description = window.prompt('项目说明（可选）', '') || '';
     const data = await apiJsonResponse(assetManagerApi.createRegistryProject({name:String(name).trim(), description}));
     if(data.project){
-        projects = [data.project, ...projects.filter(item => item.id !== data.project.id)];
-        activeProjectId = data.project.id;
+        // 契约对齐：创建接口只回传 project_id / version（见 create_project.response_200_201），
+        // 归一化后项目列表去重与选中才能生效。
+        const createdPid = data.project.id || data.project.project_id;
+        projects = [{...data.project, id:createdPid, name:data.project.name || String(name).trim()},
+                    ...projects.filter(item => item.id !== createdPid)];
+        activeProjectId = createdPid;
         selectedProjectEntityId = '';
         await loadProjectBoard(activeProjectId);
     }
