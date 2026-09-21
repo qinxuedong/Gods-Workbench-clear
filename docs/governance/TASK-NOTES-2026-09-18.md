@@ -787,3 +787,68 @@
   字体/JS 许可正文通知包等均**待用户/法务裁决**。
 - 未创建根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`（依 `AGENTS.md` §1.4）。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+---
+
+## 15. Phase 6 施工记录（2026-09-21，供应链钉版本与独立端到端验证）
+
+> 本节仅追加，不改动上方任何历史行。任务书：`docs/governance/AGENT-TASK-2026-09-21-PHASE6.md`。
+> 起点：`HEAD == origin/master == 5b25bdfac3d0e3adfdce1b703c4f24cb4c5f6d4a`。
+
+### 15.1 P6-A1 CDN 钉版本与 Lucide 本地化
+
+- **Tailwind**：10 个 HTML 的 `https://cdn.tailwindcss.com` 全部改为不可变 `https://cdn.tailwindcss.com/3.4.17`；
+  `episode-pipeline.html` 保留 `?plugins=forms,container-queries` 并置于版本之后。
+  实测该查询串会 302 跳转至 `?plugins=forms@0.5.10,container-queries@0.1.1`（上游固定版本）。
+- **Lucide**：9 个 `v2/*.html` 的 `https://unpkg.com/lucide@latest`（浮动版本，实测已漂移到 `1.47.0`）改为本地
+  `/static/vendor/js/lucide.js?v=1.16.0`；`settings.html` 原有第二份本地引用已**去重**。
+  本地制品 SHA-256 `187A756625C5CE7499C207D1B0D1CF4E1AB95E3F666C7E0CD0FAFC3E6842D040`，与 unpkg
+  `lucide@1.16.0/dist/umd/lucide.min.js` **字节一致**（401,894 B）。→ 本轮**彻底移除 lucide 外部 CDN 依赖**。
+- 改动范围经 `git diff -U0` 核对：**仅 `<script>` 引用行**，未删除任何 class，行尾逐文件一致（无混合换行符）。
+
+### 15.2 关键技术发现：Tailwind CDN 无法启用 SRI
+
+`curl -D - -H "Origin: http://127.0.0.1:2077" https://cdn.tailwindcss.com/3.4.17` → **无 `Access-Control-Allow-Origin`**
+（对比 unpkg 返回 `Access-Control-Allow-Origin: *`）。跨域脚本的 SRI 校验要求 CORS 许可，故启用 `integrity` 会被浏览器拒绝加载。
+
+**浏览器实测证伪**（Chrome 153.0.8010.48）：强制给该 URL 加 `integrity="sha384-igm5…docC/K"` + `crossorigin="anonymous"` 后，
+控制台报 `blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present`、`net::ERR_FAILED`，
+`typeof window.tailwind === 'undefined'`、探针元素 `padding=0px`（页面样式退化）。
+→ 按任务书 §4.3 回退：**仅钉死 `/3.4.17`，不添加 `integrity`**；替代路径（自托管 / 镜像 / 预构建 `tailwind-utilities.css` 全量覆盖）
+登记为**待用户裁决**。Tailwind 3.4.17 制品 SHA-256 = `176E894661AA9CDC9A5CBA6C720044CBBF7B8BD80D1C9A142A7C24B1B6C50D15`（407,279 B）。
+
+### 15.3 P6-A2 浏览器端到端验证（真实 Chrome 内核 + 真实 HTTP 服务）
+
+- 环境：`python run.py`（`GW_RELOAD=false`、端口 2077，**非 TestClient**）+ Playwright `channel=chrome`（**Chrome 153.0.8010.48**；
+  Playwright 自带 chromium 内核缺失，按任务书改用已装 Chrome）。
+- 结果：14 个页面（9 个 `v2/*` + `api-settings` / `canvas-list` / `task-center` / `asset-manager` / `asset-share`）
+  **全部 HTTP 200**；Tailwind 与 Lucide 在引用它们的页面均加载成功；**脚本 0 个 4xx/5xx**；`svg.lucide` 图标正常渲染。
+- 失败请求如实登记：`production.html` / `storyboard.html` 各 1 次 `net::ERR_BLOCKED_BY_ORB`，根因为 Unsplash
+  `photo-1579783902614-a3fb3927b675` 已 **HTTP 404**（死链）。控制台其余错误均为**既有的后端 `/api/*` 未实现（404）**与
+  `/ws/stats` WebSocket 缺失，**非本轮改动引入**。
+- **改版前后对比（本轮真实价值）**：阻断 `unpkg.com` + `cdn.tailwindcss.com` 后，本地化 Lucide 仍渲染 **19** 个图标；
+  改版前写法在同一阻断下字母图标渲染 **0**。
+- 截图：14 张 PNG 写入 `%TEMP%\gw-p6-a2-20260921\`（**不入库**），字节数见 A2 报告。
+
+### 15.4 P6-A3 供应链台账
+
+新增 `docs/provenance/CDN-SUPPLY-CHAIN-2026-09-21.md`，逐条登记 `src/gods_workbench/static/` 下**全部**外部网络依赖：
+Tailwind Play CDN、Lucide（标注**本轮已本地化**）、Google Fonts / Material Symbols
+（`episode-pipeline.html`，基线未列出、本轮补充发现）、`production.html` 与各 `v2/js/*-controller.js` 的
+Unsplash 外链（内容权利链未闭环）、`api-settings.js` 的第三方 API 服务商 URL（登记为**运行期配置项而非构建依赖**）。
+含「SRI 适用性边界」专节（CORS 与 SRI 关系 + 实测结论）。
+
+### 15.5 P6-B1 独立对抗式终审
+
+独立审核代理（未参与实现）判 **本地可提交**，证伪式抽查 6 处：
+重新下载 CDN 制品比对 SHA-256（逐字一致）、逐页 grep 残留（浮动 Tailwind / `@latest` / `unpkg` 均为 0）、
+独立 Playwright 复跑 14 页（结论与计数与 A2 一致）、**强制 `integrity` 反向验证**（证实禁用 `integrity` 的决策正确）、
+确认未新增根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`、确认未改默认认证路径。
+详见 `attestations/reviews/PHASE-6-INDEPENDENT-REVIEW-2026-09-21.md`。
+
+### 15.6 证据边界
+
+- **本地通过 ≠ 远端 CI ≠ 生产验收**。本轮全部为本地证据（Windows / Chrome 153），远端 CI 需提交后读回。
+- 未覆盖 macOS / aarch64 / 生产容器 / 真实外部 IdP。
+- 待用户裁决项：Tailwind SRI 替代路径、Unsplash 内容权利链与死链替换、Material Symbols 许可入口复核。
+- 未创建根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

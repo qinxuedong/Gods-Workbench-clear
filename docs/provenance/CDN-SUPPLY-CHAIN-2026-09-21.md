@@ -1,0 +1,137 @@
+# CDN 与外部依赖供应链台账（2026-09-21 / Phase 6）
+
+> 基线提交：`5b25bdfac3d0e3adfdce1b703c4f24cb4c5f6d4a`（Phase 6 起始工作树）。
+> 本台账由 **P6-A3（供应链与完整性台账）** 产出，由 **P6-B1（独立审核代理，未参与实现）** 抗证式复核。
+> 范围：`src/gods_workbench/static/` 下**全部**外部网络依赖（构建期与运行期）。
+> 边界：本台账只登记事实与风险，**不构成发布授权**；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+## 0. 实测环境
+
+| 项 | 值 |
+|---|---|
+| 实测日期 | 2026-09-21（Asia/Shanghai） |
+| 主机 | Windows，Chrome `153.0.8010.48`（Playwright `channel=chrome`，真实浏览器内核） |
+| 本地服务 | `python run.py`，`GW_RELOAD=false`，`http://127.0.0.1:2077`（真实 HTTP 服务，非 TestClient） |
+| 网络探针 | `curl -D - -H "Origin: http://127.0.0.1:2077"` |
+| 临时工件目录 | `%TEMP%\gw-p6-a3-20260921\`（**不入库**） |
+
+---
+
+## 1. Tailwind Play CDN（`cdn.tailwindcss.com`）
+
+| 字段 | 内容 |
+|---|---|
+| 精确 URL（钉版本后） | `https://cdn.tailwindcss.com/3.4.17` |
+| 带插件查询串形式 | `https://cdn.tailwindcss.com/3.4.17?plugins=forms,container-queries` |
+| 引用文件（完整相对路径） | `src/gods_workbench/static/v2/agents.html`、`assets.html`、`collab.html`、`index.html`、`production.html`、`projects.html`、`settings.html`、`storyboard.html`、`workshop.html`（9 个页面，第 8/10/9 行区）；`src/gods_workbench/static/episode-pipeline.html`（第 17 行，带 `?plugins=`） |
+| 制品 SHA-256（实算） | `176E894661AA9CDC9A5CBA6C720044CBBF7B8BD80D1C9A142A7C24B1B6C50D15`（407,279 B） |
+| SRI（`sha384`，**仅记录，未启用**） | `sha384-igm5BeiBt36UU4gqwWS7imYmelpTsZlQ45FZf+XBn9MuJbn4nQr7yx1yFydocC/K`（sha256：`sha256-F26JRmGqnNyaXLpscgBEy797i9gNHJoUKnwksbbFDRU=`） |
+| `integrity` 是否使用 | **否（未启用）**。原因见 §3：上游无 `Access-Control-Allow-Origin`，启用 `integrity` 会被浏览器 CORS 策略拒绝，导致脚本不加载、页面无样式（已实测复现）。 |
+| 许可证 | MIT（Tailwind CSS v3.4.17）。上游 LICENSE：`https://github.com/tailwindlabs/tailwindcss/blob/v3.4.17/LICENSE`。注：Play CDN 内嵌的传递组件版本不可完全恢复（见 `src/gods_workbench/static/vendor/MANIFEST.md`），正式分发前仍需构建 metafile/lockfile。 |
+| 失败模式（CDN 不可达时页面表现） | Tailwind 脚本加载失败 → `window.tailwind` 未定义 → 页面**无 Tailwind 工具类样式**（布局/间距/字号退化），HTML 结构与本地 CSS 仍可用，页面**不会白屏**。已实测：阻断 `cdn.tailwindcss.com` 后 `typeof window.tailwind === 'undefined'`，页面文本仍可渲染。 |
+| 是否可本地化（及本轮决策） | **可本地化**（已有 `src/gods_workbench/static/css/tailwind-utilities.css` 预构建产物，但仅被 `api-settings.html` / `canvas-list.html` / `episode-pipeline.html` 引用，且未覆盖 `v2/*` 的 arbitrary-value 类）。**本轮决策：不本地化**，仅钉死版本；自托管需完整重新生成 CSS 并做视觉回归，属独立任务，**待用户裁决**。 |
+| 查询串说明 | `?plugins=forms,container-queries` 会 302 跳到 `/3.4.17?plugins=forms@0.5.10,container-queries@0.1.1`（版本已由上游固定，但依赖两个插件子包，非本仓可控）。 |
+
+---
+
+## 2. Lucide 图标（本轮已本地化，外部 CDN 依赖已移除）
+
+| 字段 | 内容 |
+|---|---|
+| 原外部 URL（已弃用） | `https://unpkg.com/lucide@latest`（**浮动版本**；实测 2026-09-21 解析为 `lucide@1.47.0`，442,433 B，SHA-256 `C3291EA757FF3DA0FC45A41D3FF60D61DA9B257314962C5CDDED94CA0DF05D7A`） |
+| 现行引用 URL（本地） | `/static/vendor/js/lucide.js?v=1.16.0` |
+| 引用文件（完整相对路径） | `src/gods_workbench/static/v2/agents.html`、`assets.html`、`collab.html`、`index.html`、`production.html`、`projects.html`、`settings.html`、`storyboard.html`、`workshop.html`（9 个页面，第 9/11/10 行区）。`settings.html` 原有的第二份本地引用（查询串 `v=v0.0.1-alpha-2026`）已**去重**，仅保留一份。 |
+| 制品 SHA-256（实算） | `187A756625C5CE7499C207D1B0D1CF4E1AB95E3F666C7E0CD0FAFC3E6842D040`（401,894 B） |
+| 上游一致性 | **已实测**：`https://unpkg.com/lucide@1.16.0/dist/umd/lucide.min.js` 与本仓 `src/gods_workbench/static/vendor/js/lucide.js` **字节一致**（同长度 401,894 B、同 SHA-256）。 |
+| SRI | 本地同源资源**无需** `integrity`（同源加载不受 CDN CORS 约束）。 |
+| 许可证 | ISC（Lucide v1.16.0）。 |
+| 失败模式（外部 CDN 完全不可达） | **不再受影响**：本地 Lucide 仍加载，`window.lucide.createIcons()` 可用。已实测：阻断 `unpkg.com` + `cdn.tailwindcss.com` 后，`/static/v2/agents.html` 仍渲染 **19** 个 `svg.lucide` 图标；改版前写法（`unpkg@latest`）在同一阻断下加载失败、图标数 **0**。 |
+| 是否可本地化（及本轮决策） | **已完成本地化**（本轮成果）。图标名兼容性已核对：`v2/*` 使用的图标名全部存在于 1.16.0。 |
+
+---
+
+## 3. Google Fonts / Material Symbols（`fonts.googleapis.com`、`fonts.gstatic.com`）
+
+| 字段 | 内容 |
+|---|---|
+| 精确 URL | 样式表 `https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200`；字体文件由 `fonts.gstatic.com` 提供（`<link rel="preconnect">` 预连接） |
+| 引用文件（完整相对路径） | `src/gods_workbench/static/episode-pipeline.html` 第 13–15 行 |
+| 制品 SHA-256（实算，CSS 响应） | `43CF07907373A7D4E4EC8DDE2EDF0214562B477B7F92CA90AF93205B45DA1966`（2,444 B，实测日期响应） |
+| SRI | **未使用**。字体 CSS 由 `@font-face` 间接拉取 `gstatic` 二进制，`integrity` 无法覆盖二次请求；且字体为运行时可选增强。 |
+| 许可证 | Material Symbols 图标字体：Apache License 2.0（Google Fonts）。上游许可入口：`https://fonts.google.com/license`（注：本台账实测该 URL 返回 404，**官方许可页入口待复核**）。 |
+| 失败模式（CDN 不可达时页面表现） | 图标字体不加载 → Material Symbols 字形的 `span` 退化为文字/方块，`episode-pipeline.html` 视觉降级；页面结构与功能不受影响。 |
+| 是否可本地化（及本轮决策） | **可本地化**，但**本轮决策：不本地化**（超出 Phase 6 授权范围，且 `AGENTS.md` §1.2 对本地字体二进制白名单极严：仅允许 3 个 Source Han Sans CN 字体路径）。**待用户裁决**。 |
+
+---
+
+## 4. Unsplash 图片外链（`images.unsplash.com`）
+
+| 字段 | 内容 |
+|---|---|
+| 精确 URL | `src/gods_workbench/static/v2/production.html:342` 的 `<img id="mainMonitorImage" src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop" ...>`；另有 `v2/js/*-controller.js` 中多处 `cover_media_url` / `img` / `imageUrl` 指向 `images.unsplash.com`（home / production / projects / storyboard 控制器）。 |
+| 引用文件（完整相对路径） | `src/gods_workbench/static/v2/production.html`；`src/gods_workbench/static/v2/js/home-controller.js`、`production-controller.js`、`projects-controller.js`、`storyboard-controller.js` |
+| 制品 SHA-256（实算） | **不构成锁定值**：外链为运行时拉取的内容资源；对**固定 `photo-*` + 固定参数**单次响应可计算哈希（例如 `photo-1518709268805` + `?q=80&w=1200&auto=format&fit=crop` 实测 200、267,214 B），但参数可变、内容非构建制品，**不构成不可变承诺**，故不作为供应链锁定对象。 |
+| SRI | **不适用**（图片元素内容资源，非脚本）。 |
+| 许可证 | **内容权利链未闭环**：Unsplash License 不等于对每个 `photo-*` 资产的再分发授权，本节如实登记为 **内容权利链未闭环**，不得视为已许可。 |
+| 失败模式（不可达时页面表现） | 图片位显示占位/破图，`onerror` 回退为 `data-lucide` 占位图标；页面功能不受影响。**已实测**：`photo-1579783902614-a3fb3927b675` 当前返回 **HTTP 404**（`text/html`，29 B），浏览器记为 `net::ERR_BLOCKED_BY_ORB`（即"失效图片"，非网络中断）；`production.html` / `storyboard.html` 各 1 次失败请求。其余抽查 `photo-1518709268805`（200，267,214 B）、`photo-1509198397868`（200，17,190 B）、`photo-1534447677768`（200，13,140 B）正常。 |
+| 是否可本地化（及本轮决策） | **可本地化**（须替换为自有/已授权素材），但**本轮决策：不本地化**，仅如实登记为未闭环项，**待用户裁决**。 |
+
+---
+
+## 5. SRI 适用性边界（CORS 与 SRI 的关系）
+
+`<script integrity="...">` 的校验前提是浏览器能**读取**该跨域响应体；而跨域脚本默认是"不透明"的，脚本引擎不会把响应体交给 SRI 校验。因此规范要求：**跨域脚本启用 `integrity` 时必须同时具备 CORS 许可（`crossorigin="anonymous"` + 响应头 `Access-Control-Allow-Origin`）**，否则浏览器直接以 CORS 失败拒绝加载该脚本。
+
+**实测结论（Tailwind CDN）**：
+
+1. `curl -sS -D - -H "Origin: http://127.0.0.1:2077" https://cdn.tailwindcss.com/3.4.17` → 响应头中 **无 `Access-Control-Allow-Origin`**（对比：`https://unpkg.com/lucide@1.16.0/...` 返回 `Access-Control-Allow-Origin: *`）。
+2. **真实浏览器复现**：以注入方式给该 URL 加上 `integrity="sha384-igm5...docC/K"` + `crossorigin="anonymous"` 后，Chrome 153 控制台报：
+   `Access to script at 'https://cdn.tailwindcss.com/3.4.17' from origin ... has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.`
+   → `net::ERR_FAILED`，`typeof window.tailwind === 'undefined'`，探针元素 `computed color = rgb(0,0,0)`（**未应用工具类，页面退化**）。
+3. 而未加 `integrity` 的现状（`<script src="https://cdn.tailwindcss.com/3.4.17">`）在同环境 `window.tailwind === true`、页面样式正常。
+
+**结论**：Tailwind CDN **因上游无 CORS 头，SRI 无法启用**。本轮按任务书 §4.3 回退：只钉死不可变版本 `/3.4.17`，**不添加** `integrity`。推荐替代方案（**待用户裁决**）：①自托管与该 URL 字节一致的制品并加构建期哈希校验；②改用已预构建的 `tailwind-utilities.css` 全量覆盖 `v2/*`（需重新生成 + 视觉回归）；③使用带 CORS 的镜像并验证 ACAO。
+
+---
+
+## 6. 运行期配置项（**非构建依赖**，仅登记边界）
+
+以下 URL 出现在 `src/gods_workbench/static/js/api-settings.js` 中，属**用户可配置的第三方 API 服务商地址/注册与文档链接**，不是页面构建或渲染依赖；本台账登记以明确边界，不作为供应链制品锁定对象：
+
+- `https://api-inference.modelscope.cn/v1`（ModelScope 默认 Base URL）
+- `https://ark.cn-beijing.volces.com/api/v3`（火山方舟默认 Base URL）
+- `https://apistudio.vip`、`https://www.vip-gpt.net`、`https://api.ai-tudou.net`、`https://new.exellome.online`、`https://www.fhl.mom`、`https://api.apimart.ai`、`https://apihub.agnes-ai.com`（服务商 Base URL）
+- `https://api.example.com/v1`（占位示例值）
+- 注册/文档跳转链接（如 `https://www.modelscope.cn/my/access/token`、`https://platform.agnes-ai.com/settings/apiKeys`、`https://space.bilibili.com/78652351` 等）
+
+**边界**：这些 URL 由用户在设置页自行填写/选择，运行时才可能被访问；其可用性与合规性由用户所选服务商决定，**不属本仓供应链锁定范围**。本仓不内置任何真实密钥/token。
+
+---
+
+## 7. 未闭环与待用户裁决
+
+1. **Tailwind SRI 不可启用**（上游无 CORS 头）——需用户在「自托管/镜像/预构建 CSS」三条路径中裁决（§5）。
+2. **Tailwind Play CDN 传递组件版本不可完全恢复**——正式分发前需构建 metafile/lockfile/SBOM。
+3. **Material Symbols 字体许可官方入口待复核**（`https://fonts.google.com/license` 实测 404）。
+4. **Unsplash 内容权利链未闭环**，且 `photo-1579783902614-a3fb3927b675` 已是死链（404）。
+5. 本台账仅覆盖 `src/gods_workbench/static/` 的**外部网络依赖**；Python 依赖闭包见 `requirements.lock.hashes` 与 `docs/provenance/THIRD-PARTY-INVENTORY-2026-09-21.md`。
+
+---
+
+## 8. 证据清单（可复算命令）
+
+```powershell
+# 1) Tailwind 制品哈希与 SRI
+curl.exe -sS -o "$env:TEMP\tw.js" "https://cdn.tailwindcss.com/3.4.17"
+Get-FileHash "$env:TEMP\tw.js" -Algorithm SHA256   # 176E8946...C50D15
+# 2) ACAO 缺失
+curl.exe -sS -D - -o NUL -H "Origin: http://127.0.0.1:2077" "https://cdn.tailwindcss.com/3.4.17"   # 无 Access-Control-Allow-Origin
+# 3) Lucide 上游一致性
+curl.exe -sSL -o "$env:TEMP\lu.js" "https://unpkg.com/lucide@1.16.0/dist/umd/lucide.min.js"
+Get-FileHash "$env:TEMP\lu.js" -Algorithm SHA256   # 与 vendor/js/lucide.js 同为 187A7566...2D040
+# 4) 浮动版本漂移
+curl.exe -sS -o NUL -w "%{redirect_url}`n" "https://unpkg.com/lucide@latest"   # -> lucide@1.47.0
+# 5) 页面残留检查（应为空）
+Get-ChildItem -Recurse -File -Path src -Include *.html | Select-String 'src="https://cdn\.tailwindcss\.com"'
+Get-ChildItem -Recurse -File -Path src -Include *.html | Select-String 'unpkg\.com/lucide'
+```

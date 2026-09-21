@@ -86,3 +86,29 @@
 **远端 CI 实测（2026-09-21 追加）**：提交 `3ff19b35c9f6aa7661930ea59affb6670c84ba84` 已 push，`origin/master` 与 `HEAD` 一致；CI run **`35527154879` = success**（headSha 逐字相同，Linux/Python 3.11，`63 passed`，二进制白名单通过）。该 run 覆盖本轮工作树。
 
 **本地通过 ≠ 远端 CI ≠ 生产验收**。
+
+## Phase 6 状态更新（2026-09-21 追加）
+
+本节仅追加，不改动上方任何历史行。任务书：`docs/governance/AGENT-TASK-2026-09-21-PHASE6.md`（起点 `5b25bdf`）。
+
+- **供应链钉版本**：10 个 HTML 的 Tailwind CDN 从浮动 URL 钉死到 `https://cdn.tailwindcss.com/3.4.17`
+  （`episode-pipeline.html` 保留 `?plugins=`）；9 个 `v2/*.html` 的 `https://unpkg.com/lucide@latest`
+  （浮动，实测已漂移到 `1.47.0`）改为本地 vendored `/static/vendor/js/lucide.js?v=1.16.0`，
+  **彻底移除 lucide 外部 CDN 依赖**；`settings.html` 双份引用已去重。改动仅限 `<script>` 引用行。
+- **Tailwind SRI 无法启用（实测结论）**：`cdn.tailwindcss.com/3.4.17` 上游**无 `Access-Control-Allow-Origin`**，
+  跨域脚本启用 `integrity` 会被浏览器 CORS 策略拒绝（已用 Chrome 153 强制注入 `integrity` 复现 `net::ERR_FAILED` + 样式退化）。
+  本轮按回退策略**仅钉死版本、不加 `integrity`**；替代路径（自托管 / 镜像 / 预构建 CSS）登记为**待用户裁决**。
+- **浏览器端到端验证通过**：真实 HTTP 服务（`python run.py`，`GW_RELOAD=false`，端口 2077）+ 真实 **Chrome 153.0.8010.48**
+  逐页验证 14 个页面（9 个 `v2/*` + 5 个旧静态页）：**全部 HTTP 200、脚本 0 个 4xx/5xx、Tailwind/Lucide 正常加载**。
+  阻断外部 CDN 后本地化 Lucide 仍渲染 19 个图标（改版前为 0）。
+- **供应链台账**：新增 `docs/provenance/CDN-SUPPLY-CHAIN-2026-09-21.md`，逐条登记外部依赖（含本轮新发现的
+  Google Fonts / Material Symbols、Unsplash 死链、运行期 API 配置项），含「SRI 适用性边界」专节。
+- **独立终审**：审核代理 B1 对抗式终审判 **本地可提交**（证伪式抽查 6 处：重下制品比对哈希、逐页 grep 残留、
+  独立浏览器复跑、强制 `integrity` 反向验证、无根级 LICENSE/NOTICES、未改默认认证路径）。
+  详见 `attestations/reviews/PHASE-6-INDEPENDENT-REVIEW-2026-09-21.md`。
+- **门禁**：`python -m pytest -q --no-header -p no:cacheprovider` = **63 passed**；全部已跟踪 `.js` 的 `node --check` = 56/56 通过；
+  二进制红线扫描 PASS（仅 3 个 Source Han Sans CN 字体）。
+
+**阻断发布的判定不变**：真实外部 IdP 未接入（`verify_jwt` 未被任何生产路径调用）、许可证/第三方闭包未闭环、
+无生产容器部署证据、无发布授权。Tailwind SRI 替代路径与 Unsplash 内容权利链/死链均**待用户裁决**。
+仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 ≠ 远端 CI ≠ 生产验收**。
