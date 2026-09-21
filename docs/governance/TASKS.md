@@ -95,3 +95,15 @@
   4. 前端是否统一改为「无后端时显式降级」而非直接 `fetch`（属行为变更）。
   已知未改项（仅登记，不越权扩大范围）：`src/gods_workbench/static/js/asset-manager/api.js`
   的 `getCanvases()` 同样缺 `project_id`，但本轮 16 页扫描**未触发**该路径。
+
+- [x] T27 Phase 8 第三轮收口：推送、远端 CI 与独立审核读回（2026-09-21）。
+  提交 `9808bab17b1bb069edfa2d1d6986ddc13fc98930`（9 files changed, +2367/-10），逐文件 `git add`（无 `-A`）；
+  `HEAD == origin/master == 9808bab` 逐字一致。远端 CI run **`35564655226`** → `conclusion=success`，
+  `headSha` 逐字一致；关键步骤原文：依赖导入通过、**86 passed, 2 warnings in 1.85s**、
+  二进制白名单扫描通过（Ubuntu 24.04.5 / Python 3.11.16）。
+  **独立审核本轮成立**：改用「任务书写盘 + 只读文件引用」后 `/root/p8_review_i` 成功收到任务正文并完成只读核验
+  （独立复跑 `pytest` 86 passed、`node --check` 54/0；188/180、后端 14、契约无调用方 3 与真值 `missing=[] added=[]` 逐字一致；
+  洁净室红线通过）。该审核指出 P8-A2 **3 处真实文档口径缺陷**（§5.4「两个缺陷」、§7 第 2 项「仅登记」、
+  §8.4 第 2 项「剩余偏差待立项」），已由主代理最小修正，见 P8-A2 §8.6。
+  边界：该审核代理属**同一多代理框架内的独立执行主体**，**仍不等同于外部第三方机构审计**；
+  生产验收与发布授权均未执行，仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

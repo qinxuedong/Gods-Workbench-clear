@@ -744,3 +744,47 @@ AssertionError: 发现**新增**的「前端调用但后端未实现」端点：
 - 若失败原因是**缺口减少**（端点已被实现）：这是**期望的改进**，需同步更新基线并**补契约声明**。
 - **不得**为让测试通过而放宽断言或删除条目而不做记录。
 
+
+## 9. 第三轮收口：提交、远端 CI 与独立审核读回（2026-09-21 追加）
+
+### 9.1 提交与推送
+
+- 提交：`9808bab17b1bb069edfa2d1d6986ddc13fc98930`（中文信息：Phase 8：前后端接口缺口对账（P8-A1）与全站前端深度巡检（P8-A2）），`9 files changed, 2367 insertions(+), 10 deletions(-)`。
+- 逐文件 `git add`（**未使用 `git add -A`**）；推送走本机 7897 出口代理（仅本次通道，**未写入仓库配置**）。
+- 读回：`git rev-parse HEAD` == `git rev-parse origin/master` == `9808bab17b1bb069edfa2d1d6986ddc13fc98930`（逐字一致）。
+
+### 9.2 远端 CI（GitHub Actions，workflow 「CI」）
+
+```text
+gh run view 35564655226 --json conclusion,headSha,event,workflowName,status
+{"conclusion":"success","event":"push","headSha":"9808bab17b1bb069edfa2d1d6986ddc13fc98930",
+ "workflowName":"CI","status":"completed"}
+```
+
+关键步骤原文（`gh run view 35564655226 --log`，Ubuntu 24.04.5 / Python 3.11.16）：
+
+```text
+依赖导入通过: 0.141.1 2.13.5 0.53.0
+运行全量测试    : 86 passed, 2 warnings in 1.85s
+扫描二进制白名单: 二进制白名单扫描通过；允许项仅为 3 个 Source Han Sans CN 字体路径。
+```
+
+`headSha` 与本报告基线提交**逐字一致**，故该 success 覆盖本轮工作树（Linux / Python 3.11）。
+
+### 9.3 独立审核（第三轮已成立）
+
+- 第三轮重试后，`/root/p8_review_i` **成功收到任务正文并完成只读核验**（先直接 payload 失败，改为「任务书写盘 + 只读文件引用」后成功）。
+- 其结论：冻结基线 **188 / 180** 与真值集合逐字一致（`missing=[] added=[]`）；后端路由 **14**；契约无前端调用方 **3**；12 条 `{p}{p}` 幽灵路径已清除；8 条 helper 拼接路径已入集且确无实现；洁净室红线通过；**独立复跑 `pytest` 86 passed、`node --check` 54/0**。
+- 审核代理指出的 3 处**真实文档口径缺陷**（P8-A2 §5.4 「两个缺陷」、§7 第 2 项「仅登记」、§8.4 第 2 项「剩余偏差待立项」）已由主代理**最小修正**，详见 P8-A2 §8.6。
+- 边界：该审核代理属**同一多代理框架内的独立执行主体**，**仍不等同于外部第三方机构审计**，也不改变发布阻断项。
+
+### 9.4 口径边界（务必区分）
+
+| 层级 | 状态 |
+|---|---|
+| 本地实测（Windows） | 通过（`pytest` 86 passed；`node --check` 54/0；二进制红线 0；16 页真实浏览器 `pageerror` 0） |
+| 远端 CI（`35564655226` @ `9808bab`） | **success**（Linux Python 3.11.16 / Ubuntu 24.04.5，86 passed，二进制白名单通过） |
+| 独立审核 | **已收到结论**（同框架第三方子代理；非外部机构） |
+| 生产验收 | **未执行**，仍为独立决策 |
+
+> 本地通过 != 远端 CI != 生产验收。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

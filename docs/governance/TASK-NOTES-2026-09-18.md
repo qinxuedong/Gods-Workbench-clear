@@ -1379,6 +1379,23 @@ P8-A1 报告 §6 自述「计数为静态下界近似」。本轮 E2E 反向暴�
   静态扫描（纯 Python 解析）↔ 真实 HTTP（`httpx` + `uvicorn.Server`）↔
   真实浏览器（Chromium/Playwright）↔ 隔离副本注入（`git show HEAD:` + `%TEMP%` 副本）。
   三者对本缺陷结论一致，**但这不等同于独立第三方审计**。
-- **取证边界**：本地实测（Windows + Chromium + uvicorn）通过；远端 CI **本轮未执行**；
+- **取证边界**：本地实测（Windows + Chromium + uvicorn）通过；远端 CI（第三轮，提交 `9808bab`）run `35564655226` **success**（`headSha` 逐字一致；86 passed；二进制白名单通过）；
   生产验收**未执行**，为独立决策。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。
+
+
+### 21.10 第三轮：远端 CI 与独立审核读回（2026-09-21 追加）
+
+- **提交与推送**：`9808bab17b1bb069edfa2d1d6986ddc13fc98930`（逐文件 `git add`，**未用 `-A`**）；
+  `git rev-parse HEAD` == `git rev-parse origin/master` == `9808bab`（逐字一致）。
+- **远端 CI**：run `35564655226` → `conclusion=success`，`headSha` 逐字一致；关键步骤原文：
+  依赖导入通过（`0.141.1 2.13.5 0.53.0`）、`86 passed, 2 warnings in 1.85s`、
+  二进制白名单扫描通过（Ubuntu 24.04.5 / Python 3.11.16）。
+- **独立审核（第三轮已成立）**：§21.9 记录的「子代理通道持续不可用」仅适用于第一/二轮。
+  第三轮改用「任务书写盘 + 只读文件引用」重试后，`/root/p8_review_i` **成功收到任务正文**并完成只读核验：
+  188/180、后端 14、契约无调用方 3 与真值 `missing=[] added=[]` 逐字一致；
+  洁净室红线通过；独立复跑 `pytest` **86 passed**、`node --check` **54/0**。
+  该审核指出 P8-A2 **3 处真实文档口径缺陷**（§5.4、§7 第 2 项、§8.4 第 2 项），已由主代理最小修正（P8-A2 §8.6）。
+- **边界（不得外推）**：该审核代理属**同一多代理框架内的独立执行主体**，
+  **仍不等同于外部第三方机构审计**；生产验收与发布授权**均未执行**。
+  仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
