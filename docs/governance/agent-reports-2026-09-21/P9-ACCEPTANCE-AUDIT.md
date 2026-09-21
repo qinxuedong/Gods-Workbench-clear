@@ -236,3 +236,13 @@ node --check（非 vendor .js，54 个）                    -> 54 / 0 failed
 
 **门禁**：`pytest` **121 passed**、`node --check` **54/0 failed**。
 详见 `docs/governance/TASK-NOTES-2026-09-18.md` §21.12.5。
+
+
+---
+
+## 9. 提交与远端 CI 读回（2026-09-21）
+
+- 本地提交与推送：`2241340412e1b12952f571d04b85c480b0ff27e1`；`HEAD == origin/master == 2241340412e1b12952f571d04b85c480b0ff27e1`（逐字一致）。
+- CI run `35575654111`：`conclusion=success`，`headSha=2241340412e1b12952f571d04b85c480b0ff27e1`（逐字一致）。
+- 步骤：安装运行期与测试依赖 / 验证关键依赖可导入 / 运行全量测试 / 扫描二进制白名单，全部通过。
+- **边界**：远端 CI 绿只覆盖该 SHA 在 CI 环境的检查，**不等于**生产验收，也不构成发布授权。

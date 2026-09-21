@@ -167,3 +167,8 @@
   未接入生产 IdP、未做 authorization code/PKCE 回调与密钥轮换并发压测、未执行生产验收；
   仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
   详见 `docs/governance/agent-reports-2026-09-21/P9-B-INDEPENDENT-REVIEW.md` §9/§11/§12、`CLEANROOM-STATUS.md`。
+
+- [x] T31 提交后远端 CI 读回（2026-09-21）。
+  提交 `2241340412e1b12952f571d04b85c480b0ff27e1` 已推送 `origin/master`（逐字一致）；CI run `35575654111` `conclusion=success`，
+  `headSha=2241340412e1b12952f571d04b85c480b0ff27e1` 逐字一致；步骤含全量测试与二进制白名单扫描。
+  **边界**：远端 CI 绿 ≠ 生产验收 ≠ 发布授权；仓库仍为 NOT AUTHORIZED FOR PUBLIC DISTRIBUTION。

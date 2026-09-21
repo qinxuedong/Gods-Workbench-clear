@@ -416,3 +416,17 @@ node --check（非 vendor .js，54 个）                    -> 54 / 0 failed
 **边界**：以上为**未提交工作树**本地实测（`HEAD == origin/master == b0f2589`），**不绑定**远端 CI；
 独立复核属**同一多代理框架内**复核，**不等同于**外部第三方审计；未接入生产 IdP、未做 authorization code/PKCE 回调、未做密钥轮换并发压测、未执行生产验收。
 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+### 七、远端 CI 读回证据（提交 2241340）
+
+| 项 | 值 |
+|---|---|
+| 提交 SHA | `2241340412e1b12952f571d04b85c480b0ff27e1` |
+| 远端分支 | `origin/master` = `2241340412e1b12952f571d04b85c480b0ff27e1`（逐字一致） |
+| CI run | [35575654111](https://github.com/qinxuedong/Gods-Workbench-clear/actions/runs/35575654111) |
+| headSha | `2241340412e1b12952f571d04b85c480b0ff27e1`（逐字一致） |
+| conclusion | `success` |
+| 步骤 | 安装依赖 / 关键依赖导入 / 运行全量测试 / 扫描二进制白名单 全部通过 |
+
+**边界**：远端 CI `success` 只证明该 SHA 在 CI 环境通过；**不等于**生产验收，
+也**不构成**发布授权。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
