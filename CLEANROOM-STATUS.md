@@ -1174,3 +1174,59 @@ node --check tracked / static 非 vendor              -> 56 / 0 failed、55 / 0 
 - 本项属**卫生守卫 + CI 清单 + 文档口径**范围，**不是**运行时安全缺陷修复。
 - **O4 / O5 / O6 与 `static/js/canvas/http.js` 仍未处置，不得写 PASS**。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+---
+
+## Phase 9N 收口（2026-09-22）：提交 / 推送 / 远端 CI 读回（提交 76887b4）
+
+本节仅追加，不改动上方任何历史行。用户裁决与 §21.11–§21.21 的成果已由主代理**逐文件暂存**
+（**未使用 `git add -A`**）并推送；本节登记远端读回证据。
+
+| 项 | 值 |
+|---|---|
+| 提交 SHA | `76887b429125c64422b2b84ec0b05bfc85a3377a` |
+| 提交标题 | Phase 9 收口：六项用户裁决落地 + 真实外部 IdP 接线 + 显式降级单源 + 洁净守卫收口 |
+| 暂存条目 | 64（63 项改动 + 新增 `tests/hygiene/cleanroom_extensions.py`；逐文件 `git add -- <path>`） |
+| 提交后工作树 | `git status --porcelain -uall` = **0 条目**（干净） |
+| 推送 | `6c8ca98..76887b4  master -> master`（`origin/master` == `HEAD` == `76887b4`） |
+| CI run | [35665256938](https://github.com/qinxuedong/Gods-Workbench-clear/actions/runs/35665256938)（workflow `CI`，push，master） |
+| headSha | `76887b429125c64422b2b84ec0b05bfc85a3377a`（与本地 `git rev-parse HEAD` **逐字一致**） |
+| conclusion | `success`（status `completed`） |
+| 步骤 | 检出代码 / 配置 Python 3.11 / 安装运行期与测试依赖 / 验证关键依赖可导入 / 运行全量测试 / 扫描二进制白名单 —— **全部 success** |
+
+### 提交前本地门禁（主代理亲跑）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider   -> 237 passed, 7 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene -> 16 passed
+node --check（git ls-files "*.js"）                    -> 56 / 0 failed
+暂存内容含 CR 的条目数                                 -> 0
+暂存内容中禁用扩展名命中                               -> 0（唯一来源与 CI 逐项一致）
+```
+
+### 已对真实上游只读实测（主代理亲跑，2026-09-22）
+
+```text
+tests/contracts/test_phase9i_real_idp_wiring.py
+  GW_REAL_IDP_ISSUER=https://accounts.google.com
+  -> 5 passed（discovery/issuer 一致、端点 HTTPS 且受信、PKCE S256、失败关闭）
+  GW_REAL_IDP_ISSUER=https://demo.duendesoftware.com
+  -> 5 passed（第二家真实第三方 OP 只读复算）
+  GW_REAL_IDP_ISSUER=https://login.microsoftonline.com/common/v2.0
+  -> 4 failed / 1 passed：discovery 自述 issuer 含 {tenantid} 占位符，被 R6-14 mix-up 防护**正确拒绝**
+     （属预期行为；多租户需部署方逐租户固定 issuer，未在本切片实现）
+
+tests/contracts/test_phase9g_real_op_interop.py
+  GW_OIDC_PROVIDER_MODULE_DIR=%TEMP%\gw-idp-node（oidc-provider 9.12.2）
+  -> 3 passed（与非本仓实现的第三方 OP 完成端到端授权码 + PKCE 登录）
+```
+
+### 边界（不得外推）
+
+- 远端 CI `success` 只证明该 SHA 在 CI 环境通过；**不等于**生产验收，**不构成**发布授权。
+- 真实用户登录（真实 `client_id` + 用户目录授权）**未执行**；生产部署、TLS、反向代理、
+  密钥轮换、多实例会话一致性**未验收**。
+- **O4 / O5 / O6 与 `static/js/canvas/http.js` 删除仍未处置，不得写 PASS**。
+- 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立；`colorama` SPDX 与字体上游匹配待终裁。
+- 真正的第三方独立审计**另行安排**；发布授权**待审计完成**。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

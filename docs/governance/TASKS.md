@@ -462,3 +462,19 @@
   `.github/workflows/ci.yml` 变更**尚未在远端执行**，必须提交推送后按 `headSha` 读回才可称 CI 通过。
   **O4 / O5 / O6 与 `static/js/canvas/http.js` 仍未处置，不得写 PASS**；仓库仍为
   **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+- [x] T54 Phase 9N 收口：逐文件暂存 -> 中文提交 -> 推送 -> 远端 CI 读回（2026-09-22）
+  提交 `76887b429125c64422b2b84ec0b05bfc85a3377a`（64 条目，**未使用 `git add -A`**，逐文件 `git add -- <path>`）；
+  `git push origin master`：`6c8ca98..76887b4`；`origin/master` == `HEAD` == `76887b4`；提交后工作树 0 条目。
+  远端 CI run **35665256938** workflow `CI`（push, master）：`headSha` = `76887b4…` **逐字一致**，
+  `conclusion = success`，步骤（依赖安装 / 关键依赖导入 / 全量测试 / 二进制白名单扫描）全部通过。
+  提交前本地门禁：全量 **237 passed, 7 skipped**；`tests/hygiene` **16 passed**；
+  `node --check`（tracked `*.js`）**56 / 0 failed**；暂存内容含 CR = 0；禁用扩展名命中 = 0。
+  真实上游只读实测：`test_phase9i_real_idp_wiring.py` 对 Google / demo.duendesoftware.com 各 **5 passed**；
+  Microsoft `common` 多租户被 R6-14 防护**正确拒绝**（4 failed / 1 passed，属预期，多租户未在本切片实现）；
+  `test_phase9g_real_op_interop.py`（oidc-provider 9.12.2）**3 passed**。
+  **边界**：远端 CI `success` ≠ 生产验收 ≠ 发布授权；真实用户登录未执行；O4 / O5 / O6 与
+  `static/js/canvas/http.js` 删除仍未处置，不得写 PASS；根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`
+  仍未建立；真正的第三方独立审计另行安排、发布授权待审计完成。
+  仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

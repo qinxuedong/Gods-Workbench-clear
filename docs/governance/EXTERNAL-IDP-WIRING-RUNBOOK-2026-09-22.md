@@ -131,3 +131,30 @@ ValueError: discovery 文档 issuer 与配置 issuer 不一致，已拒绝
 - Microsoft 多租户（`common` / `organizations`）**当前不可接线**。
 - 时钟偏差、反向代理、TLS、CSRF/CORS、审计字段与保留策略**未实测**。
 - 生产部署与发布授权：**另行安排**；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## 8. 第二家真实第三方 OP 只读复算（2026-09-22 追加）
+
+除 §3 的 Google / Microsoft 外，本轮又以 **Duende IdentityServer 官方演示 OP** 做了一次
+「非 Google 系」的只读复算，以排除「只对一家人工适配」的可能：
+
+```text
+GW_REAL_IDP_ISSUER=https://demo.duendesoftware.com
+GW_REAL_IDP_ENDPOINT_HOSTS=demo.duendesoftware.com
+python -m pytest -q tests/contracts/test_phase9i_real_idp_wiring.py
+-> 5 passed
+```
+
+实测要点：discovery 文档自述 `issuer` 与配置逐字一致；`jwks_uri` / `authorization_endpoint`
+均在同源主机内（单一主机，白名单可覆盖）；`id_token_signing_alg_values_supported = ["RS256"]`；
+授权 URL 携带 PKCE S256 且不含任何密钥；无凭据 / 伪造 Bearer / `X-User-Role` 提权一律 401。
+
+**边界不变**：以上仍属**只读元数据与授权 URL 构造**层面的实测，**未**执行真实用户登录
+（无真实 `client_id` 与用户目录授权），**不构成**生产就绪或发布授权。
+
+## 9. 远端 CI 读回（2026-09-22 追加）
+
+本手册随提交 `76887b429125c64422b2b84ec0b05bfc85a3377a` 一并入库；
+该 SHA 在 GitHub Actions workflow `CI`（run `35665256938`，push, master）读回
+`conclusion = success`，且 `headSha` 与本地 `git rev-parse HEAD` **逐字一致**。
+远端 CI 只证明该 SHA 在 CI 环境通过，**不等于**生产验收，**不构成**发布授权。
