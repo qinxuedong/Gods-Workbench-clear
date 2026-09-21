@@ -65,7 +65,7 @@ JwksFetcher = Callable[[], Mapping[str, Any]]
 
 @dataclass(frozen=True)
 class OidcConfig:
-    """影子校验配置。
+    """OIDC 校验配置（已由 ``core/auth.py`` 在 ``oidc`` 模式下实际接线）。
 
     ``enabled`` 默认 ``False``：默认关闭，且校验器在关闭或配置缺失时一律拒绝，
     不会静默放行。``jwks_fetcher`` 由调用方注入；默认 ``None`` 表示不可用即拒绝。
@@ -83,7 +83,7 @@ class OidcConfig:
 
 @dataclass(frozen=True)
 class OidcIdentity:
-    """影子校验通过后的最小身份上下文，不保存令牌原文。"""
+    """OIDC 校验通过后的最小身份上下文，不保存令牌原文。"""
 
     subject: str
     role: str
@@ -396,14 +396,14 @@ def verify_jwt(
     now: Optional[float] = None,
     expected_nonce: Optional[str] = None,
 ) -> OidcIdentity:
-    """影子校验入口：任何配置缺失、算法异常或声明不合法一律拒绝。
+    """OIDC 校验入口：任何配置缺失、算法异常或声明不合法一律拒绝。
 
     默认关闭：``config.enabled`` 为 ``False`` 时直接拒绝，不静默放行。
     """
     if not CRYPTOGRAPHY_AVAILABLE:
         raise UnauthorizedException(message="密码学依赖不可用，已拒绝令牌")
     if not isinstance(config, OidcConfig) or not config.enabled:
-        raise UnauthorizedException(message="OIDC 影子校验未启用，已拒绝令牌")
+        raise UnauthorizedException(message="OIDC 校验未启用，已拒绝令牌")
     if not config.issuer or not config.audience:
         raise UnauthorizedException(message="OIDC 配置缺失，已拒绝令牌")
 
