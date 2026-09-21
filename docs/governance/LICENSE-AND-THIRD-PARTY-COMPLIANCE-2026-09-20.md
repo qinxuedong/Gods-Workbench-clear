@@ -61,3 +61,38 @@
 - 仍未闭环的部分：未按 `requirements.lock` 精确钉版本重装；无哈希锁；未在 Linux/容器复跑（Linux 会额外安装 `uvloop`）；无 SBOM 签名与来源证明。
 - 证据文件：`requirements.lock`、`docs/provenance/SBOM-2026-09-20.cdx.json`、`docs/governance/agent-reports-2026-09-20/T-lock-sbom.md`。
 - 因此本清单中 Python 运行期组件的「未闭环」判定**维持不变**，原因从「无依赖声明/无法安装」更新为「缺哈希锁、跨平台锁与签名来源证明」。
+
+
+## 追加更正（2026-09-21，Phase 7）：`colorama==0.4.6` SPDX 落地
+
+本节仅追加，不改写上文任何一行。
+
+**问题**（`HANDOFF-5.md` §5 第 2 条）：SBOM 中 `colorama==0.4.6` 的许可证字段原记为
+「未提供 SPDX id；见 classifier 记录」，需上游元数据/许可证文件核实。
+
+**实测依据**（2026-09-21，主代理 `https://pypi.org/pypi/colorama/0.4.6/json`）：
+
+```text
+info.license            = ''            （空字符串）
+info.license_expression = None          （无 SPDX 表达式）
+classifiers             = ['License :: OSI Approved :: BSD License']
+```
+
+- 上游 **PyPI 元数据确实没有提供 SPDX id**（既无 `license` 文本，也无 `license_expression`）。
+- 取该版本 **sdist**（`colorama-0.4.6.tar.gz`）核对：内含 `LICENSE.txt`（SHA-256
+  `CAC35C02686E5D04A5A7140BFB3B36E73AED496656E891102E428886D7930318`），为 **3 条款 BSD** 正文：
+  ① 源码再分发条件；② 二进制再分发条件；③ **不得用作者/贡献者名义背书**（`Neither the name ...`）。
+  `PKG-INFO` 声明 `License-File: LICENSE.txt`。
+
+**判定**：该组件的实际许可证为 **BSD-3-Clause**（三条款 BSD）。依据是 sdist 内 LICENSE 正文，
+而非 PyPI 元数据（元数据未给 SPDX id，仅有 `License :: OSI Approved :: BSD License` classifier）。
+
+**SBOM 更正**：`docs/provenance/SBOM-2026-09-20.cdx.json` 中该组件：
+
+- 更正前：`licenses[0].license.name = "未提供 SPDX id；见 classifier 记录"`
+- 更正后：`licenses[0].license.id = "BSD-3-Clause"`，`licenses[0].license.name = "BSD 3-Clause License"`，
+  并新增属性 `gw:license:spdx-evidence` 记录上述判定依据。
+- JSON 合法性自检：`python -c "import json;json.load(open('docs/provenance/SBOM-2026-09-20.cdx.json',encoding='utf-8'))"` 通过。
+
+**边界**：本次更正只解决「SBOM 中该组件许可证字段缺失 SPDX id」这一条，**不改变**仓库总发布门禁。
+仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**；公开发布需独立审计与合规评估。

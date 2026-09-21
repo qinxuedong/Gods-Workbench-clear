@@ -135,7 +135,8 @@
       "licenses": [
         {
           "license": {
-            "name": "未提供 SPDX id；见 classifier 记录"
+            "id": "BSD-3-Clause",
+            "name": "BSD 3-Clause License"
           }
         }
       ],
@@ -147,6 +148,10 @@
         {
           "name": "gw:platform",
           "value": "仅 Windows 需要"
+        },
+        {
+          "name": "gw:license:spdx-evidence",
+          "value": "PyPI 0.4.6 元数据无 SPDX id（license 为空、license_expression 为 null、仅 classifier）；sdist LICENSE.txt 为 3 条款 BSD（条款: 源码再分发/二进制再分发/不得背书），故判定 BSD-3-Clause"
         }
       ]
     },

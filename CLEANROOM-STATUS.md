@@ -131,3 +131,26 @@
 
 **阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
 仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。
+
+
+## Phase 7（2026-09-21 追加，既有前端缺陷修复 + 合规可本地关闭项）
+
+本节仅追加，不改动上方任何历史行。
+
+- **P7-A1 修复**：`/static/api-settings.html` 首屏 **35 个 `data-lucide` 占位不渲染**（既有缺陷，末次改动 `97b8b04`）
+  已修复——在 `api-settings.js` 的 `window.onload` 引导块末尾**纯追加** `refreshIcons();`（+2 行、0 删除），
+  并新增纯 Python 契约回归守卫 `tests/contracts/test_phase7_frontend_icon_boot.py`（对修复前文件确定失败）。
+- **真实浏览器对照**（Chromium 151 + 真实 HTTP `uvicorn.Server`，`GW_RELOAD=false`，端口 2313）：
+  未替换占位 `i[data-lucide]` **35 -> 0**、`svg.lucide` **0 -> 35**、控制台错误 **2 -> 2（未增加，均为既有 `/api/providers` 404）**。
+- **P7-A2 合规登记**：`colorama==0.4.6` 依 PyPI 实测（`license=''` / `license_expression=None` / classifier
+  `License :: OSI Approved :: BSD License`，**无 SPDX id**）更正 SBOM 与合规清单（**仅追加 / 更正，未改历史行**）；
+  prompt-registry 逐来源权利审查落盘（6 源 SHA-256 与条目数全部与 `manifest.json` 一致，合计 1230，
+  **4×MIT + 2×CC BY 4.0**；预览图全为外链，仓库内 0 图片）。**不宣称内容权利闭环**。
+- **门禁**：`pytest` **65 passed**；全部已跟踪 `.js` 的 `node --check` **56/0**；二进制红线违规 **0**。
+- **独立终审**：`attestations/reviews/PHASE-7-INDEPENDENT-REVIEW-2026-09-21.md` 判**本地可提交**，证伪式抽查 ≥4 处。
+  独立性边界如实登记（本轮由主代理 `/root` 以不同脚本 / 端口 / 浏览器实例对抗式复核，**非真正第三方**）。
+- **度量口径提醒**：Lucide 会把 `data-lucide` 属性复制到生成的 `<svg>`，故 `[data-lucide]` 渲染后仍为 35；
+  正确指标为 `i[data-lucide]`（未替换占位）与 `svg.lucide`。
+
+**阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
+仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。

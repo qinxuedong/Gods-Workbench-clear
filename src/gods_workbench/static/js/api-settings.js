@@ -2106,4 +2106,6 @@ window.onload = () => {
             if(input === keyInput) updateApimartDomesticHint();
         });
     });
+    // 首屏静态图标渲染：loadProviders() 为异步，此处统一刷新一次以替换初始 HTML 中的 data-lucide 占位
+    refreshIcons();
 };

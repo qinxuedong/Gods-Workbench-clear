@@ -889,3 +889,56 @@ Lucide 本地与上游 1.16.0 字节一致（`187a7566…2D040`），`@latest` �
 ### 16.6 证据边界
 
 **本地 / 远端 CI 通过 != 生产验收**。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## 17. Phase 7：既有前端缺陷修复 + 合规可本地关闭项（2026-09-21，滚动更新）
+
+### 17.1 起点与选型
+
+- 起点：`b4c7153`（`HEAD == origin/master`，ahead/behind `0/0`）。
+- 选型理由：优先做「可本地闭环、不越权、不依赖外部裁决」的两件事——**既有前端缺陷修复** + **合规可本地关闭项**。
+
+### 17.2 P7-A1：`/static/api-settings.html` 首屏图标不渲染修复
+
+- **现象**：`window.onload` 引导块内**没有** `refreshIcons()` / `createIcons()` 调用；
+  首屏静态 HTML 中 35 个 `<i data-lucide>` 占位从未被替换为 `svg`。
+- **归属**：`api-settings.html` 末次改动 `97b8b04`，**非 Phase 6 / 本轮引入**（Phase 6 主代理独立复核实测发现）。
+- **修复**：在 `api-settings.js` 的 `window.onload` 引导块**末尾纯追加** `refreshIcons();`（+2 行，0 删除），
+  不改数据 / API 逻辑、不改 `refreshIcons()` 语义、不删任何 HTML class。
+  修复后 SHA-256 = `4A60D088AD97E57349378E3E4EAC43B7460B72DE104D264A59CDBBFC903BF312`。
+- **回归守卫**：新增 `tests/contracts/test_phase7_frontend_icon_boot.py`（纯 Python，不依赖浏览器），
+  断言 boot 路径触发图标渲染；对 `git show HEAD:...api-settings.js` 回放版本**确定失败**（已独立验证可复现）。
+
+### 17.3 真实浏览器对照（Chromium 151 + 真实 HTTP，端口 2313）
+
+| 指标 | 修复前（HEAD 回放） | 修复后（工作区） |
+|---|---:|---:|
+| 未替换占位 `i[data-lucide]` | 35 | **0** |
+| 已渲染 `svg.lucide` | 0 | **35** |
+| 控制台错误数 | 2 | 2（未增加，均为既有 `/api/providers` 404） |
+
+> **口径提醒**：`[data-lucide]` 属性选择器在渲染后**仍返回 35**，因为 Lucide 会把该属性复制到生成的 `<svg>`；
+> 精确指标应使用 `i[data-lucide]`（未替换占位）与 `svg.lucide`。
+
+### 17.4 P7-A2：合规可本地关闭项
+
+- **`colorama==0.4.6` SPDX 落地**：`https://pypi.org/pypi/colorama/0.4.6/json` 实测
+  `license=''`、`license_expression=None`、classifier `License :: OSI Approved :: BSD License`（**无 SPDX id**）。
+  SBOM 由「仅 name」更正为 `id=BSD-3-Clause` + `name=BSD 3-Clause License` + 新增 `gw:license:spdx-evidence`；
+  合规清单末端**追加**更正节（仅追加，未改历史行）。
+- **prompt-registry 逐来源权利审查**：新增 `docs/provenance/PROMPT-REGISTRY-RIGHTS-AUDIT-2026-09-21.md`，
+  覆盖 6 个来源；独立重算 SHA-256 与条目数与 `manifest.json` **全部一致**，合计 **1230**；
+  许可 **4×MIT + 2×CC BY 4.0**（YouMind ×2 共 255 条再分发须署名）；预览图 / 参考图全为**外链**，
+  仓库内**无任何图片**（二进制扫描 0）。**不宣称内容权利闭环**，待用户 / 法务裁决。
+
+### 17.5 门禁与独立终审
+
+- `python -m pytest -q --no-header -p no:cacheprovider` -> **65 passed**。
+- 全部已跟踪 `.js` 的 `node --check` -> **56 / 0**。
+- 二进制红线扫描 -> 仅 3 个思源黑体白名单，**违规 0**。
+- 独立终审 `attestations/reviews/PHASE-7-INDEPENDENT-REVIEW-2026-09-21.md` 判**本地可提交**，
+  证伪式抽查 ≥4 处；独立性边界如实登记（见该文件 §5、`HANDOFF-7.md` §5）。
+
+### 17.6 证据边界
+
+**本地 / 远端 CI 通过 != 生产验收**。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
