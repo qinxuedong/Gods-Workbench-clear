@@ -3,17 +3,27 @@ import assetShareApi from './asset-share/api.js';
 (function(){
     'use strict';
     const app=document.getElementById('shareApp');
-    const token=decodeURIComponent(location.pathname.split('/').filter(Boolean).pop()||'');
+    const pathSegment=decodeURIComponent(location.pathname.split('/').filter(Boolean).pop()||'');
+    // 直接打开 /static/asset-share.html（末段为 *.html 或空）时根本不存在分享令牌，明确提示而非静默 404。
+    const isDirectOpen=!pathSegment||/\.html?$/i.test(pathSegment);
+    const token=isDirectOpen?'':pathSegment;
     const state={meta:null,data:null,index:0,tool:'pin',draft:null,start:null,points:[],timecodeMs:null,keyboardPoint:{x:0.5,y:0.5}};
     const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const attr=esc;
     const icon=(name)=>'<i data-lucide="'+name+'"></i>';
     const current=()=>state.data?.assets?.[state.index]||null;
+    // 统一从后端标准错误包 {"detail":{"code":...,"message":...}} 提取可读信息。
+    function apiErrorMessage(data){
+        const detail=data?.detail;
+        if(typeof detail==='string'&&detail)return detail;
+        if(detail&&typeof detail==='object'&&detail.message)return String(detail.message);
+        return data?.message||'访问失败';
+    }
 
     async function readJson(responsePromise){
         const response=await responsePromise;
         const data=await response.json().catch(()=>({}));
-        if(!response.ok) throw new Error(data.detail||'访问失败');
+        if(!response.ok) throw new Error(apiErrorMessage(data));
         return data;
     }
     function error(message){
@@ -35,6 +45,7 @@ import assetShareApi from './asset-share/api.js';
         app.removeAttribute('aria-live');
     }
     async function load(){
+        if(!token){error('缺少分享令牌，请使用完整的分享链接打开本页面。');return;}
         try{
             state.meta=await readJson(assetShareApi.getPublicShare(token));
             if(!state.meta.available){error(state.meta.reason||'链接不可用');return;}

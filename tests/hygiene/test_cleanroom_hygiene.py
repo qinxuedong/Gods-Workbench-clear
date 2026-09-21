@@ -196,3 +196,41 @@ def test_phase2_input_hashes_match_current_files(repo_root: Path):
     for expected, relative_path in entries:
         actual = _canonical_sha256(repo_root / relative_path)
         assert actual == expected, f"输入哈希不匹配: {relative_path}"
+
+
+def _parse_doc_migration_entries(manifest_text: str) -> dict:
+    """解析设计文档迁移登记，返回 {相对路径: 期望 SHA-256}。
+
+    同一路径可能被多次登记（后续章节更正早期哈希）；按「最后一条为准」取用，
+    与清单中「自本节起以最后一条四元组为准」的声明一致。
+    """
+    expected = {}
+    target_path = None
+    for line in manifest_text.splitlines():
+        target_match = re.match(r"^目标文件：(.+)$", line)
+        if target_match:
+            target_path = target_match.group(1).strip()
+            continue
+        hash_match = re.match(r"^SHA256：([0-9A-Fa-f]{64})$", line)
+        if hash_match and target_path:
+            expected[target_path] = hash_match.group(1).lower()
+            target_path = None
+    return expected
+
+
+def test_accepted_doc_slices_match_migration_manifest(repo_root: Path):
+    """确保登记为 ACCEPTED_DOC_MIGRATION 的 9 份设计文档未被无意改写。
+
+    依据：docs/provenance/AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt
+    独立复核（Phase 9B R2/D8）曾发现 docs/design/README.md 哈希漂移却无守卫；
+    本用例补齐全部登记文档的内容守卫。
+    """
+    manifest = repo_root / "docs" / "provenance" / "AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt"
+    expected = _parse_doc_migration_entries(manifest.read_text(encoding="utf-8"))
+    assert len(expected) == 9, f"设计文档迁移登记条数异常: {sorted(expected)}"
+    for relative_path, expected_sha in expected.items():
+        actual = _canonical_sha256(repo_root / relative_path)
+        assert actual == expected_sha, (
+            f"设计文档迁移哈希不匹配: {relative_path}"
+            f"（期望 {expected_sha.upper()}，实际 {actual.upper()}）"
+        )

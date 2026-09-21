@@ -50,7 +50,7 @@ window.V2Production = (function () {
               shots: [
                 { id: 'sh-02-01', code: 'SH_01', type: '[全景]', desc: '实验室穹顶', status: 'OK', color: 'emerald', focal: 35, img: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=600&auto=format&fit=crop', prompt: 'Wide shot of underground neural biotech laboratory dome, blue cryogenic pods, cables running along floor.' },
                 { id: 'sh-02-02', code: 'SH_02', type: '[特写]', desc: '神经探针接入', status: 'EDIT', color: 'champagne', focal: 50, img: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', prompt: 'Close up, glowing neural interface probe connecting into biomechanical socket at base of skull, spark effects, amber glow.' },
-                { id: 'sh-02-03', code: 'SH_03', type: '[中景]', desc: '警报红光闪烁', status: 'SYNC', color: 'cyan', focal: 50, img: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=600&auto=format&fit=crop', prompt: 'Medium shot, warning sirens pulsing red in cleanroom, steam venting from coolant pipes.' },
+                { id: 'sh-02-03', code: 'SH_03', type: '[中景]', desc: '警报红光闪烁', status: 'SYNC', color: 'cyan', focal: 50, img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=600&auto=format&fit=crop', prompt: 'Medium shot, warning sirens pulsing red in cleanroom, steam venting from coolant pipes.' },
                 { id: 'sh-02-04', code: 'SH_04', type: '[特写]', desc: '机械眼对焦', status: 'WAIT', color: 'slate', focal: 85, img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=600&auto=format&fit=crop', prompt: 'Macro lens shot, bionic aperture blades iris dilating and focusing under intense fluorescent illumination.' }
               ]
             },
@@ -152,7 +152,7 @@ window.V2Production = (function () {
     },
     shotList: [
       { id: 'sh-01', code: 'SH_01', type: '全景 WIDE', img: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=300&auto=format&fit=crop', status: 'ready' },
-      { id: 'sh-02', code: 'SH_02', type: '中景 MED', img: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=300&auto=format&fit=crop', status: 'ready' },
+      { id: 'sh-02', code: 'SH_02', type: '中景 MED', img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop', status: 'ready' },
       { id: 'sh-03', code: 'SH_03', type: '特写 CLOSE', img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=300&auto=format&fit=crop', status: 'ready' },
       { id: 'sh-04', code: 'SH_04', type: '微距 MACRO', img: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=300&auto=format&fit=crop', status: 'active' },
       { id: 'sh-05', code: 'SH_05', type: '俯拍 TOP', img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop', status: 'queued' },

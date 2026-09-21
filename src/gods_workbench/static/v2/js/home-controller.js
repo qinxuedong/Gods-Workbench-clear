@@ -104,7 +104,7 @@ window.V2Home = (function () {
             project_type: 'other',
             status: 'in_progress',
             progress: 92,
-            cover_media_url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=300&auto=format&fit=crop',
+            cover_media_url: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop',
             metric_label: '制作进度',
             scenes: 16,
             updated_at: Date.now() - 3600000 * 48

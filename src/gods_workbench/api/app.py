@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from gods_workbench.api.routes_god_canvas import jobs_router, router as god_canvas_router
 from gods_workbench.api.routes_projects import router as projects_router
+from gods_workbench.core.config import load_runtime_auth_config
 from gods_workbench.core.errors import CleanroomException
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -53,10 +54,13 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz", tags=["governance"])
     def health_check():
-        """健康检查端点。"""
+        """健康检查端点；如实暴露认证模式与发布授权状态，便于部署核验。"""
+        auth_runtime = load_runtime_auth_config()
         return {
             "status": "ok",
             "mode": "cleanroom",
+            "auth_mode": auth_runtime.mode,
+            "oidc_ready": bool(auth_runtime.ready),
             "frozen_contracts": False,
             "release_authorized": False,
         }

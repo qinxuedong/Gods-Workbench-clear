@@ -64,7 +64,7 @@ window.V2Storyboard = (function () {
         shotType: '特写 · 50mm 宽银幕',
         dialogue: '【艾伦】那么，让真正的重构法则开始运转。',
         duration: '4.0s',
-        img: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=600&auto=format&fit=crop',
+        img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=600&auto=format&fit=crop',
         status: 'generating'
       }
     ]

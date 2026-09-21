@@ -8,16 +8,58 @@
     (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
     tr(key, fallback),
   );
+  // 统一「无后端时显式降级」：路由不存在（响应不含标准错误包）或 501 时，
+  // 抛出带 code=NOT_INTEGRATED 的显式错误，页面据此渲染「未接入」提示或禁用态，
+  // 而不是静默坏掉；已实现接口的真实错误（含业务 404）仍按原样透传。
+  // 503 属**服务暂时不可用**（可恢复），单独归类为 SERVICE_UNAVAILABLE，不得报成「未接入」。
+  const NOT_INTEGRATED_MESSAGE = '该功能尚未接入后端（未纳入当前切片）';
+  const SERVICE_UNAVAILABLE_MESSAGE = '后端服务暂时不可用，请稍后重试';
+  const isNotIntegrated = (status, raw, data) => {
+    if (![404, 501].includes(status)) return false;
+    let parsed = data;
+    if (!parsed && raw && raw.trim()) {
+      try { parsed = JSON.parse(raw); } catch (_) { return true; }
+    }
+    const detail = parsed && parsed.detail;
+    // 标准错误包（对象 detail）：路由存在，属真实业务错误，原样透传。
+    if (detail && typeof detail === 'object') return false;
+    // FastAPI 默认 404/501 的字符串 detail：路由不存在，属未接入。
+    if (typeof detail === 'string' && detail.trim() && !/^(not found|not implemented)$/i.test(detail.trim())) return false;
+    return true;
+  };
+  const notIntegratedError = status => {
+    const error = new Error(`${NOT_INTEGRATED_MESSAGE}（HTTP ${status}）`);
+    error.name = 'NotIntegratedError';
+    error.unavailable = true;
+    error.code = 'NOT_INTEGRATED';
+    error.status = status;
+    return error;
+  };
+  const serviceUnavailableError = status => {
+    const error = new Error(`${SERVICE_UNAVAILABLE_MESSAGE}（HTTP ${status}）`);
+    error.name = 'ServiceUnavailableError';
+    error.unavailable = false;
+    error.retryable = true;
+    error.code = 'SERVICE_UNAVAILABLE';
+    error.status = status;
+    return error;
+  };
   const api = async (url, options={}) => {
     const response = await fetch(url, options);
     const raw = await response.text();
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = {}; }
+    if(isNotIntegrated(response.status, raw, data)) throw notIntegratedError(response.status);
+    if(response.status === 503) throw serviceUnavailableError(response.status);
     const plainDetail = raw && raw.trim();
     const fallbackDetail = plainDetail && !/^Internal Server Error$/i.test(plainDetail)
       ? plainDetail
       : trf('common.requestFailed', {status:response.status}, `请求失败 (${response.status})`);
-    if(!response.ok) throw new Error(data.detail || data.message || fallbackDetail);
+    const detailValue = data && data.detail;
+    const detailMessage = detailValue && typeof detailValue === 'object'
+      ? (detailValue.message || detailValue.msg || JSON.stringify(detailValue))
+      : detailValue;
+    if(!response.ok) throw new Error(detailMessage || data.message || fallbackDetail);
     return data;
   };
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -156,5 +198,5 @@
     if(['theme-change','studio-theme'].includes(event.data?.type)) syncTheme(event.data.theme);
   });
   syncTheme(storedTheme());
-  window.Workspace = {api, escapeHtml, relativeTime, dateTime, navigate, syncTheme, timeValue, reportTouchbarCapabilities};
+  window.Workspace = {api, escapeHtml, relativeTime, dateTime, navigate, syncTheme, timeValue, reportTouchbarCapabilities, NOT_INTEGRATED_MESSAGE, SERVICE_UNAVAILABLE_MESSAGE};
 })();

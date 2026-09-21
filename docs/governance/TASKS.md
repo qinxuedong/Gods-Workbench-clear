@@ -109,3 +109,61 @@
   生产验收与发布授权均未执行，仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
   收口提交 `da80cb46730a42d65bdc68a345dc40afa6e2b3dc`（文档口径更正 + CI/审核读回追加，5 files +110/-9）对应远端 CI run
   **`35566139523`** → `conclusion=success`，`headSha` 逐字一致；`HEAD == origin/master == da80cb4`。
+- [x] T28 Phase 9：洁净计划 §7 验收清单核验 + 用户六项裁决落地（2026-09-21）。
+  依据 `CLEANROOM-IMPLEMENTATION-HANDOFF.md` §7、`HANDOFF-5.md`、`AGENTS.md`；基线 `b0f2589`。
+  **§7 七项验收清单核验结论：全部 PASS**（详见 `docs/governance/agent-reports-2026-09-21/P9-ACCEPTANCE-AUDIT.md`）：
+  ① 接受迁移文件四要素齐备、LF 归一化哈希 2/2 匹配；② `src/` 下旧仓/旧画布运行时引用 0；
+  ③ 无嵌套 `.git`、tracked 二进制越界 0；④ 401/403/409/202 实现 + 契约测试 + 黄金夹具齐备；
+  ⑤ `PLUGIN-PROTOCOL-SPEC` 实现痕迹 0；⑥ 工作树与测试输出绑定；⑦ 发布状态声明在位、根级 LICENSE/NOTICES 均不存在。
+  **用户 2026-09-21 六项裁决落地**：
+  1) `asset-share.html` 无 token 直开 → 前端明确缺参提示（`isDirectOpen` + 「缺少分享令牌」）；
+  2) 180 条按「素材库 → 观测 → 提示词库 → 设置页 → 画布闭环」排序登记，`asset-manager` / `api-settings` / `task-center`
+     三块**整体标记「未纳入当前切片」**（见 `TASK-NOTES-2026-09-18.md` §21.11.1）；
+  3) 前端统一「无后端时显式降级」→ 共享 `http-transport.js` 与 `workspace-common.js` 抛出
+     `code=NOT_INTEGRATED` / `unavailable=true` 的显式错误；**仅**在不含标准错误包时判定，
+     真实业务 404（`CANVAS_NOT_FOUND` / `PROJECT_NOT_FOUND`）原样透传；
+  4) Phase 7 合规/供应链项按建议执行：Tailwind CDN 保持钉死 `/3.4.17`（CORS 缺 ACAO，SRI 不可用，属上游限制，
+     已如实登记为待裁决）；prompt-registry 六来源权利审查与预览图外链边界登记在位；
+     `colorama` SPDX 已更正为 BSD-3-Clause；
+  5) 真正第三方独立审计**另行安排**；发布授权**待审计完成后**再议；
+  6) 真实外部 IdP 接线 → 新增 `core/config.py` 配置驱动（默认 `local`，显式 `GW_AUTH_MODE=oidc` 才启用）、
+     `core/auth.py` 在 oidc 模式下角色只取 IdP 组声明并忽略 `X-User-Role`、失败关闭；
+     `/healthz` 增加 `auth_mode` / `oidc_ready`。
+  **门禁**：`pytest` **121 passed**（Phase 9B 追加 6 个用例后）、`node --check` **54/0 failed**。
+  **边界**：未实现任何一条后端端点、未执行生产验收；真实 IdP 仅做**只读 discovery/JWKS 联调**，未接入生产 IdP；
+  子代理本轮多轮委派未送达正文，§7 核验由主代理亲自执行，**不等同于外部第三方审计**；
+  仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+- [x] T29 Phase 9B：真实外部 IdP 接线的证据升级与真实缺陷修复（2026-09-21）。
+  起点：T28 中「真实外部 IdP 接线」只有配置驱动实现与单元测试，未做真实 HTTP 链路验证。
+  本轮由主代理 `/root` 亲自实施并实测（不做子代理委派；委派通道历史性故障见 §21.9 / §21.12）。
+  **1) 由实测暴露的真实缺陷（已修复）**：
+  ① **JWKS TTL 缓存被击穿** —— 原 `load_runtime_auth_config()` 每次调用新建 fetcher，
+  缓存字典随闭包每次重建，实测 `per_request_new_fetcher.calls = 3/3`（即每请求都打 IdP）；
+  修复为按环境变量指纹缓存运行期配置，实测降为 **1**；新增 3 个回归用例；
+  ② **缺少 OIDC discovery** —— 原实现强制显式 `GW_OIDC_JWKS_URL`；
+  新增 `fetch_discovery_document()` / `resolve_jwks_url()`，缺省时按
+  `issuer + /.well-known/openid-configuration` 自动解析 `jwks_uri`，显式配置仍优先。
+  **2) 真实 HTTP E2E（新增 2 个测试）**：本仓起本地 IdP（真实 HTTP、随机端口、RSA 运行时生成不落盘），
+  走 `FastAPI → require_edit_access → discovery → JWKS → verify_jwt → 角色映射` 全链路；
+  断言 201/403/401、`X-User-Role` 不提权、未映射组 401、**JWKS 恰好拉取 1 次**。
+  **3) 真实上游 IdP 只读联调**（不提交任何令牌/密钥）：
+  Google `accounts.google.com` → `www.googleapis.com/oauth2/v3/certs`（2 keys, RS256）；
+  Microsoft `login.microsoftonline.com/common/v2.0` → `.../common/discovery/v2.0/keys`（8 keys）；
+  两者 `has_private_material=false`。
+  **4) 门禁**：`pytest` **121 passed**、`node --check` **54/0 failed**。
+  **5) 边界**：未接入生产 IdP、未做 authorization code/PKCE 回调与密钥轮换并发窗口验证、
+  未执行生产验收、未安排外部第三方独立审计；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+  详见 `docs/governance/TASK-NOTES-2026-09-18.md` §21.12。
+
+- [x] T30 Phase 9B-3/9B-4：独立复核 D5–D10 闭环与残留观察处置（2026-09-21）。
+  起点：Phase 9B-2 独立复核（同一框架内）发现 D5 重定向绕过白名单、D6 失败结果持久固化、
+  D7 TTL 内未知 kid 无法刷新、D8 已登记文档哈希漂移无守卫、D9 门禁数字不一致、D10 绑定表失效。
+  处置：D5 改为逐跳重校验（越界失败关闭，白名单内跳转允许）；D6 引入 5 秒短负缓存；
+  D7 引入 `force_refresh()`（绕过 TTL + 10 秒限流）；D8 清单追加更正登记 + hygiene 新增 9 条文档守卫；
+  D9/D10 文档口径与哈希全量重算。R3 三项残留观察（O1/O2/O3）亦已处置。
+  **门禁**：`pytest` **121 passed**、`node --check` **54/0 failed**。
+  **边界**：未提交工作树本地实测，不绑定远端 CI；同框架内复核 ≠ 外部第三方审计；
+  未接入生产 IdP、未做 authorization code/PKCE 回调与密钥轮换并发压测、未执行生产验收；
+  仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+  详见 `docs/governance/agent-reports-2026-09-21/P9-B-INDEPENDENT-REVIEW.md` §9/§11/§12、`CLEANROOM-STATUS.md`。

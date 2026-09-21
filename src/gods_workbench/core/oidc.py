@@ -1,8 +1,10 @@
-"""外部 IdP 影子校验模块（Phase 1 并行验证，不接线）。
+"""外部 IdP（OIDC）JWT 校验模块。
 
-本模块只提供**纯函数式、可独立测试**的 OIDC / JWT 校验能力，默认关闭、
-失败关闭（fail closed）。它不被 ``core/auth.py`` 或 ``api/**`` 引用，本轮
-不接线、不切换流量，现有本地 Bearer 认证路径保持一致。
+本模块提供 OIDC / JWT 校验能力，默认关闭、失败关闭（fail closed）。
+Phase 9 起它**已被 `core/auth.py` 在 `GW_AUTH_MODE=oidc` 模式下接线**；
+默认 `local` 模式下仍不参与任何认证路径。接线细节与真实链路证据见
+`docs/governance/TASK-NOTES-2026-09-18.md` 第 21.11.3 / 21.12 节及
+`src/gods_workbench/core/config.py`。
 
 覆盖范围：
 - JWT 签名校验（仅 RS256，拒绝 ``alg=none`` 与 ``HS*`` 算法混淆）；
@@ -11,8 +13,9 @@
 - ``nonce`` / ``state`` 流程辅助（含 PKCE S256）；
 - IdP 组到本地角色的显式映射，未知组不升级，多组取最高已授权等级。
 
-证据边界：本模块是 Phase 1 影子校验实现，**不构成** OIDC 已启用、生产就绪
-或发布授权。
+证据边界：本模块的接线为**配置驱动**（默认 `local`，显式 `GW_AUTH_MODE=oidc` 才启用），
+本仓**不含**任何真实 issuer / JWKS 地址 / 客户端密钥；本轮**未接入生产 IdP**，
+**不构成**生产就绪或发布授权。
 """
 
 from __future__ import annotations
@@ -293,16 +296,28 @@ def _find_jwk(jwks: Any, kid: str) -> Optional[Mapping[str, Any]]:
 def _resolve_public_key(kid: str, config: OidcConfig) -> Any:
     """解析 kid 对应公钥。
 
-    先查已有 JWKS；未命中时且调用方注入了 ``jwks_fetcher``，则受控刷新一次。
+    先查已有 JWKS；未命中且调用方注入了 ``jwks_fetcher`` 时**受控刷新一次**。
+    未知 kid 属密钥轮换信号，必须绕过 fetcher 的 TTL 缓存；因此优先使用
+    ``jwks_fetcher.force_refresh()``（若提供），否则退回普通调用。
     fetcher 缺失、抛异常或刷新后仍未命中一律拒绝，并明确禁止盲重试。
     """
     jwk = _find_jwk(config.jwks, kid)
     if jwk is None and config.jwks_fetcher is not None:
         try:
-            refreshed = config.jwks_fetcher()
+            # 第一跳：走 fetcher 的常规路径（TTL 内命中缓存，不产生外呼）。
+            fetched = config.jwks_fetcher()
         except Exception:
             raise UnauthorizedException(message="JWKS 刷新失败，已拒绝令牌")
-        jwk = _find_jwk(refreshed, kid)
+        jwk = _find_jwk(fetched, kid)
+        if jwk is None:
+            # 仍未命中即疑似密钥轮换：受控强刷一次（绕过 TTL，带最小间隔限流）。
+            force_refresh = getattr(config.jwks_fetcher, "force_refresh", None)
+            if callable(force_refresh):
+                try:
+                    refreshed = force_refresh()
+                except Exception:
+                    raise UnauthorizedException(message="JWKS 刷新失败，已拒绝令牌")
+                jwk = _find_jwk(refreshed, kid)
     if jwk is None:
         raise UnauthorizedException(message="令牌 kid 未受信任，已拒绝")
     return _jwk_to_public_key(jwk)

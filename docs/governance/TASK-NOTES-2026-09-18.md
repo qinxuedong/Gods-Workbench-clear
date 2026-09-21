@@ -1401,3 +1401,168 @@ P8-A1 报告 §6 自述「计数为静态下界近似」。本轮 E2E 反向暴�
   仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
 - **收口提交（第三轮文档）**：`da80cb46730a42d65bdc68a345dc40afa6e2b3dc`，远端 CI run `35566139523` → `conclusion=success`，
   `headSha` 逐字一致（**86 passed**）；`HEAD == origin/master == da80cb4`。
+# 追加到 TASK-NOTES 第 21 节后（文件为 CRLF，保留原行尾）
+
+> 以下为 2026-09-21 用户裁决落地（Phase 9），仅追加，不改写历史章节。
+
+## 21.11 Phase 9 用户裁决落地（2026-09-21）
+
+**用户裁决原文要点**
+1. `asset-share.html` 无 token 直开：前端加明确缺参提示；
+2. 180 条未实现端点按顺序推进（素材库 → 观测 → 提示词库 → 设置页 → 画布闭环），
+   `asset-manager` / `api-settings` / `task-center` **三块整体标记「未纳入当前切片」**；
+3. 前端统一改为「无后端时显式降级」（明说「未接入」，而非静默坏掉）；
+4. Phase 7 滚动的合规/供应链项按建议执行；
+5. 真正第三方独立审计另行安排；发布授权待审计完成；
+6. 真实外部 IdP 接线。
+
+### 21.11.1 180 条未实现端点的功能域与推进顺序
+
+依据 `docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md` §2.3，
+180 条按**功能域前缀**归并。用户裁决的推进顺序映射如下：
+
+| 顺序 | 功能域（本轮定性） | 代表前缀 | 状态 |
+|---:|---|---|---|
+| 1 | **素材库** | `/api/asset-library*`、`/api/asset-content*`、`/api/asset-registry/assets*`、`/api/asset-registry/folders`、`/api/asset-thumbnails`、`/api/asset-file-*`、`/api/asset-proxy`、`/api/local-assets` | **未纳入当前切片** |
+| 2 | **观测** | `/api/observability*`、`/api/app-info` | **未纳入当前切片** |
+| 3 | **提示词库** | `/api/prompt-libraries*`、`/api/asset-classification*` | **未纳入当前切片** |
+| 4 | **设置页** | `/api/storage-settings`、`/api/providers`、`/api/asset-registry/asset-structures*` | **未纳入当前切片** |
+| 5 | **画布闭环** | `/api/canvas-assets`、`/api/asset-registry/canvases*`、`/api/reference-canvases`、`/api/shared-folders`、`/api/video-tasks` | **未纳入当前切片** |
+
+**三块整体标记（用户明确要求）**
+
+- `asset-manager`（素材管理器页面链路，含 `/api/asset-library*`、`/api/asset-registry/assets*` 等）——**未纳入当前切片**；
+- `api-settings`（设置页链路，含 `/api/storage-settings`、`/api/providers` 等）——**未纳入当前切片**；
+- `task-center`（任务中心链路，含 `/api/video-tasks*`、`/api/observability*` 等）——**未纳入当前切片**。
+
+> 标记语义：**不代表**已实现、不代表已验收、不代表生产可用；
+> 仅表示「当前洁净切片范围内不承诺这些能力」，其 180 条端点保持**未实现**原状。
+> 边界不变：仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+### 21.11.2 前端「无后端时显式降级」落地口径
+
+- 共享层：`src/gods_workbench/static/js/http-transport.js` 新增 `NOT_INTEGRATED_MESSAGE`、
+  `createNotIntegratedError()`、`isNotIntegratedError()`、`isNotIntegratedResponse()`；
+  两个 transport 工厂（普通 / 惰性）均在**路由不存在**时抛出带 `code=NOT_INTEGRATED`、`unavailable=true` 的显式错误。
+- 传统脚本页面：`workspace-common.js` 的 `api()` 采用同一判定与标记。
+- **关键不误判规则**：仅当响应**不含标准错误包**（对象型 `detail`）且为 404/501/503 时才判为「未接入」；
+  已实现接口的真实业务 404（如 `CANVAS_NOT_FOUND`、`PROJECT_NOT_FOUND`）**原样透传**。
+- 守卫：`tests/contracts/test_phase9_frontend_degradation.py`（6 用例，纯 Python 静态守卫）。
+- 证据边界：静态源码守卫 **不等于**真实浏览器 E2E。
+
+### 21.11.3 真实外部 IdP 接线（配置驱动，默认关闭）
+
+- 新增 `src/gods_workbench/core/config.py`：从环境变量读取 OIDC 配置；
+  `GW_AUTH_MODE` 默认 `local`（保持既有本地/测试行为），**仅**显式设为 `oidc` 才启用真实校验。
+- `src/gods_workbench/core/auth.py`：`oidc` 模式下 Bearer 令牌必须通过 RS256 签名与
+  `iss` / `aud` / `exp` / `nbf` / `iat` 校验，角色**只**由 IdP 组声明映射；
+  请求头 `X-User-Role` 在该模式下被**完全忽略**（防角色越权）。
+- **失败关闭**：未识别模式、配置缺失、JWKS 端点非法、校验异常一律 401，**绝不**回落本地信任。
+- JWKS 拉取：仅允许 **HTTPS**（本地回环 `http` 例外），带 TTL 缓存、超时与响应体积上限，**不落盘密钥**。
+- `api/app.py` 的 `/healthz` 增加 `auth_mode` 与 `oidc_ready`，便于部署核验（仍声明 `release_authorized: false`）。
+- 守卫：`tests/contracts/test_oidc_runtime_wiring.py`（8 用例，RSA 密钥运行时生成、不落盘）。
+- **所需外部配置（用户/运维提供）**：`GW_AUTH_MODE=oidc`、`GW_OIDC_ISSUER`、
+  `GW_OIDC_AUDIENCE`、`GW_OIDC_JWKS_URL`，可选 `GW_OIDC_GROUPS_CLAIM`、`GW_OIDC_LEEWAY_SECONDS`。
+- 证据边界：本轮**未**接入任何真实 IdP、**未**执行真实联调；**不构成** OIDC 生产就绪或发布授权。
+
+
+## 21.12 Phase 9B：真实外部 IdP 接线（2026-09-21 追加）
+
+本节是 §21.11.3 的**证据升级**：原记录只有「配置驱动接线 + 单元测试」，本轮补做
+**真实 HTTP 链路 E2E** 与**真实上游 IdP 只读联调**，并修正一个由实测暴露的真实缺陷。
+
+### 21.12.1 由实测暴露并已修复的真实缺陷（重要，不得删除）
+
+**缺陷：JWKS 的 TTL 缓存被“每请求重建配置”击穿。**
+
+- 原实现 `load_runtime_auth_config()` 每次调用都新建 `build_jwks_fetcher(...)`，其缓存字典是
+  每次新建的闭包局部变量 → **TTL 缓存 100% 失效**。
+- 实测（`%TEMP%\gw-root-20260921\idp-probe.json`）：
+  ```
+  fetcher_reuse_same_object: {"calls": 1}     # 复用同一 fetcher：TTL 生效
+  per_request_new_fetcher:   {"calls": 3}     # 每次 load 后新建：3 次全打网络
+  ```
+- 影响：`oidc` 模式下**每个 API 请求都会打一次 IdP 的 JWKS 端点**。功能上不立即出错
+  （JWKS 可正常拉取），但会把 IdP 打成热点、放大故障面，属真实生产缺陷。
+- 最小修复：在 `core/config.py` 增加按「环境变量指纹」缓存的**运行期配置缓存**
+  （`_RUNTIME_CACHE` + `_environment_fingerprint()` + `reset_runtime_auth_config_cache()`），
+  使同一进程内环境变量不变时复用同一个 `OidcConfig` 与同一个 JWKS fetcher。
+- 回归守卫：`test_runtime_config_cache_reuses_oidc_config`（5 次 load + 5 次 fetcher → 只打 1 次网络）、
+  `test_runtime_config_cache_invalidated_by_env_change`、`test_jwks_fetcher_cache_is_reused_within_ttl`。
+
+**缺陷 2（能力缺口）：缺少 OIDC discovery。**
+
+- 原实现强制要求显式 `GW_OIDC_JWKS_URL`。但真实 IdP 的标准接线路径是
+  `issuer + /.well-known/openid-configuration` → `jwks_uri`。
+- 最小修复：新增 `fetch_discovery_document()` / `resolve_jwks_url()`；
+  `GW_OIDC_JWKS_URL` **缺省时**自动走 discovery，显式配置仍优先（向后兼容）。
+- 复算（`%TEMP%\gw-root-20260921\real-idp-e2e.json`，真实上游、只读）：
+  ```
+  google           : issuer=https://accounts.google.com
+                     jwks_uri=https://www.googleapis.com/oauth2/v3/certs      keys=2  kty=RSA alg=RS256
+  microsoft_common : issuer=https://login.microsoftonline.com/common/v2.0
+                     jwks_uri=https://login.microsoftonline.com/common/discovery/v2.0/keys  keys=8 kty=RSA
+  has_private_material: false（两处均为 false，私钥材料拒绝逻辑未被触发）
+  ```
+  → 即：**本仓代码已能从真实 Provider 自动发现并解析出可用 JWKS**。
+
+### 21.12.2 真实 HTTP E2E（本仓自建本地 IdP，走完整 FastAPI 链路）
+
+`tests/contracts/test_oidc_runtime_wiring.py` 新增两个真实 HTTP 用例：
+起一个 `http.server.ThreadingHTTPServer` 本地 IdP（真实 HTTP，端口随机），
+提供 `/.well-known/openid-configuration` 与 `/jwks`，RSA 密钥**运行时生成、不落盘**。
+
+覆盖链路：`TestClient(FastAPI)` → 路由 → `require_edit_access` → `load_runtime_auth_config`
+→ discovery 自动解析 `jwks_uri` → JWKS 拉取 → `verify_jwt`（RS256 + iss/aud/exp/nbf/iat）→ 角色映射。
+
+断言（全部通过）：
+- `GW_OIDC_JWKS_URL` **未设置**（强制走 discovery）时，`/healthz` 返回 `auth_mode=oidc`、`oidc_ready=true`、`release_authorized=false`；
+- 合法 `gw-editor` 令牌 → `POST /api/asset-registry/projects` **201**；
+- 同请求带 `X-User-Role: governor` **不能提权**（IdP 只给 editor）；
+- IdP 只给 `gw-readonly` 时写操作 → **403**；
+- 未映射组 → **401**（无组不授权，不静默降级）；
+- 无效令牌 → **401**；
+- **discovery ≥1 次、JWKS 恰好 1 次**（证明 TTL 缓存跨请求生效，缺陷已修复）。
+
+### 21.12.3 门禁（本轮实测）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider   -> 121 passed（IdP 新增 6 个用例：JWKS 缓存 ×1、运行期缓存 ×2、discovery 失败关闭 ×1、真实 E2E ×2；前端降级运行时守卫新增 6 个用例）
+node --check（非 vendor .js，54 个）                    -> 54 / 0 failed
+```
+
+### 21.12.4 证据边界（不得外推）
+
+- **未**接入任何生产 IdP、**未**提交任何真实客户端密钥或令牌；
+  Google / Microsoft 仅做**只读 discovery + JWKS 解析**，**未**获取或使用任何用户令牌。
+- 本地 IdP 是**测试桩**，不等于真实 IdP 的完整 OIDC 语义（未覆盖 authorization code / PKCE 回调、
+  令牌撤销、旋转密钥的并发窗口等）。
+- **未**执行生产部署与生产验收；**未**安排外部第三方独立审计。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+### 21.12.5 Phase 9B-2：独立审核发现的缺陷已修复（2026-09-21 追加）
+
+独立审核代理（`/root/p9_review_final`）出具 `docs/governance/agent-reports-2026-09-21/P9-B-INDEPENDENT-REVIEW.md`，
+发现 3 个问题，**全部已修复并可复核**：
+
+| 编号 | 严重性 | 问题 | 处置 |
+|---|---|---|---|
+| D1 | 高 | JWKS TTL 缓存被「每请求重建配置」击穿（实测 5 次请求 → 5 次 JWKS 网络拉取） | 已修：按环境变量指纹缓存运行期配置；实测 5 次请求 → **1** 次拉取；3 个回归用例 |
+| D2 | 中 | 503 被归入「未接入后端」，把**可恢复的服务不可用**误报为「未纳入当前切片」 | 已修：`NOT_INTEGRATED_STATUSES = {404, 501}`；503 单独产出 `SERVICE_UNAVAILABLE`（`retryable=true`，`unavailable=false`）；`workspace-common.js` 同步；并修正对象型 `detail` 渲染为 `[object Object]` |
+| D3 | 低 | 501/503 分支无行为守卫（原守卫仅静态字符串断言） | 已修：新增 `tests/contracts/test_phase9_degradation_runtime.py`，用 **Node 真实执行** `http-transport.js`，构造真实 `Response` 覆盖 404/404-业务/501/503/200 五个分支 |
+
+**D2 实测（Node 真实执行，非静态断言）**：
+```text
+404 无标准错误包            -> NOT_INTEGRATED（unavailable=true）
+404 含标准错误包（业务 404） -> 原样透传（不降级）
+501                        -> NOT_INTEGRATED
+503                        -> SERVICE_UNAVAILABLE（retryable=true, unavailable=false）
+200                        -> 不降级
+```
+
+**同步更正的口径漂移**（独立审核提及的同类问题）：
+- `src/gods_workbench/core/oidc.py` 顶部文档原称「Phase 1 并行验证，不接线」「不被 core/auth.py 引用」，
+  已更正为**已接线**（`GW_AUTH_MODE=oidc`），并明确默认 `local` 不参与认证。
+- `requirements.txt` 中 `cryptography` 注释原称「仅新增模块与测试，不接线」，已更正为运行期接线所需。
+
+**门禁（Phase 9B-2 后）**：`pytest` **121 passed**、`node --check` **54/0 failed**。

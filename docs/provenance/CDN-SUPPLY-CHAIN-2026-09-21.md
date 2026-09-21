@@ -58,7 +58,7 @@
 | 引用文件（完整相对路径） | `src/gods_workbench/static/episode-pipeline.html` 第 13–15 行 |
 | 制品 SHA-256（实算，CSS 响应） | `43CF07907373A7D4E4EC8DDE2EDF0214562B477B7F92CA90AF93205B45DA1966`（2,444 B，实测日期响应） |
 | SRI | **未使用**。字体 CSS 由 `@font-face` 间接拉取 `gstatic` 二进制，`integrity` 无法覆盖二次请求；且字体为运行时可选增强。 |
-| 许可证 | Material Symbols 图标字体：Apache License 2.0（Google Fonts）。上游许可入口：`https://fonts.google.com/license`（注：本台账实测该 URL 返回 404，**官方许可页入口待复核**）。 |
+| 许可证 | Material Symbols 图标字体：Apache License 2.0。上游许可正文入口：`https://raw.githubusercontent.com/google/material-design-icons/master/LICENSE`（实测 200）；`https://fonts.google.com/license` 实测 404，已弃用该入口。 |
 | 失败模式（CDN 不可达时页面表现） | 图标字体不加载 → Material Symbols 字形的 `span` 退化为文字/方块，`episode-pipeline.html` 视觉降级；页面结构与功能不受影响。 |
 | 是否可本地化（及本轮决策） | **可本地化**，但**本轮决策：不本地化**（超出 Phase 6 授权范围，且 `AGENTS.md` §1.2 对本地字体二进制白名单极严：仅允许 3 个 Source Han Sans CN 字体路径）。**待用户裁决**。 |
 
@@ -112,8 +112,8 @@
 
 1. **Tailwind SRI 不可启用**（上游无 CORS 头）——需用户在「自托管/镜像/预构建 CSS」三条路径中裁决（§5）。
 2. **Tailwind Play CDN 传递组件版本不可完全恢复**——正式分发前需构建 metafile/lockfile/SBOM。
-3. **Material Symbols 字体许可官方入口待复核**（`https://fonts.google.com/license` 实测 404）。
-4. **Unsplash 内容权利链未闭环**，且 `photo-1579783902614-a3fb3927b675` 已是死链（404）。
+3. **Material Symbols 字体许可入口已更正**：`https://fonts.google.com/license` 实测 404，改用上游仓库 `LICENSE` 正文（实测 200）；Apache-2.0 的 NOTICE 义务清单与分发包内正文装配**仍未闭环**（详见 §9.3/§9.5）。
+4. **Unsplash 内容权利链未闭环**；其中 `photo-1579783902614-a3fb3927b675` 死链（404）**已于 Phase 9 替换**为同在用的 `photo-1511447333015-45b65e60f6d5`（实测 200，见 §9.2），但授权问题仍待用户/法务裁决。
 5. 本台账仅覆盖 `src/gods_workbench/static/` 的**外部网络依赖**；Python 依赖闭包见 `requirements.lock.hashes` 与 `docs/provenance/THIRD-PARTY-INVENTORY-2026-09-21.md`。
 
 ---
@@ -135,3 +135,70 @@ curl.exe -sS -o NUL -w "%{redirect_url}`n" "https://unpkg.com/lucide@latest"   #
 Get-ChildItem -Recurse -File -Path src -Include *.html | Select-String 'src="https://cdn\.tailwindcss\.com"'
 Get-ChildItem -Recurse -File -Path src -Include *.html | Select-String 'unpkg\.com/lucide'
 ```
+
+---
+
+## 9. Phase 9 追加实测（2026-09-21，用户裁决 4「按建议执行」）
+
+本轮以**只读 HTTP 探针**重新实测 `src/gods_workbench/static/` 的全部外链，
+原始状态码落盘于 `%TEMP%\gw-root-20260921\urlstatus-phase9.json`（可复算，见 §9.4）。
+
+### 9.1 实测结果（逐条状态码）
+
+| 外链 | 状态 | 处置 |
+|---|---|---|
+| `https://images.unsplash.com/photo-1579783902614-a3fb3927b675?...` | **404**（`text/html`） | **死链，本轮已替换**（见 §9.2） |
+| 其余 6 个 Unsplash 图（`photo-1518709268805-4e9042af9f23`、`photo-1509198397868-475647b2a1e5`、`photo-1534447677768-be436bb09401`、`photo-1511447333015-45b65e60f6d5`、`photo-1508739773434-c26b3d09e071`、`photo-1618005182384-a83a8bd57fbe`） | 200（`image/jpeg`） | 保留（内容权利链仍待裁决，见 §9.3） |
+| `https://fonts.google.com/license` | **404** | **许可入口更正**（见 §9.3） |
+| `https://fonts.google.com/icons` | 200 | 保留（图标浏览页，非许可正文） |
+| `https://github.com/google/material-design-icons/blob/master/LICENSE` | 200 | 作为 Material Symbols / Material Icons 的**许可正文入口** |
+| `https://raw.githubusercontent.com/google/material-design-icons/master/LICENSE` | 200（`text/plain`） | 同上（原始正文，便于机器读取） |
+| `https://raw.githubusercontent.com/google/material-design-icons/master/README.md` | 200 | 上游自述：Material Symbols 与 Material Icons 为**同一套官方图标设计**，Symbols 为现行集合 |
+| `https://api.github.com/repos/google/material-design-icons` | 200 | 上游仓库元数据（确认 `license` 字段存在） |
+| `https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:...` | 200（`text/css`） | `episode-pipeline.html` 的图标字体依赖可达 |
+
+### 9.2 Unsplash 死链替换（本轮最小改动）
+
+- 死链 `photo-1579783902614-a3fb3927b675` 在静态层共 **7 处**引用：
+  `v2/js/home-controller.js:107`、`v2/js/projects-controller.js:264`、
+  `v2/js/production-controller.js:53`（`sh-02-03`）、`v2/js/production-controller.js:155`（`sh-02`）、
+  `v2/js/storyboard-controller.js:67`，以及 `docs/` 中的登记性引用（不属运行时代码）。
+- 替换目标：**已在其他位置使用且实测 200** 的 `photo-1511447333015-45b65e60f6d5`
+  （未引入任何新的上游资产或新的权利主体），保持原 `?q=&w=&auto=fit=crop` 查询串不变。
+- 处置口径：**不新增图片文件**（洁净室二进制红线不变），仍为外链；本地 `assets` 目录未落任何图片。
+- 该替换只消除「确定性死链」，**不解决** Unsplash 的内容权利链问题（见 §9.3）。
+
+### 9.3 内容权利与许可入口（如实边界）
+
+- **Material Symbols / Material Icons**：上游 `material-design-icons` 仓库 `LICENSE` 为
+  **Apache License 2.0** 正文（`https://raw.githubusercontent.com/google/material-design-icons/master/LICENSE`，实测 200）。
+  台账原先登记的 `https://fonts.google.com/license` 实测 **404**，已更正为上述仓库 LICENSE（HTML 页 + raw 正文两处）。
+  仍然**未**完成：Apache-2.0 的 `NOTICE` 义务清单与分发包内正文装配（仍未创建根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`）。
+- **Unsplash 图片**：全部为**外链**，仓库内无图片文件；`images.unsplash.com` 的
+  **内容权利链未闭环**（上游声明不重新授予本仓分发权），仍登记为**待用户 / 法务裁决**。
+- **提示词库预览图 / 参考图**：同样为外链，权利链见
+  `docs/provenance/PROMPT-REGISTRY-RIGHTS-AUDIT-2026-09-21.md`，仍待裁决。
+- **Tailwind CDN**：版本已钉死 `/3.4.17`（10 个 HTML，其中 `episode-pipeline.html` 带 `?plugins=forms,container-queries`）；
+  上游**无 `Access-Control-Allow-Origin`**，故 SRI **不可启用**——属上游限制，替代路径（自托管 / 预构建 CSS / 带 CORS 镜像）仍**待用户裁决**（§5）。
+
+### 9.4 可复算命令
+
+```powershell
+# 1) 外链状态码（Phase 9 探针，输出 JSON）
+python "%TEMP%\gw-root-20260921\urlprobe9.py"
+
+# 2) 死链替换后再复算一次，应无 404
+Select-String -Path src\gods_workbench\static\v2\js\*.js -Pattern 'photo-1579783902614-a3fb3927b675'
+# 期望：无输出（死链已清除）
+
+# 3) Material Symbols 许可正文
+curl.exe -sS -o NUL -w "%{http_code}\n" "https://raw.githubusercontent.com/google/material-design-icons/master/LICENSE"
+# 期望：200
+```
+
+### 9.5 未闭环（本节的“未做”，不得外推）
+
+- **未**为 Unsplash 取得授权，**未**替换为自有/已授权素材。
+- **未**创建根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`；**未**发布。
+- **未**解决 Tailwind SRI（上游 CORS 限制）。
+- **未**闭环字体上游匹配（本地 1.004 vs 上游 2.005R，见 `VENDOR-UPSTREAM-MATCH-AUDIT-2026-09-21.md` §4）。

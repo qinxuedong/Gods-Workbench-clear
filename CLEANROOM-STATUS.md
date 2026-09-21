@@ -310,3 +310,109 @@
 
 **阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
 仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。
+
+## Phase 9 状态更新（2026-09-21 追加）
+
+### 一、洁净计划 §7 验收清单（`CLEANROOM-IMPLEMENTATION-HANDOFF.md`）
+
+本轮由主代理 `/root` 对 §7 七项逐条只读核验，结论 **7/7 PASS**，
+逐项命令与真实输出见 `docs/governance/agent-reports-2026-09-21/P9-ACCEPTANCE-AUDIT.md`：
+
+| # | 验收项 | 判定 |
+|---:|---|---|
+| 1 | 接受迁移文件有来源、哈希、依赖闭包、授权结论（2/2） | PASS |
+| 2 | 项目中心与 god-canvas 不依赖旧仓/旧画布运行时 | PASS |
+| 3 | 未引入旧仓 `.git`、提交历史、资源或用户数据 | PASS |
+| 4 | 错误语义覆盖 401 / 403 / 409 / 202（含黄金夹具） | PASS |
+| 5 | `PLUGIN-PROTOCOL-SPEC` 仍待审且未实现 | PASS |
+| 6 | 当前工作树与测试输出绑定 | PASS |
+| 7 | 仓库状态仍为 NOT AUTHORIZED FOR PUBLIC DISTRIBUTION | PASS |
+
+### 二、用户 2026-09-21 六项裁决落地
+
+1. **`asset-share.html` 无 token 直开** → `static/js/asset-share.js` 增加 `isDirectOpen` 判定与
+   明确缺参提示「缺少分享令牌，请使用完整的分享链接打开本页面。」；并修正对象型 `detail` 显示为 `[object Object]` 的缺陷。
+2. **180 条未实现端点** → 仅做定性、功能域归并与推进顺序登记
+   （素材库 → 观测 → 提示词库 → 设置页 → 画布闭环）；
+   `asset-manager` / `api-settings` / `task-center` 三块整体标记「**未纳入当前切片**」。
+   **未实现任何一条后端端点**。详见 `TASK-NOTES-2026-09-18.md` §21.11.1。
+3. **前端统一「无后端时显式降级」** → `http-transport.js` / `workspace-common.js` 统一产出
+   `code=NOT_INTEGRATED` / `unavailable=true` 的显式错误；仅在响应**不含标准错误包**时判定，
+   已实现接口的真实业务 404（`CANVAS_NOT_FOUND` / `PROJECT_NOT_FOUND`）原样透传。详见 §21.11.2。
+4. **Phase 7 合规/供应链项按建议执行** → `colorama` SPDX 更正为 `BSD-3-Clause`；
+   Tailwind CDN 钉死 `/3.4.17`（上游无 ACAO，SRI 不可启用，属上游限制，已登记待裁决）；
+   Material Symbols 许可入口由 404 的 `fonts.google.com/license` 更正为上游仓库 `LICENSE`；
+   Unsplash 死链 `photo-1579783902614` 已替换为同在用的 `photo-1511447333015`（实测 200，不新增图片文件）；
+   prompt-registry 六来源权利审查与预览图外链边界登记在位。详见
+   `docs/provenance/CDN-SUPPLY-CHAIN-2026-09-21.md` §9。
+5. **发布授权** → 真正第三方独立审计**另行安排**；发布授权**待审计完成后**再议。
+6. **真实外部 IdP 接线** → `core/config.py` 环境变量驱动（默认 `local`，显式 `GW_AUTH_MODE=oidc` 才启用）；
+   `core/auth.py` 在 oidc 模式下角色**只**取 IdP 组声明并**完全忽略** `X-User-Role`；失败关闭；
+   `/healthz` 增加 `auth_mode` / `oidc_ready`。详见 §21.11.3 与 §21.12。
+
+### 三、Phase 9B：真实 IdP 证据升级与真实缺陷修复
+
+- **实测暴露并修复的真实缺陷**：
+  - **JWKS TTL 缓存被击穿**：原实现每次 `load_runtime_auth_config()` 都新建 fetcher，
+    缓存字典随之重建 → 每请求都打 IdP（实测 3/3 全打；修复后 1）；
+    修复方式为按环境变量指纹缓存运行期配置，并新增 3 个回归用例。
+  - **缺少 OIDC discovery**：新增 `fetch_discovery_document()` / `resolve_jwks_url()`，
+    `GW_OIDC_JWKS_URL` 缺省时自动按 `issuer + /.well-known/openid-configuration` 解析 `jwks_uri`。
+- **真实 HTTP E2E（新增 2 个用例）**：本仓起本地 IdP（真实 HTTP、随机端口、RSA 运行时生成不落盘），
+  走 `FastAPI → require_edit_access → discovery → JWKS → verify_jwt → 角色映射` 全链路；
+  断言 201 / 403 / 401、`X-User-Role` 不能提权、未映射组 401、JWKS 恰好拉取 1 次。
+- **真实上游 IdP 只读联调**（不提交任何令牌/密钥）：Google 与 Microsoft 的
+  discovery → `jwks_uri` → JWKS 解析均成功（RSA / 无私钥材料）；**未使用任何用户令牌**。
+
+### 四、门禁（本轮实测）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider   -> 121 passed
+node --check（非 vendor .js，54 个）                    -> 54 / 0 failed
+```
+
+### 五、明确未做（不得外推）
+
+- **未**实现 180 条后端端点中的任何一条（仅定性、排序、标记）。
+- **未**接入生产 IdP；**未**验证 authorization code / PKCE 回调、令牌撤销、密钥轮换并发窗口。
+- **未**为 Unsplash 取得授权；**未**闭环 Apache-2.0 的 NOTICE 义务与分发包内正文装配；
+  **未**解决 Tailwind SRI（上游 CORS 限制）；**未**闭环字体上游匹配（本地 1.004 vs 上游 2.005R）。
+- **未**执行生产部署、生产验收与发布授权；**未**安排外部第三方独立审计。
+- 本地通过 **!=** 远端 CI **!=** 生产验收。
+- **阻断发布的判定不变**：真实外部 IdP 未接入生产、许可证/第三方闭包未闭环、
+  无生产容器部署证据、无发布授权。仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+**独立审核闭环（P9-B）**：独立审核代理出具
+`docs/governance/agent-reports-2026-09-21/P9-B-INDEPENDENT-REVIEW.md`，发现三项问题且**均已修复**：
+
+- **D1（高）** JWKS TTL 缓存被「每请求重建配置」击穿（实测 5 次请求 → 5 次 JWKS 拉取）→
+  改为按环境变量指纹缓存运行期配置，实测 5 次请求 → **1** 次拉取；
+- **D2（中）** 503 被归入「未接入后端」，把**可恢复的服务不可用**误报为「未纳入当前切片」→
+  `NOT_INTEGRATED_STATUSES = {404, 501}`，503 单独产出 `SERVICE_UNAVAILABLE`（`retryable=true`）；
+  `workspace-common.js` 同步，并修正对象型 `detail` 显示为 `[object Object]` 的缺陷；
+- **D3（低）** 501/503 分支缺行为守卫 → 新增
+  `tests/contracts/test_phase9_degradation_runtime.py`（Node 真实执行 `http-transport.js`，6 个用例）。
+
+同时更正口径漂移：`core/oidc.py` 与 `requirements.txt` 中「不接线」的失效表述。
+
+### 六、Phase 9B-3/9B-4（独立复核 D5–D10 与新缺陷修复，2026-09-21 追加）
+
+**独立复核实测（R2 → R3）**：`docs/governance/agent-reports-2026-09-21/P9-B-INDEPENDENT-REVIEW.md` §9/§11。
+
+| 缺陷 | 严重性 | 处置 |
+|---|---|---|
+| D5 重定向绕过 JWKS/discovery 白名单（urlopen 自动跟随 302） | 中 | 已修：`_ValidatingRedirectHandler` 对**每一跳**重校验 `is_allowed_jwks_url`，越界返回 `None` 失败关闭；白名单内跳转允许，跳数上限 3 |
+| D6 discovery 瞬时失败被 `_RUNTIME_CACHE` 永久固化 | 中 | 已修：失败结果只进 `_NEGATIVE_CACHE`（5 秒）；实测恢复后同进程内 `ready=true` |
+| D7 TTL 窗口内未知 kid（密钥轮换）无法刷新 | 低-中 | 已修：`build_jwks_fetcher` 增加 `force_refresh()`（绕过 TTL + 10 秒限流）；`_resolve_public_key` 先常规后受控强刷 |
+| D8 已登记文档哈希漂移且无守卫 | 中 | 已修：清单追加哈希更正登记；hygiene 新增守卫覆盖全部 **9 条** `ACCEPTED_DOC_MIGRATION`，取同路径最后一条登记 |
+| D9 验收报告门禁数字并存 | 低 | 已修：统一为实测值 |
+| D10 §8 绑定表失效 | 低 | 已修：全量重算（当前报告 32 行绑定表 stale = 0） |
+
+**R3 残留观察处置**：O1 补负缓存出厂值上界守卫；O2 升级为逐跳重校验（并重做证伪）；O3 在验收报告插入「本地实测 ≠ 远端 CI」口径限定。
+
+**门禁（实现方实测，未提交工作树）**：`pytest` **121 passed**、`node --check` **54/0 failed**、hygiene **7 passed**、二进制白名单越界 **0**。
+
+**边界**：以上为**未提交工作树**本地实测（`HEAD == origin/master == b0f2589`），**不绑定**远端 CI；
+独立复核属**同一多代理框架内**复核，**不等同于**外部第三方审计；未接入生产 IdP、未做 authorization code/PKCE 回调、未做密钥轮换并发压测、未执行生产验收。
+仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

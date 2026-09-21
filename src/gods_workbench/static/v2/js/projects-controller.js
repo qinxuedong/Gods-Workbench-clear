@@ -261,7 +261,7 @@ window.V2Projects = (function () {
         shots: 64,
         version: 1,
         owner: 'admin',
-        cover_media_url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=300&auto=format&fit=crop',
+        cover_media_url: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop',
         description: '机械重构纪元概念视效，结合最新神经物理光影渲染管道，主视觉海报与全息粒子序列已交付定版。',
         updated_at: Date.now() - 3600000 * 24
       },
