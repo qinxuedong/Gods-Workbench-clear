@@ -80,3 +80,14 @@ Phase 7 选择「既有前端缺陷修复 + 合规可本地关闭项」两件事
 ## 9. 推送与远端 CI 实测证据（2026-09-21 追加）
 
 本节由主代理在推送后补登，**仅追加**。
+
+- **提交**：`70bd21a`（父提交 `b4c7153`），13 文件（803 行新增、1 行删除；唯一删除为 SBOM 中 colorama「未提供 SPDX id」旧占位字段，由更正后的 SPDX 字段替换），提交信息
+  「Phase 7：既有前端图标缺陷修复 + 合规可本地关闭项（SBOM/prompt-registry 证据化登记）」。
+- **推送实测**：`b4c7153..70bd21a  master -> master`；`origin/master == HEAD == 70bd21ab644319f5a059743dce6192527adb3c05`，ahead / behind = `0 / 0`。
+- **远端 CI 实测**：run `35551373019`（`gh run view`）返回
+  `{"conclusion":"success","event":"push","headSha":"70bd21ab644319f5a059743dce6192527adb3c05","workflowName":"CI"}`，`headSha` 与本地提交**逐字一致**；
+  作业日志原文：`运行全量测试 -> 65 passed, 2 warnings in 0.52s`（Linux / Python 3.11.16 / ubuntu-24.04）。
+- 历史绿态一并复核：`35549648145`（`b4c7153`）、`35549562816`（`185213f`）、`35549063690`（`0216e8d`）均 success。
+
+**边界声明**：以上为**本地实测 + 远端 CI 读回**。仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，
+不构成生产就绪或对外发布授权。**本地通过 != 远端 CI != 生产验收**。
