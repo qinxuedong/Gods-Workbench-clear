@@ -87,11 +87,10 @@
           <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 border border-[#dfc384]/30 text-[#eddab3]">SYS.02 PRO</span>
         </div>
         <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-slate-300 font-semibold">Online</span>
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-[0_0_6px_#34d399]"></span>
-          </span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+            <span class="relative flex h-2 w-2">
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
+            </span>
         </div>
 
 
@@ -106,7 +105,7 @@
             <polygon id="svgNeedleCPU" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #fae2c8)" transform="rotate(-11.5 74 48)" />
           </svg>
           <div class="uv-bottom-hub">
-            <span class="uv-hub-percent text-[#fae2c8]" id="cpuValText">42%</span>
+            <span class="uv-hub-percent text-[#fae2c8]" id="cpuValText">未接入</span>
           </div>
         </div>
       </div>
@@ -116,7 +115,7 @@
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
           <div class="flex items-center space-x-2 px-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-[#dfc384] shadow-[0_0_6px_#dfc384] animate-pulse"></span>
-            <span class="text-[10px] font-mono font-bold text-[#eddab3] tracking-wider">TEAM COLLABORATION & AUDIT DECK · 0ms LOCAL</span>
+            <span class="text-[10px] font-mono font-bold text-[#eddab3] tracking-wider" data-gw-degradation="not_integrated">TEAM COLLABORATION &amp; AUDIT DECK · 协同端点未接入</span>
           </div>
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
         </div>
@@ -134,7 +133,7 @@
             <polygon id="svgNeedleRAM" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #38bdf8)" transform="rotate(25.9 74 48)" />
           </svg>
           <div class="uv-bottom-hub">
-            <span class="uv-hub-percent text-cyan-300" id="ramValText">68%</span>
+            <span class="uv-hub-percent text-cyan-300" id="ramValText">未接入</span>
           </div>
         </div>
 
@@ -200,18 +199,18 @@
         <div class="flex items-center space-x-2">
           <span class="text-[9px] font-mono text-slate-400 font-bold">FLOW</span>
           <div class="hw-fader-track-horizontal w-28">
-            <div class="hw-fader-glow-bar" style="width: 88%;"></div>
-            <div class="hw-fader-thumb-3d" style="left: 88%;"></div>
+            <div class="hw-fader-glow-bar" style="width: 0%;"></div>
+            <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[9px] font-mono text-[#dfc384] font-bold">88%</span>
+          <span class="text-[9px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实流程管线遥测数据源，未读取任何指标">未接入</span>
         </div>
         <div class="flex items-center space-x-2">
           <span class="text-[9px] font-mono text-slate-400 font-bold">BUFFER</span>
           <div class="hw-fader-track-horizontal w-24">
-            <div class="hw-fader-glow-bar" style="width: 52%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
-            <div class="hw-fader-thumb-3d" style="left: 52%;"></div>
+            <div class="hw-fader-glow-bar" style="width: 0%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
+            <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[9px] font-mono text-cyan-300 font-bold">12.2G</span>
+          <span class="text-[9px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实缓冲遥测数据源，未读取任何指标">未接入</span>
         </div>
       </div>
 
@@ -223,7 +222,7 @@
         </div>
         <div class="h-3.5 w-px bg-white/10"></div>
                 <!-- 拟物头像键帽 (原智能体核心位置，替换左下角登录用户，无文字只显头像) -->
-        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="当前登录席位：admin (主创)">
+        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="认证状态未接入：点击打开认证中心查看真实登录状态" data-gw-identity="unverified">
           <div class="hw-avatar-keycap-inner">
             <i data-lucide="shield-check" class="w-4 h-4 text-[#eddab3]"></i>
           </div>
@@ -340,6 +339,7 @@
     </main>
   </div>
 
+  <script src="/static/js/degradation.js?v=v0.0.1-alpha-2026"></script>
   <script src="/static/js/hardware-telemetry.js"></script>
   <script type="module" src="/static/js/asset-review/api.js?v=20260916-collab-team"></script>
   <script type="module" src="/static/js/asset-auth/api.js?v=20260916-collab-team"></script>

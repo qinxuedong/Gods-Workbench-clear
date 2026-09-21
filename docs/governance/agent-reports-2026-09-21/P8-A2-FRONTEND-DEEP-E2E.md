@@ -352,9 +352,14 @@ FAIL [image] https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w
    证据：`src/gods_workbench/static/js/asset-manager/api.js:674`
    ```js
    getCanvases(init = {}) {
-       return transport.request('/api/canvases', { ...init, сrеdеn​t​i​a​l: 'same-origin' });
+       return transport.request('/api/canvases', { ...init, credential: 'same-origin' });
    },
    ```
+
+> **更正（2026-09-22）**：上面引用的代码片段中，`credential` 曾被写成含西里尔字母与零宽空格的形近串，
+> 属**历史文档污染**（与本报告 §8 所记的历史行同类）。本轮已**就地更正为纯 ASCII `credential`**，不改变任何结论。
+> 持续门禁见 `tests/hygiene/test_cleanroom_hygiene.py::test_no_homoglyph_confusables`；
+> 实测该污染**仅存在于本报告的引用片段**，`src/` 下真实源码及其全部历史版本均无此问题。
 
 ---
 

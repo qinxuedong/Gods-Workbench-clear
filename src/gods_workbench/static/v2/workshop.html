@@ -127,11 +127,10 @@
 
         <!-- 在线状态胶囊 -->
         <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-slate-300 font-semibold">Online</span>
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-[0_0_6px_#34d399]"></span>
-          </span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+            <span class="relative flex h-2 w-2">
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
+            </span>
         </div>
 
         <!-- 左侧 CPU UV 表 -->
@@ -146,7 +145,7 @@
             <polygon id="svgNeedleCPU" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #fae2c8)" transform="rotate(-11.5 74 48)" />
           </svg>
           <div class="uv-bottom-hub">
-            <span class="uv-hub-percent text-[#fae2c8]" id="cpuValText">42%</span>
+            <span class="uv-hub-percent text-[#fae2c8]" id="cpuValText">未接入</span>
           </div>
         </div>
       </div>
@@ -176,7 +175,7 @@
             <polygon id="svgNeedleRAM" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #38bdf8)" transform="rotate(25.9 74 48)" />
           </svg>
           <div class="uv-bottom-hub">
-            <span class="uv-hub-percent text-cyan-300" id="ramValText">68%</span>
+            <span class="uv-hub-percent text-cyan-300" id="ramValText">未接入</span>
           </div>
         </div>
 
@@ -254,12 +253,12 @@
 
       <!-- CENTER & RIGHT: 状态指示 -->
       <div class="flex items-center space-x-3 shrink-0">
-        <div class="flex items-center space-x-1 text-[9px] font-mono text-slate-400">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#dfc384] animate-ping"></span>
-          <span>PIPELINE ENGINE BUS: CONNECTED</span>
+        <div class="flex items-center space-x-1 text-[9px] font-mono text-slate-400" data-gw-degradation="not_integrated">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+          <span>PIPELINE ENGINE BUS: 未接入状态端点</span>
         </div>
         <!-- 拟物头像键帽 (原智能体核心位置，替换左下角登录用户，无文字只显头像) -->
-        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="当前登录席位：admin (主创)">
+        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="认证状态未接入：点击打开认证中心查看真实登录状态" data-gw-identity="unverified">
           <div class="hw-avatar-keycap-inner">
             <i data-lucide="shield-check" class="w-4 h-4 text-[#eddab3]"></i>
           </div>
@@ -503,16 +502,23 @@
       let episodes = [];
       let isLoadingEpisodes = false;
 
-      const defaultProjectCatalog = {
+      // 内置示例项目目录：**仅用于占位显示**。当后端项目目录不可用时，
+      // 标题与状态位会显式标注「示例（未接入）」，绝不把它当作真实后端工程写入 projects。
+      const demoProjectCatalog = {
         'proj-01': { id: 'proj-01', name: '《神谕之地》' },
         'proj-02': { id: 'proj-02', name: '《赛博修真：重构法则》' },
         'proj-03': { id: 'proj-03', name: '《钛金纪元：序幕》' },
         'proj-05': { id: 'proj-05', name: '《霓虹脉冲 2099》' }
       };
 
-      let projects = Object.values(defaultProjectCatalog);
+      // 项目目录：一律来自真实后端。后端不可用时为 []，由 projectsDegradation 显式标记，
+      // 禁用「内置工程库」静默兜底（历史缺陷：伪造 proj-01..proj-05 工程名）。
+      let projects = [];
+      let projectsDegradation = null;
+      let episodesDegradation = null;
+      // projectId 允许来自 URL/localStorage；缺省仅作为路由占位，不代表后端存在该工程。
       if (projectId && !projects.some(p => p.id === projectId)) {
-        projects.unshift({ id: projectId, name: cachedProjectName || projectId });
+        projects.unshift({ id: projectId, name: cachedProjectName || (demoProjectCatalog[projectId] || {}).name || projectId, placeholder: true });
       }
 
       function escapeHtml(str) {
@@ -523,6 +529,49 @@
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#039;');
+      }
+
+      // 统一「无后端时显式降级」工具（复用页面末尾加载的 window.GWDegradation）。
+      // 口径：404/501 且无标准错误包 -> 未接入；503 -> 服务暂时不可用；其余 -> 如实报错。
+      const degradationApi = () => window.GWDegradation || null;
+
+      const degradationMessage = (kind, status) => {
+        const api = degradationApi();
+        if (api) {
+          if (kind === 'not_integrated') return `${api.NOT_INTEGRATED_MESSAGE}（HTTP ${status}）`;
+          if (kind === 'service_unavailable') return `${api.SERVICE_UNAVAILABLE_MESSAGE}（HTTP ${status}）`;
+        }
+        if (kind === 'not_integrated') return `该功能尚未接入后端（未纳入当前切片）（HTTP ${status}）`;
+        if (kind === 'service_unavailable') return `后端服务暂时不可用，请稍后重试（HTTP ${status}）`;
+        return `请求失败（HTTP ${status}）`;
+      };
+
+      async function classifyFetchFailure(res) {
+        let data = null;
+        try { data = await res.json(); } catch (_) { data = null; }
+        const api = degradationApi();
+        if (api && typeof api.classifyResponse === 'function') {
+          const verdict = api.classifyResponse(res, data);
+          return { kind: verdict.kind, status: verdict.status, message: verdict.message };
+        }
+        const detailValue = data ? data.detail : undefined;
+        const isEnvelope = Boolean(detailValue) && typeof detailValue === 'object';
+        const isDefaultText = typeof detailValue === 'string' && /^(not found|not implemented)$/i.test(detailValue.trim());
+        const isBusinessText = typeof detailValue === 'string' && detailValue.trim() && !isDefaultText;
+        let kind = 'error';
+        if (res.status === 503) kind = 'service_unavailable';
+        else if ([404, 501].indexOf(res.status) !== -1 && !isEnvelope && !isBusinessText) kind = 'not_integrated';
+        return { kind: kind, status: res.status, message: degradationMessage(kind, res.status) };
+      }
+
+      // 显式降级占位（带 data-gw-degradation 标记，便于契约测试与人工核验）。
+      function degradationNoticeHtml(degradation, extraHint) {
+        const api = degradationApi();
+        const hint = extraHint ? `<span class="block mt-1 text-[9px] text-slate-500">${escapeHtml(extraHint)}</span>` : '';
+        if (api && typeof api.noticeHtml === 'function') {
+          return api.noticeHtml(degradation.kind, degradation.message) + hint;
+        }
+        return `<div class="bay-inset p-3 rounded-xl border border-white/10 text-center text-[10px] font-mono text-slate-400" role="status" data-gw-degradation="${escapeHtml(degradation.kind)}"><span class="block">${escapeHtml(degradation.message)}</span>${hint}</div>`;
       }
 
       function formatTime(iso) {
@@ -564,35 +613,45 @@
         }
       }
 
+      const API_PROJECTS = '/api/asset-registry/projects';
+      const API_PROJECTS_FALLBACK = '/api/projects';
+
       async function fetchProjects() {
+        projectsDegradation = null;
+        const keepPlaceholder = projects.filter(p => p.placeholder);
         try {
-          let res = await fetch('/api/asset-registry/projects?archived=false', { credentials: 'same-origin' });
+          let res = await fetch(`${API_PROJECTS}?archived=false`, {credentials: 'same-origin' });
           let data = null;
           if (res.ok) {
             data = await res.json();
           } else {
-            res = await fetch('/api/projects', { credentials: 'same-origin' });
+            res = await fetch(API_PROJECTS_FALLBACK, {credentials: 'same-origin' });
             if (res.ok) data = await res.json();
           }
-          const list = data?.projects || data || [];
-          if (Array.isArray(list) && list.length > 0) {
-            const map = { ...defaultProjectCatalog };
+          if (!res.ok) {
+            // 显式降级：接口未接入 / 服务不可用 / 请求失败一律如实标记并清空，
+            // 绝不填入任何伪造的示例工程数据。
+            const failure = await classifyFetchFailure(res);
+            projectsDegradation = { kind: failure.kind, message: failure.message };
+            projects = keepPlaceholder;
+          } else {
+            const list = data?.projects || data || [];
             // 契约对齐：稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml），
-            // 归一化为内部 id，否则真实项目会被 `p.id` 判空全部丢弃、目录回退到内置演示工程。
-            list.forEach(p => {
+            // 归一化为内部 id，否则真实项目会被 `p.id` 判空全部丢弃。
+            const real = (Array.isArray(list) ? list : []).map(p => {
               const pid = p && (p.id || p.project_id);
-              if (pid) {
-                map[pid] = { id: pid, name: p.name || pid };
-              }
-            });
-            projects = Object.values(map);
+              return pid ? { id: pid, name: p.name || pid } : null;
+            }).filter(Boolean);
+            // 后端如实应答「确实为空」：保留空态，不伪造数据。
+            projects = real.concat(keepPlaceholder.filter(ph => !real.some(r => r.id === ph.id)));
           }
 
-          if (!projects.some(p => p.id === projectId) && projectId) {
+          // 若当前路由 projectId 不在真实目录中，仅以占位条目补齐显示（标记 placeholder）。
+          if (projectId && !projects.some(p => p.id === projectId)) {
             try {
-              let pRes = await fetch(`/api/asset-registry/projects/${encodeURIComponent(projectId)}`, { credentials: 'same-origin' });
+              let pRes = await fetch(`${API_PROJECTS}/${encodeURIComponent(projectId)}`, {credentials: 'same-origin' });
               if (!pRes.ok) {
-                pRes = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, { credentials: 'same-origin' });
+                pRes = await fetch(`${API_PROJECTS_FALLBACK}/${encodeURIComponent(projectId)}`, {credentials: 'same-origin' });
               }
               if (pRes.ok) {
                 const pData = await pRes.json();
@@ -609,7 +668,10 @@
             } catch (_) {}
           }
         } catch (e) {
-          console.warn('读取远端工程目录失败，启用内置工程库:', e);
+          // 网络异常：服务不可用（可恢复），同样不得伪造工程数据。
+          console.warn('读取远端工程目录失败（网络异常）:', e);
+          projectsDegradation = { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
+          projects = keepPlaceholder;
         }
         updateProjectDisplay();
       }
@@ -618,12 +680,15 @@
         const titleEl = document.getElementById('workshopProjectTitle');
         const headerTitleEl = document.getElementById('episodesHeaderTitle');
         const current = projects.find(p => p.id === projectId) || { id: projectId, name: cachedProjectName || projectId };
+        // 显式降级：后端项目目录不可用时不得假装这是真实工程。
+        const degraded = Boolean(projectsDegradation);
+        const suffix = degraded ? '（示例 · 未接入）' : '';
 
         if (titleEl) {
-          titleEl.textContent = `${current.name} · 影视工坊流水线`;
+          titleEl.textContent = `${current.name}${suffix} · 影视工坊流水线`;
         }
         if (headerTitleEl) {
-          headerTitleEl.textContent = `${current.name} · 项目分集`;
+          headerTitleEl.textContent = `${current.name}${suffix} · 项目分集`;
         }
 
         document.querySelectorAll('#navPillsGroup a, #gotoProductionLink').forEach(a => {
@@ -636,19 +701,26 @@
         });
       }
 
+      const API_EPISODES = '/api/episode-pipelines';
+
       async function fetchEpisodes() {
         if (!projectId) return;
+        episodesDegradation = null;
         isLoadingEpisodes = true;
         try {
-          const res = await fetch(`/api/episode-pipelines?project_id=${encodeURIComponent(projectId)}`, { credentials: 'same-origin' });
+          const res = await fetch(`${API_EPISODES}?project_id=${encodeURIComponent(projectId)}`, {credentials: 'same-origin' });
           if (res.ok) {
             const data = await res.json();
             episodes = Array.isArray(data?.pipelines) ? data.pipelines : [];
           } else {
+            // 显式降级：不得把「接口未接入」静默显示成「该项目没有分集」。
+            const failure = await classifyFetchFailure(res);
+            episodesDegradation = { kind: failure.kind, message: failure.message };
             episodes = [];
           }
         } catch (e) {
-          console.warn('获取分集流水线失败:', e);
+          console.warn('获取分集流水线失败（网络异常）:', e);
+          episodesDegradation = { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
           episodes = [];
         } finally {
           isLoadingEpisodes = false;
@@ -665,8 +737,17 @@
         }
         if (!grid) return;
 
+        if (episodes.length === 0 && episodesDegradation) {
+          // 显式降级：不得把「分集接口未接入 / 不可用」伪装成「该项目没有分集」。
+          grid.innerHTML = `<div class="w-full max-w-xl mx-auto py-16 px-4">`
+            + degradationNoticeHtml(episodesDegradation, '分集列表未取到；本页不会展示任何伪造的分集数据。')
+            + `</div>`;
+          window.lucide?.createIcons();
+          return;
+        }
+
         if (episodes.length === 0) {
-          // 当前项目没有分集：只显示大号拟物化新建分集引导卡片
+          // 当前项目确实没有分集：显示新建分集引导卡片
           grid.innerHTML = `
             <div class="w-full flex items-center justify-center py-16 px-4">
               <div onclick="V2Workshop.openNewEpisodeModal()" class="w-full max-w-lg p-10 rounded-2xl border-2 border-dashed border-[#dfc384]/35 bg-[#0e1118]/80 hover:bg-[#141822] hover:border-[#dfc384] transition-all duration-300 cursor-pointer group flex flex-col items-center text-center shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
@@ -870,8 +951,14 @@
         } else {
           if (epBtn) epBtn.className = 'tree-node-card px-2.5 py-1.5 flex items-center justify-between group cursor-pointer';
           if (epBadge) {
-            epBadge.className = 'text-[7.5px] font-mono px-1.5 py-0.2 rounded-full bg-[#dfc384]/15 text-[#eddab3] border border-[#dfc384]/30 shrink-0';
-            epBadge.textContent = `${episodes.length}集`;
+            // 显式降级：分集数不可知时显示「—」，不得把 0 当成真实结果。
+            if (episodesDegradation) {
+              epBadge.className = 'text-[7.5px] font-mono px-1.5 py-0.2 rounded-full bg-slate-500/15 text-slate-400 border border-slate-500/30 shrink-0';
+              epBadge.textContent = '—';
+            } else {
+              epBadge.className = 'text-[7.5px] font-mono px-1.5 py-0.2 rounded-full bg-[#dfc384]/15 text-[#eddab3] border border-[#dfc384]/30 shrink-0';
+              epBadge.textContent = `${episodes.length}集`;
+            }
           }
         }
 
@@ -1001,13 +1088,24 @@
         });
       }
 
+      // 显式降级：项目目录不可用/为空时，切换按钮不得静默抛异常（历史缺陷：undefined.id）。
+      function canSwitchProject() {
+        if (projectsDegradation) {
+          console.warn('项目目录未接入 / 不可用，已禁用项目切换：', projectsDegradation.message);
+          return false;
+        }
+        return projects.length > 1;
+      }
+
       function prevProject() {
+        if (!canSwitchProject()) return;
         const idx = projects.findIndex(p => p.id === projectId);
         const prevIdx = idx <= 0 ? projects.length - 1 : idx - 1;
         switchProject(projects[prevIdx].id);
       }
 
       function nextProject() {
+        if (!canSwitchProject()) return;
         const idx = projects.findIndex(p => p.id === projectId);
         const nextIdx = (idx + 1) % projects.length;
         switchProject(projects[nextIdx].id);
@@ -1091,6 +1189,7 @@
     window.V2Workshop = V2Workshop;
     document.addEventListener('DOMContentLoaded', V2Workshop.init);
   </script>
+<script src="/static/js/degradation.js?v=v0.0.1-alpha-2026"></script>
 <script src="/static/v2/js/v2-shell.js"></script>
 </body>
 </html>

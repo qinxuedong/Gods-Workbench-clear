@@ -265,7 +265,15 @@ def test_tampered_signature_rejected(rsa_keypair, jwks):
     private_key, _ = rsa_keypair
     token = make_token(private_key, default_claims())
     header, payload, signature = token.split(".")
-    tampered = f"{header}.{payload}.{signature[:-2]}xx"
+    # 篡改必须**确定性**改变签名字节：直接翻转其首字节的一个比特位。
+    # 不能把末尾两字符替换成固定字面量：Base64URL 末位存在同值别名
+    # （例如 "xw" 与 "xx" 仅差填充位、解码后字节完全相同），
+    # 那种写法约 1/256 概率篡改失效，会让本用例变成伪失败。
+    tampered_raw = bytearray(base64.urlsafe_b64decode(signature + "=" * (-len(signature) % 4)))
+    tampered_raw[0] ^= 0x01
+    tampered_signature = base64.urlsafe_b64encode(bytes(tampered_raw)).rstrip(b"=").decode("ascii")
+    assert tampered_signature != signature, "篡改失败：签名字节未发生变化"
+    tampered = f"{header}.{payload}.{tampered_signature}"
     with pytest.raises(UnauthorizedException):
         oidc.verify_jwt(tampered, make_config(jwks), now=NOW)
 

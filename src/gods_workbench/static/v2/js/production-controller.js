@@ -6,8 +6,10 @@
 window.V2Production = (function () {
   'use strict';
 
-  // 1. 项目数据映射字典 (供从项目中心进入时无缝切换项目上下文)
-  const projectCatalog = {
+  // 1. 内置示例目录（demoProjectCatalog）：**未接入后端**，仅用于本地演示渲染。
+  //    它不是真实项目数据，不得写入任何被当作真实数据的 state 字段；
+  //    无后端时由渲染层显式降级（data-gw-degradation），绝不伪装成真实数据。
+  const demoProjectCatalog = {
     'proj-01': {
       name: '《神谕之地》',
       episodes: [
@@ -151,12 +153,12 @@ window.V2Production = (function () {
       prompt: 'Close up, glowing neural interface probe connecting into biomechanical socket at base of skull, spark effects, amber glow, cinematic lighting.'
     },
     shotList: [
-      { id: 'sh-01', code: 'SH_01', type: '全景 WIDE', img: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=300&auto=format&fit=crop', status: 'ready' },
-      { id: 'sh-02', code: 'SH_02', type: '中景 MED', img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop', status: 'ready' },
-      { id: 'sh-03', code: 'SH_03', type: '特写 CLOSE', img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=300&auto=format&fit=crop', status: 'ready' },
+      { id: 'sh-01', code: 'SH_01', type: '全景 WIDE', img: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=300&auto=format&fit=crop', status: 'not_integrated' },
+      { id: 'sh-02', code: 'SH_02', type: '中景 MED', img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop', status: 'not_integrated' },
+      { id: 'sh-03', code: 'SH_03', type: '特写 CLOSE', img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=300&auto=format&fit=crop', status: 'not_integrated' },
       { id: 'sh-04', code: 'SH_04', type: '微距 MACRO', img: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=300&auto=format&fit=crop', status: 'active' },
       { id: 'sh-05', code: 'SH_05', type: '俯拍 TOP', img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop', status: 'queued' },
-      { id: 'sh-06', code: 'SH_06', type: '过肩 OTS', img: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=300&auto=format&fit=crop', status: 'ready' }
+      { id: 'sh-06', code: 'SH_06', type: '过肩 OTS', img: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=300&auto=format&fit=crop', status: 'not_integrated' }
     ]
   };
 
@@ -170,12 +172,12 @@ window.V2Production = (function () {
     localStorage.setItem('workspace_project_id', pId);
 
     // 获取对应工程元数据
-    const proj = projectCatalog[pId] || {
+    const proj = demoProjectCatalog[pId] || {
       name: localStorage.getItem('workspace_project_name') || pId,
-      episodes: (projectCatalog['proj-01'] && projectCatalog['proj-01'].episodes) || [{ id: 'ep-01', title: '第一集', status: 'ready', progress: 0 }]
+      episodes: (demoProjectCatalog['proj-01'] && demoProjectCatalog['proj-01'].episodes) || [{ id: 'ep-01', title: '第一集', status: 'not_integrated', progress: 0 }]
     };
     state.projectName = proj.name;
-    state.currentEpisode = (proj.episodes && proj.episodes[0]) || (projectCatalog['proj-01'] && projectCatalog['proj-01'].episodes[0]);
+    state.currentEpisode = (proj.episodes && proj.episodes[0]) || (demoProjectCatalog['proj-01'] && demoProjectCatalog['proj-01'].episodes[0]);
     state.activeEpisodeId = state.currentEpisode ? state.currentEpisode.id : 'ep-01';
 
     // 更新顶部标题
@@ -196,7 +198,7 @@ window.V2Production = (function () {
   }
 
   function switchProject(targetId) {
-    if (!targetId || !projectCatalog[targetId]) return;
+    if (!targetId || !demoProjectCatalog[targetId]) return;
     state.projectId = targetId;
     localStorage.setItem('workspace_project_id', targetId);
 
@@ -212,14 +214,18 @@ window.V2Production = (function () {
   }
 
   function prevProject() {
-    const keys = Object.keys(projectCatalog);
+    // 空目录守卫：内置示例目录为空时不得访问 undefined.id（原实现会抛错）。
+    const keys = Object.keys(demoProjectCatalog);
+    if (keys.length === 0) return;
     const idx = keys.indexOf(state.projectId);
     const prevIdx = idx <= 0 ? keys.length - 1 : idx - 1;
     switchProject(keys[prevIdx]);
   }
 
   function nextProject() {
-    const keys = Object.keys(projectCatalog);
+    // 空目录守卫：同上。
+    const keys = Object.keys(demoProjectCatalog);
+    if (keys.length === 0) return;
     const idx = keys.indexOf(state.projectId);
     const nextIdx = (idx + 1) % keys.length;
     switchProject(keys[nextIdx]);
@@ -232,7 +238,11 @@ window.V2Production = (function () {
     if (!listContainer || !state.currentEpisode) return;
 
     if (tagEl) {
-      tagEl.textContent = `${state.currentEpisode.code} · ${state.currentEpisode.totalShots || 12} 镜`;
+      const epShotCount = Number(state.currentEpisode.totalShots);
+      tagEl.textContent = `${state.currentEpisode.code} · ` +
+        (Number.isFinite(epShotCount) && state.currentEpisode.totalShots !== null
+          ? `${epShotCount} 镜`
+          : '镜头数未接入');
     }
 
     const scenes = state.currentEpisode.scenes || [];
@@ -303,18 +313,19 @@ window.V2Production = (function () {
 
           <!-- 场次属性元数据 -->
           <div class="flex items-center space-x-3 mt-1.5 text-[8.5px] font-mono text-slate-400">
-            <span>${sc.shotsCount || 4} 镜头</span>
+            <span>${Number.isFinite(Number(sc.shotsCount)) && sc.shotsCount !== null && sc.shotsCount !== '' ? `${Number(sc.shotsCount)} 镜头` : '镜头数未接入'}</span>
             <span>·</span>
-            <span>${sc.duration || '00:15.0'}</span>
+            <span>${(sc.duration === null || sc.duration === undefined || sc.duration === '') ? '时长未接入' : sc.duration}</span>
             <span>·</span>
             <span class="text-slate-300">${sc.tags || '常规场景'}</span>
           </div>
 
-          <!-- 进度微型推子 -->
+          <!-- 进度微型推子：示例目录值**不是**真实渲染进度，统一显式未接入（不画任何宽度） -->
           <div class="mt-2">
             <div class="hw-fader-track-horizontal w-full h-1">
-              <div class="hw-fader-glow-bar" style="width: ${sc.progress || 0}%;"></div>
+              <div class="hw-fader-glow-bar" style="width: 0%;"></div>
             </div>
+            <div class="text-[7px] font-mono text-amber-300 mt-0.5" data-gw-degradation="not_integrated" title="本切片无真实场次渲染进度数据源，示例目录数值不作为遥测">进度未接入</div>
           </div>
 
           ${shotsHtml}
@@ -386,7 +397,7 @@ window.V2Production = (function () {
   // 6. 剧集分段标签切换 (EP01, EP02, EP03, EP04)
   function selectEpisodeTab(epId, btn) {
     state.activeEpisodeId = epId;
-    const proj = projectCatalog[state.projectId] || projectCatalog['proj-01'];
+    const proj = demoProjectCatalog[state.projectId] || demoProjectCatalog['proj-01'];
     const ep = proj.episodes.find(e => e.id === epId) || proj.episodes[0];
     state.currentEpisode = ep;
 
@@ -418,7 +429,10 @@ window.V2Production = (function () {
   }
 
   // 8. 触发渲染生成
+  //    注意：本切片**未接入任何渲染端点**。此处仅保留视觉降级演示，
+  //    必须先显式告知用户「未接入」，不得让用户以为镜头已经真的生成完成。
   function triggerGenerate() {
+    window.alert('渲染未接入：本切片没有可用的渲染端点，未生成任何镜头。');
     const imgEl = document.getElementById('mainMonitorImage');
     if (imgEl) {
       imgEl.style.filter = 'brightness(0.65) blur(1.5px)';
@@ -477,7 +491,7 @@ window.V2Production = (function () {
           </div>
           <div class="flex items-center justify-between text-[7.5px] font-mono">
             <span class="${isActive ? 'text-[#dfc384] font-bold' : 'text-slate-400'}">${sh.code}</span>
-            <span class="${sh.status === 'queued' ? 'text-amber-300' : 'text-emerald-400'}">${sh.status === 'queued' ? '排队' : '就绪'}</span>
+            <span class="${sh.status === 'queued' ? 'text-amber-300' : 'text-slate-400'}"${sh.status === 'not_integrated' ? ' data-gw-degradation="not_integrated"' : ''}>${sh.status === 'queued' ? '排队' : (sh.status === 'not_integrated' ? '未接入' : sh.status)}</span>
           </div>
         </div>
       `;
@@ -497,7 +511,8 @@ window.V2Production = (function () {
         const imgEl = document.getElementById('mainMonitorImage');
         if (imgEl) imgEl.src = sh.img;
       } else if (sh.status === 'active') {
-        sh.status = 'ready';
+        // 取消选中后回写为「未接入」，不得伪造「就绪」。
+        sh.status = 'not_integrated';
       }
     });
     renderShots();

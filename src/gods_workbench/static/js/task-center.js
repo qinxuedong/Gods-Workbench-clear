@@ -64,7 +64,7 @@
     level: initial.get('level') === 'warning' ? 'warn' : (initial.get('level') || 'all'), status: initial.get('status') || 'all', logStatus: initial.get('status') || 'all', stableId: initial.get('stable_id') || initial.get('asset_id') || (deepLink?.type === 'asset' ? deepLink.id : ''),
     projectId: initial.get('project_id') || '', entityId: initial.get('entity_id') || '', assetId: initial.get('asset_id') || '', canvasId: initial.get('canvas_id') || '', jobId: initial.get('job_id') || (deepLink?.type === 'task' ? deepLink.id : ''),
     eventId: initial.get('event_id') || (deepLink?.type === 'event' ? deepLink.id : ''), overview: {}, tasks: [], stalledTasks: [], events: [], series: {}, health: [], sources: [], assetVolumes: [], longTasks: [], eventWindow: null, taskWindow: null,
-    nextCursor: '', hasMore: false, taskNextCursor: '', taskHasMore: false, assetVolumeNextCursor: '', assetVolumeHasMore: false, assetVolumeLoading: false, assetVolumeError: '', longTaskLoading: false, longTasksError: '', stalledTasksError: '', stalledTasksDataStatus: 'ok', loading: false, loadError: '', degraded: [], permissionDenied: false, summaryOnly: false, role: '', lastUpdated: '', detail: null,
+    nextCursor: '', hasMore: false, taskNextCursor: '', taskHasMore: false, assetVolumeNextCursor: '', assetVolumeHasMore: false, assetVolumeLoading: false, assetVolumeError: '', longTaskLoading: false, longTasksError: '', stalledTasksError: '', stalledTasksDataStatus: 'ok', loading: false, loadError: '', loadErrorKind: '', degraded: [], permissionDenied: false, summaryOnly: false, role: '', lastUpdated: '', detail: null,
     detailActions: {}, detailActionReasons: {}, selectedJobId: '', detailTrigger: null, detailLoading: false, detailError: '', pendingAction: '', actionBusy: '',
     deepLinkPending: Boolean(initial.get('job_id') || initial.get('event_id') || deepLink), toastTimer: 0,
   };
@@ -459,7 +459,7 @@
     if (document.hidden) return Promise.resolve();
     return load().catch(error => {
       state.loading = false;
-      state.loadError = error.message || tr('taskCenter.queryUnavailable');
+      state.loadError = taskCenterDegradationNotice(error);
       render();
     });
   }
@@ -596,13 +596,20 @@
     return `<span class="status-chip ${token}"><i class="status-dot ${token}" aria-hidden="true"></i>${esc(statusText(status))}</span>`;
   }
 
+  // 统一显式降级（裁决第 3 项）：命中 NOT_INTEGRATED 时明说「未接入」，而非泛泛「查询不可用」。
+  function taskCenterDegradationNotice(error) {
+    state.loadErrorKind = error && error.code === 'NOT_INTEGRATED' ? 'not_integrated'
+      : (error && error.code === 'SERVICE_UNAVAILABLE' ? 'service_unavailable' : 'error');
+    if (state.loadErrorKind !== 'error') return error.message;
+    return error && error.message ? error.message : tr('taskCenter.queryUnavailable');
+  }
   function renderNotice() {
     const notice = q('#observabilityNotice');
     if (!notice) return;
     const parts = [];
     if (state.permissionDenied) parts.push(`<strong>${esc(tr('taskCenter.permissionDenied'))}</strong>`);
     if (state.summaryOnly) parts.push(`<span class="notice-degraded"><i data-lucide="eye" aria-hidden="true"></i>${esc(tr('taskCenter.summaryOnly'))}</span>`);
-    if (state.loadError) parts.push(`<strong>${esc(tr('taskCenter.queryUnavailable'))}</strong><span>${esc(state.loadError)}</span>`);
+    if (state.loadError) parts.push(`<strong data-gw-degradation="${esc(state.loadErrorKind || 'error')}">${esc(state.loadError)}</strong>`);
     state.degraded.forEach(item => parts.push(`<span class="notice-degraded"><i data-lucide="triangle-alert" aria-hidden="true"></i>${esc(item)}</span>`));
     notice.innerHTML = parts.length ? parts.join('') : '';
     notice.classList.toggle('visible', parts.length > 0);
@@ -1064,7 +1071,7 @@
 
   async function load() {
     if (state.loading || !acquireDataRequest('refresh')) return;
-    state.loading = true; state.assetVolumeLoading = true; state.longTaskLoading = true; state.loadError = ''; state.assetVolumeError = ''; state.longTasksError = ''; state.stalledTasksError = ''; state.stalledTasksDataStatus = 'ok'; state.stalledTasks = []; state.assetVolumes = []; state.assetVolumeNextCursor = ''; state.assetVolumeHasMore = false; state.eventWindow = null; state.taskWindow = null; state.degraded = []; state.permissionDenied = false; state.summaryOnly = state.role === 'reviewer'; render();
+    state.loading = true; state.assetVolumeLoading = true; state.longTaskLoading = true; state.loadError = ''; state.loadErrorKind = ''; state.assetVolumeError = ''; state.longTasksError = ''; state.stalledTasksError = ''; state.stalledTasksDataStatus = 'ok'; state.stalledTasks = []; state.assetVolumes = []; state.assetVolumeNextCursor = ''; state.assetVolumeHasMore = false; state.eventWindow = null; state.taskWindow = null; state.degraded = []; state.permissionDenied = false; state.summaryOnly = state.role === 'reviewer'; render();
     const eventQuery = observationQuery(state.eventId ? {limit: 1, event_id: state.eventId} : {limit: 50}, 'events'); const taskQuery = observationQuery(state.jobId ? {limit: 1, job_id: state.jobId} : {limit: 50}, 'tasks'); const assetVolumeQueryString = assetVolumeQuery(); const longRunningQuery = observationQuery({range: 'all', limit: '50', status: 'running', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const longQueuedQuery = observationQuery({range: 'all', limit: '50', status: 'queued', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const longSucceededQuery = observationQuery({range: 'all', limit: '50', status: 'succeeded', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const longFailedQuery = observationQuery({range: 'all', limit: '50', status: 'failed', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const longCanceledQuery = observationQuery({range: 'all', limit: '50', status: 'canceled', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const stalledQueuedQuery = observationQuery({range: 'all', limit: '100', stall_classification: ['queued', 'historical']}, 'tasks'); const stalledRecoveringQuery = observationQuery({range: 'all', limit: '100', stall_classification: ['recovering', 'historical']}, 'tasks');
     [longRunningQuery, longQueuedQuery, longSucceededQuery, longFailedQuery, longCanceledQuery].forEach(query => ['stable_id', 'project_id', 'entity_id', 'asset_id', 'canvas_id', 'job_id'].forEach(key => query.delete(key)));
     const failed = (result, label) => { if (result.status === 'rejected') { if (isPermissionError(result.reason)) { if (['reviewer', 'editor'].includes(String(state.role || ''))) { if (state.role === 'reviewer') state.summaryOnly = true; const notice = state.role === 'reviewer' ? tr('taskCenter.summaryOnly') : tr('taskCenter.degradedData'); state.degraded.push(`${label} · ${notice}`); } else state.permissionDenied = true; } else state.degraded.push(label); } };
@@ -1123,7 +1130,7 @@
         state.assetVolumeError = assetVolumes.reason?.message || '';
         failed(assetVolumes, tr('taskCenter.assetVolumesUnavailable'));
       }
-    } catch (error) { state.loadError = error.message || tr('taskCenter.queryUnavailable'); }
+    } catch (error) { state.loadError = taskCenterDegradationNotice(error); }
     finally { const shouldReload = finishDataRequest('refresh'); state.loading = false; state.assetVolumeLoading = false; state.longTaskLoading = false; render(); runQueuedReload(shouldReload); if (state.deepLinkPending) { state.deepLinkPending = false; if (state.jobId) { state.view = 'tasks'; syncUrl(); render(); await openTaskDetail(state.jobId); } else if (state.eventId) { state.view = 'logs'; syncUrl(); render(); await focusEventDeepLink(state.eventId); } } }
   }
 
@@ -1270,5 +1277,5 @@
       }
     }, { passive: true });
   }
-  (async function initialize(){ syncAutoRefresh(); await loadPrincipal(); setView(state.view); await load(); })().catch(error => { state.loadError = error.message || tr('taskCenter.queryUnavailable'); state.loading = false; render(); });
+  (async function initialize(){ syncAutoRefresh(); await loadPrincipal(); setView(state.view); await load(); })().catch(error => { state.loadError = taskCenterDegradationNotice(error); state.loading = false; render(); });
 })();

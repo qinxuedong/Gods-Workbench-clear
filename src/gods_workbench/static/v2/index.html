@@ -387,11 +387,10 @@
 
         <!-- 在线状态胶囊 (放大1.2倍) -->
         <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[10.5px] font-mono text-slate-300 font-semibold">Online</span>
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-[0_0_6px_#34d399]"></span>
-          </span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+            <span class="relative flex h-2 w-2">
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
+            </span>
         </div>
 
         <!-- 左侧 CPU UV 表 -->
@@ -413,7 +412,7 @@
             <polygon id="svgNeedleCPU" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #fae2c8)" transform="rotate(-11.5 74 48)" />
           </svg>
           <div class="uv-bottom-hub">
-            <span class="uv-hub-percent text-[#fae2c8]" id="cpuValText">42%</span>
+            <span class="uv-hub-percent text-[#fae2c8]" id="cpuValText">未接入</span>
           </div>
         </div>
       </div>
@@ -424,7 +423,7 @@
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
           <div class="flex items-center space-x-2 px-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-[#dfc384] shadow-[0_0_6px_#dfc384] animate-pulse"></span>
-            <span class="text-[11px] font-mono font-bold text-[#eddab3] tracking-wider">AI-FLUX MASTER ENGINE · 24-BUS</span>
+            <span class="text-[11px] font-mono font-bold text-[#eddab3] tracking-wider">AI-FLUX 引擎总线 · 未接入</span>
           </div>
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
         </div>
@@ -443,7 +442,7 @@
             <polygon id="svgNeedleRAM" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #38bdf8)" transform="rotate(25.9 74 48)" />
           </svg>
           <div class="uv-bottom-hub">
-            <span class="uv-hub-percent text-cyan-300" id="ramValText">68%</span>
+            <span class="uv-hub-percent text-cyan-300" id="ramValText">未接入</span>
           </div>
         </div>
 
@@ -528,19 +527,19 @@
         <div class="flex items-center space-x-2">
           <span class="text-[10px] font-mono text-slate-400 font-bold">FLUX</span>
           <div class="hw-fader-track-horizontal w-28">
-            <div class="hw-fader-glow-bar" style="width: 78%;"></div>
-            <div class="hw-fader-thumb-3d" style="left: 78%;"></div>
+            <div class="hw-fader-glow-bar" style="width: 0%;"></div>
+            <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[10px] font-mono text-[#dfc384] font-bold">78%</span>
+          <span class="text-[10px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实算力/GPU 遥测数据源，未读取任何指标">未接入</span>
         </div>
 
         <div class="flex items-center space-x-2">
           <span class="text-[10px] font-mono text-slate-400 font-bold">VRAM</span>
           <div class="hw-fader-track-horizontal w-24">
-            <div class="hw-fader-glow-bar" style="width: 62%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
-            <div class="hw-fader-thumb-3d" style="left: 62%;"></div>
+            <div class="hw-fader-glow-bar" style="width: 0%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
+            <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[10px] font-mono text-cyan-300 font-bold">14.8G</span>
+          <span class="text-[10px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实显存遥测数据源，未读取任何指标">未接入</span>
         </div>
       </div>
 
@@ -557,7 +556,7 @@
         <div class="h-4 w-px bg-white/10"></div>
 
         <!-- 拟物头像键帽 (原智能体核心位置，替换左下角登录用户，无文字只显头像) -->
-        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" onclick="HardwareDeck.openAccountModal()" title="当前登录席位：admin (主创)">
+        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" onclick="HardwareDeck.openAccountModal()" title="认证状态未接入：点击打开认证中心查看真实登录状态" data-gw-identity="unverified">
           <div class="hw-avatar-keycap-inner">
             <i data-lucide="shield-check" class="w-4 h-4 text-[#eddab3]"></i>
           </div>
@@ -615,7 +614,7 @@
                 <div class="w-full tree-node-card px-2.5 py-1.5 flex items-center justify-between text-[9.5px]">
                   <div class="card-connector-pin"></div>
                   <span class="text-slate-300 truncate">1.1 剧本智能拆解</span>
-                  <span class="text-[8px] font-mono text-emerald-400 shrink-0">100%</span>
+                  <span class="text-[8px] font-mono text-amber-300 shrink-0" data-gw-degradation="not_integrated" title="本切片无真实项目进度数据源，未读取任何指标">未接入</span>
                 </div>
               </div>
               <div class="relative flex items-center">
@@ -623,7 +622,7 @@
                 <div class="w-full tree-node-card px-2.5 py-1.5 flex items-center justify-between text-[9.5px]">
                   <div class="card-connector-pin"></div>
                   <span class="text-[#eddab3] font-medium truncate">1.2 故事板分镜矩阵</span>
-                  <span class="text-[8px] font-mono text-[#dfc384] shrink-0">85%</span>
+                  <span class="text-[8px] font-mono text-amber-300 shrink-0" data-gw-degradation="not_integrated" title="本切片无真实项目进度数据源，未读取任何指标">未接入</span>
                 </div>
               </div>
               <div class="relative flex items-center">
@@ -649,8 +648,8 @@
                 <span class="text-[8px] font-mono text-[#eddab3] font-bold px-1 py-0.2 rounded bg-white/5 border border-white/10 shrink-0">02</span>
                 <span class="text-[10px] font-semibold text-slate-200 group-hover:text-[#eddab3] truncate">AURA 智能体核心</span>
               </div>
-              <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 shrink-0 flex items-center space-x-1">
-                <span>online</span>
+              <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0 flex items-center space-x-1" data-gw-degradation="not_integrated" title="本切片无任何真实智能体在线状态数据源，未读取任何指标">
+                <span>未验证</span>
                 <i data-lucide="external-link" class="w-2.5 h-2.5 opacity-60 group-hover:opacity-100"></i>
               </span>
             </a>
@@ -665,7 +664,7 @@
                 <span class="text-[8px] font-mono text-slate-400 font-bold px-1 py-0.2 rounded bg-white/5 border border-white/10 shrink-0">03</span>
                 <span class="text-[10px] font-semibold text-slate-300 truncate">GPU 渲染集群</span>
               </div>
-              <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">4节点</span>
+              <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0" data-gw-degradation="not_integrated" title="本切片无任何真实渲染节点清单数据源，未读取任何指标">未接入</span>
             </div>
           </div>
         </div>
@@ -777,7 +776,7 @@
           <!-- 底部 RAID-06 资产池与总览简报 -->
           <div class="mt-1.5 pt-1.5 border-t border-white/5 shrink-0 flex items-center justify-between text-[8px] font-mono text-slate-400">
             <div class="flex items-center space-x-2">
-              <span>RAID-06: <strong class="text-[#eddab3]" id="statAssetPoolSize">3.84 TB / 10 TB</strong></span>
+              <span>RAID-06: <strong class="text-[#eddab3]" id="statAssetPoolSize" data-gw-degradation="not_integrated">—</strong></span>
               <span class="w-px h-2 bg-white/10"></span>
               <span class="text-slate-500">端点: /api/asset-registry</span>
             </div>
@@ -956,7 +955,7 @@
               <h3 class="text-xs font-semibold text-slate-100">正在进行的任务</h3>
             </div>
             <div class="flex items-center space-x-1.5">
-              <span class="text-[8.5px] font-mono text-cyan-300 font-bold" id="activeTasksCountBadge">3 运行中</span>
+              <span class="text-[8.5px] font-mono text-amber-300 font-bold" id="activeTasksCountBadge" data-gw-degradation="not_integrated" title="任务中心未纳入当前切片：本切片无任务端点，未读取任何真实队列">任务中心未接入</span>
               <span class="w-px h-2.5 bg-white/10"></span>
               <button type="button" class="text-[8.5px] font-mono text-slate-400 hover:text-[#dfc384] transition cursor-pointer" onclick="HardwareDeck.openDrawer('taskCenterDrawer')" title="查看完整渲染与作业队列">
                 队列 &rarr;
@@ -971,16 +970,16 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-1.5 min-w-0">
                   <i data-lucide="file-text" class="w-3 h-3 text-[#dfc384] shrink-0"></i>
-                  <span class="text-[11px] font-bold text-slate-200 truncate">《神谕之地》剧本大纲细化</span>
+                  <span class="text-[11px] font-bold text-slate-200 truncate">暂无真实任务</span>
                 </div>
-                <span class="text-[8px] font-mono text-[#dfc384] shrink-0 font-semibold">生成中 85%</span>
+                <span class="text-[8px] font-mono text-amber-300 shrink-0 font-semibold" data-gw-degradation="not_integrated">未接入（未纳入当前切片）</span>
               </div>
               <div class="hw-fader-track-horizontal w-full h-1">
-                <div class="hw-fader-glow-bar" style="width: 85%;"></div>
+                <div class="hw-fader-glow-bar" style="width: 0%;"></div>
               </div>
               <div class="flex items-center justify-between text-[7.5px] font-mono text-slate-500">
-                <span>Claude-3.5 · 第3幕对白拆解</span>
-                <span class="text-emerald-400">ETA 45s</span>
+                <span>无真实作业数据源</span>
+                <span class="text-amber-300">未接入</span>
               </div>
             </div>
 
@@ -989,16 +988,16 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-1.5 min-w-0">
                   <i data-lucide="image" class="w-3 h-3 text-cyan-300 shrink-0"></i>
-                  <span class="text-[11px] font-bold text-slate-200 truncate">SC_03_24 概念分镜生图</span>
+                  <span class="text-[11px] font-bold text-slate-200 truncate">暂无真实任务</span>
                 </div>
-                <span class="text-[8px] font-mono text-cyan-300 shrink-0 font-semibold">采样中 64%</span>
+                <span class="text-[8px] font-mono text-amber-300 shrink-0 font-semibold" data-gw-degradation="not_integrated">未接入（未纳入当前切片）</span>
               </div>
               <div class="hw-fader-track-horizontal w-full h-1">
-                <div class="hw-fader-glow-bar" style="width: 64%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
+                <div class="hw-fader-glow-bar" style="width: 0%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
               </div>
               <div class="flex items-center justify-between text-[7.5px] font-mono text-slate-500">
-                <span>FLUX.1-DEV · 2K 16:9 · 28步</span>
-                <span class="text-cyan-300">RTX 4090 #1</span>
+                <span>无真实作业数据源</span>
+                <span class="text-amber-300">未接入</span>
               </div>
             </div>
 
@@ -1007,16 +1006,16 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-1.5 min-w-0">
                   <i data-lucide="clapperboard" class="w-3 h-3 text-purple-300 shrink-0"></i>
-                  <span class="text-[11px] font-bold text-slate-200 truncate">首发概念 PV 镜头推移</span>
+                  <span class="text-[11px] font-bold text-slate-200 truncate">暂无真实任务</span>
                 </div>
-                <span class="text-[8px] font-mono text-purple-300 shrink-0 font-semibold">渲染中 42%</span>
+                <span class="text-[8px] font-mono text-amber-300 shrink-0 font-semibold" data-gw-degradation="not_integrated">未接入（未纳入当前切片）</span>
               </div>
               <div class="hw-fader-track-horizontal w-full h-1">
-                <div class="hw-fader-glow-bar" style="width: 42%; background: linear-gradient(90deg, #c084fc 0%, #a855f7 100%);"></div>
+                <div class="hw-fader-glow-bar" style="width: 0%; background: linear-gradient(90deg, #c084fc 0%, #a855f7 100%);"></div>
               </div>
               <div class="flex items-center justify-between text-[7.5px] font-mono text-slate-500">
-                <span>Wan 2.1 · 1080p 24fps 5s</span>
-                <span class="text-purple-300">A100 SXM4</span>
+                <span>无真实作业数据源</span>
+                <span class="text-amber-300">未接入</span>
               </div>
             </div>
           </div>
@@ -1100,10 +1099,10 @@
           </div>
 
           <!-- 底部批处理管道摘要行 -->
-          <div class="p-1.5 bay-inset rounded-xl flex items-center justify-between shrink-0 mt-1">
+          <div class="p-1.5 bay-inset rounded-xl flex items-center justify-between shrink-0 mt-1" data-gw-degradation="not_integrated">
             <div class="flex items-center space-x-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              <span class="text-[9px] font-bold text-slate-300">渲染总线就绪</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+              <span class="text-[9px] font-bold text-slate-300">渲染总线未接入</span>
             </div>
             <button type="button" class="text-[8.5px] font-mono text-[#dfc384] hover:underline cursor-pointer" onclick="HardwareDeck.openDrawer('taskCenterDrawer')">查看队列 &rarr;</button>
           </div>
@@ -1429,20 +1428,20 @@
                   <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
                   <span>当前席位凭据与治理策略</span>
                 </div>
-                <span class="text-[9px] font-mono text-emerald-400 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">ACTIVE SESSION</span>
+                <span class="text-[9px] font-mono text-amber-300 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20" data-gw-degradation="not_integrated">SESSION 未接入</span>
               </div>
               <div class="grid grid-cols-3 gap-2 text-xs">
                 <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                   <div class="text-[9px] text-slate-400 font-mono">席位角色</div>
-                  <div class="font-bold text-[#eddab3] mt-0.5">超级管理员 (Admin)</div>
+                  <div class="font-bold text-slate-400 mt-0.5" data-gw-degradation="not_integrated">未接入（等待 /api/asset-auth/status）</div>
                 </div>
                 <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                   <div class="text-[9px] text-slate-400 font-mono">鉴权通道</div>
-                  <div class="font-bold text-slate-200 mt-0.5">免密单机 / 本地凭据</div>
+                  <div class="font-bold text-slate-400 mt-0.5" data-gw-degradation="not_integrated">未接入（无本地凭据回退）</div>
                 </div>
                 <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                   <div class="text-[9px] text-slate-400 font-mono">响应延时</div>
-                  <div class="font-bold text-emerald-400 font-mono mt-0.5">&lt; 1ms (Localhost)</div>
+                  <div class="font-bold text-slate-400 font-mono mt-0.5" data-gw-degradation="not_integrated">未测量</div>
                 </div>
               </div>
             </div>
@@ -1451,18 +1450,18 @@
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-[11px] font-bold text-[#dfc384] font-mono">团队空间与席位成员</span>
-                <span class="text-[9px] font-mono text-slate-500">自动同步底层鉴权总线</span>
+                <span class="text-[9px] font-mono text-slate-500">未接入时明说「未接入」，不伪造席位</span>
               </div>
               <div id="panelTeamList" class="space-y-2">
                 <div class="bay-inset p-2.5 rounded-xl flex items-center justify-between border-l-2 border-[#dfc384]">
                   <div class="flex items-center space-x-2.5">
                     <div class="w-7 h-7 rounded-full bg-[#dfc384] text-black font-bold flex items-center justify-center text-[10px]">AD</div>
                     <div>
-                      <div class="font-bold text-slate-200 text-xs">admin (本机管理员席位)</div>
-                      <div class="text-[9px] font-mono text-slate-500">角色: Super Admin · 本地最高调度权限</div>
+                      <div class="font-bold text-slate-400 text-xs">席位列表待读取</div>
+                      <div class="text-[9px] font-mono text-slate-500">未接入时本行会明说「未接入」，不伪造管理员席位</div>
                     </div>
                   </div>
-                  <span class="text-[9px] font-mono text-emerald-400">ONLINE</span>
+                  <span class="text-[9px] font-mono text-amber-300" data-gw-degradation="not_integrated">未接入</span>
                 </div>
               </div>
             </div>
@@ -1515,13 +1514,13 @@
           <div>
             <label class="block text-[10px] font-mono text-slate-400 mb-1">默认发散温度 (Temperature: 0.70)</label>
             <div class="hw-fader-track-horizontal w-full h-1.5 mt-2">
-              <div class="hw-fader-glow-bar" style="width: 70%;"></div>
+              <div class="hw-fader-glow-bar" style="width: 0%;" data-gw-degradation="not_integrated"></div>
             </div>
           </div>
           <div>
             <label class="block text-[10px] font-mono text-slate-400 mb-1">最大上下文窗口 (128K Token)</label>
             <div class="hw-fader-track-horizontal w-full h-1.5 mt-2">
-              <div class="hw-fader-glow-bar" style="width: 100%; background: #38bdf8;"></div>
+              <div class="hw-fader-glow-bar" style="width: 0%; background: #38bdf8;" data-gw-degradation="not_integrated"></div>
             </div>
           </div>
         </div>
@@ -1610,30 +1609,30 @@
       <!-- Task 1 -->
       <div class="bay-inset p-2.5 rounded-xl border-l-2 border-[#dfc384]">
         <div class="flex items-center justify-between mb-1">
-          <span class="font-bold text-slate-200">《神谕之地》SC03 4K超分</span>
-          <span class="text-[8px] font-mono text-[#dfc384]">执行中 72%</span>
+          <span class="font-bold text-slate-200">暂无真实渲染任务</span>
+          <span class="text-[8px] font-mono text-amber-300" data-gw-degradation="not_integrated">未接入</span>
         </div>
         <div class="hw-fader-track-horizontal w-full h-1 mb-1.5">
-          <div class="hw-fader-glow-bar" style="width: 72%;"></div>
+          <div class="hw-fader-glow-bar" style="width: 0%;"></div>
         </div>
         <div class="flex items-center justify-between text-[8px] font-mono text-slate-500">
-          <span>ETA: 02m:14s</span>
-          <span class="text-emerald-400">RTX 4090 #1</span>
+          <span>无真实作业数据源</span>
+          <span class="text-amber-300">未接入</span>
         </div>
       </div>
 
       <!-- Task 2 -->
       <div class="bay-inset p-2.5 rounded-xl border-l-2 border-cyan-400">
         <div class="flex items-center justify-between mb-1">
-          <span class="font-bold text-slate-200">《霓虹脉冲》声画嘴型同步</span>
-          <span class="text-[8px] font-mono text-cyan-300">排队中 #01</span>
+          <span class="font-bold text-slate-200">任务中心未纳入当前切片</span>
+          <span class="text-[8px] font-mono text-amber-300" data-gw-degradation="not_integrated">未接入</span>
         </div>
         <div class="hw-fader-track-horizontal w-full h-1 mb-1.5">
-          <div class="hw-fader-glow-bar" style="width: 20%; background: #38bdf8;"></div>
+          <div class="hw-fader-glow-bar" style="width: 0%; background: #38bdf8;"></div>
         </div>
         <div class="flex items-center justify-between text-[8px] font-mono text-slate-500">
-          <span>等待上一个任务释放显存</span>
-          <span class="text-cyan-300">Wav2Lip</span>
+          <span>任务中心未纳入当前切片</span>
+          <span class="text-amber-300">未接入</span>
         </div>
       </div>
     </div>
@@ -1686,11 +1685,11 @@
             <div class="flex items-center space-x-2">
               <div class="w-7 h-7 rounded-full bg-[#dfc384] text-black font-bold flex items-center justify-center text-[10px]">AD</div>
               <div>
-                <div class="font-bold text-slate-200">admin (本机管理员席位)</div>
-                <div class="text-[8.5px] font-mono text-slate-500">角色: Super Admin · 0ms</div>
+                <div class="font-bold text-slate-400">席位列表待读取</div>
+                <div class="text-[8.5px] font-mono text-slate-500">未接入时本行会明说「未接入」</div>
               </div>
             </div>
-            <span class="text-[8.5px] font-mono text-emerald-400">ONLINE</span>
+            <span class="text-[8.5px] font-mono text-slate-500">—</span>
           </div>
         </div>
 
@@ -1703,6 +1702,7 @@
   </div>
 
   <!-- Scripts -->
+  <script src="/static/js/degradation.js?v=v0.0.1-alpha-2026"></script>
   <script src="/static/js/hardware-telemetry.js"></script>
   <script src="/static/js/directory-settings-nav.js?v=20260917"></script>
   <script src="/static/v2/js/project-date-range.js"></script>

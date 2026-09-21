@@ -116,11 +116,42 @@ function applyCliProtocolDefaults(item, protocol){
 let recommendInlineOpen = false;
 let providerDragId = '';
 
+// 统一「无后端时显式降级」（用户 2026-09-21 裁决第 3 项）。
+// 与 http-transport.js / workspace-common.js 同源：仅当 404 / 501 且响应**不含标准错误包**（对象型 detail）时判定「未接入」；
+// 503 单独归类「服务暂不可用」；已实现接口的真实业务 404 原样透传。
+const NOT_INTEGRATED_MESSAGE = '该功能尚未接入后端（未纳入当前切片）';
+const SERVICE_UNAVAILABLE_MESSAGE = '后端服务暂时不可用，请稍后重试';
+function degradationKind(status, data){
+    const shared = window.GWDegradation;
+    if(shared && typeof shared.statusKind === 'function') return shared.statusKind(status, data && data.detail);
+    if(status === 503) return 'service_unavailable';
+    if(status !== 404 && status !== 501) return '';
+    const detail = data && data.detail;
+    if(detail && typeof detail === 'object') return '';
+    if(typeof detail === 'string' && detail.trim() && !/^(not found|not implemented)$/i.test(detail.trim())) return '';
+    return 'not_integrated';
+}
+function degradationMessage(data, fallbackMessage){
+    const detail = data && data.detail;
+    if(detail && typeof detail === 'object') return detail.message || detail.msg || JSON.stringify(detail);
+    return detail || (data && (data.error || data.message)) || fallbackMessage || '请求失败';
+}
 async function requestJson(url, options, fallbackMessage, {allowStatuses = []} = {}){
     const response = await fetch(url, options);
     const data = await response.json().catch(() => ({}));
     if(!response.ok && !allowStatuses.includes(response.status)){
-        const error = new Error(data.detail || data.error || data.message || fallbackMessage || '请求失败');
+        const kind = degradationKind(response.status, data);
+        const error = new Error(kind === 'not_integrated'
+            ? `${NOT_INTEGRATED_MESSAGE}（HTTP ${response.status}）`
+            : (kind === 'service_unavailable'
+                ? `${SERVICE_UNAVAILABLE_MESSAGE}（HTTP ${response.status}）`
+                : degradationMessage(data, fallbackMessage)));
+        error.name = kind === 'not_integrated' ? 'NotIntegratedError'
+            : (kind === 'service_unavailable' ? 'ServiceUnavailableError' : 'Error');
+        error.code = kind === 'not_integrated' ? 'NOT_INTEGRATED'
+            : (kind === 'service_unavailable' ? 'SERVICE_UNAVAILABLE' : 'REQUEST_FAILED');
+        error.unavailable = kind === 'not_integrated';
+        error.retryable = kind === 'service_unavailable';
         error.status = response.status;
         error.data = data;
         throw error;
@@ -278,6 +309,12 @@ function trf(key, vars={}){
     return text;
 }
 function setStatus(text){ statusEl.textContent = text || ''; }
+// 显式降级判定：命中未接入 / 不可用时不得退回泛泛的「失败」文案。
+function degradationLabel(error, fallback){
+    if(error && error.code === 'NOT_INTEGRATED') return NOT_INTEGRATED_MESSAGE;
+    if(error && error.code === 'SERVICE_UNAVAILABLE') return SERVICE_UNAVAILABLE_MESSAGE;
+    return fallback;
+}
 let studioApiBroadcastChannel = null;
 let studioApiBroadcastTimer = 0;
 let studioApiBroadcastTypes = new Set();
@@ -1015,7 +1052,7 @@ async function refreshJimengStatus(showCredit=true){
             jimengCredit.textContent = jimengCreditText(data.raw);
         }
     } catch(e){
-        setJimengStatus('检测失败', false);
+        setJimengStatus(degradationLabel(e, '检测失败'), false);
         if(jimengCredit) jimengCredit.textContent = e.message || String(e);
     }
 }
@@ -1029,7 +1066,7 @@ async function startJimengLogin(){
         jimengLoginTimer = setInterval(pollJimengLogin, 2500);
         refreshIcons();
     } catch(e){
-        setJimengStatus('登录失败', false);
+        setJimengStatus(degradationLabel(e, '登录失败'), false);
         if(jimengLoginBox){
             jimengLoginBox.hidden = false;
             jimengLoginBox.innerHTML = `<pre>${escapeHtml(e.message || String(e))}</pre>`;
@@ -1051,7 +1088,7 @@ async function pollJimengLogin(){
         }
     } catch(e){
         clearInterval(jimengLoginTimer);
-        setJimengStatus('登录检测失败', false);
+        setJimengStatus(degradationLabel(e, '登录检测失败'), false);
     }
 }
 async function refreshJimengCredit(){
@@ -1061,7 +1098,7 @@ async function refreshJimengCredit(){
         setJimengStatus('已登录', true);
         if(jimengCredit) jimengCredit.textContent = jimengCreditText(data.raw);
     } catch(e){
-        setJimengStatus('未登录', false);
+        setJimengStatus(degradationLabel(e, '未登录'), false);
         if(jimengCredit) jimengCredit.textContent = e.message || String(e);
     }
 }
@@ -1073,7 +1110,7 @@ async function logoutJimeng(){
         if(jimengCredit) jimengCredit.textContent = prettyJson(data.raw);
         if(jimengLoginBox) jimengLoginBox.hidden = true;
     } catch(e){
-        setJimengStatus('退出失败', false);
+        setJimengStatus(degradationLabel(e, '退出失败'), false);
         if(jimengCredit) jimengCredit.textContent = e.message || String(e);
     }
 }
@@ -1120,7 +1157,7 @@ async function refreshCodexStatus(showInfo=true){
             codexCliInfo.textContent = parts.join(' · ');
         }
     } catch(e){
-        setCodexStatus('检测失败', false);
+        setCodexStatus(degradationLabel(e, '检测失败'), false);
         if(codexCliInfo) codexCliInfo.textContent = e.message || String(e);
     }
 }
@@ -1167,7 +1204,7 @@ async function refreshGeminiCliStatus(showInfo=true){
             geminiCliInfo.textContent = parts.join(' · ');
         }
     } catch(e){
-        setGeminiCliStatus('检测失败', false);
+        setGeminiCliStatus(degradationLabel(e, '检测失败'), false);
         if(geminiCliInfo) geminiCliInfo.textContent = e.message || String(e);
     }
 }
@@ -1453,8 +1490,8 @@ async function fetchModels(){
         setStatus(`已拉取 ${data.total} 个模型 · 点「选择模型」勾选要导入的${extra}${imageModeExtra}`);
         openModelPicker();
     } catch(e){
-        alert('拉取失败：' + (e.message || e));
-        setStatus('拉取失败');
+        alert(degradationLabel(e, '拉取失败：') + (e.code ? '' : (e.message || e)));
+        setStatus(degradationLabel(e, '拉取失败'));
     } finally {
         if(btn){ btn.disabled = false; btn.querySelector('span').textContent = tr('api.fetchModels') || '拉取模型'; }
     }
@@ -1921,7 +1958,7 @@ async function loadProviders(){
         openRecommendApi();
         setStatus('');
     } catch(err) {
-        setStatus(tr('api.loadFailed'));
+        setStatus(degradationLabel(err, tr('api.loadFailed')));
     }
 }
 async function saveProviders(){

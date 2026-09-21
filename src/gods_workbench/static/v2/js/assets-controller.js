@@ -12,6 +12,27 @@ window.V2Assets = (() => {
     try { return frame.contentDocument; } catch (_) { return null; }
   }
 
+  // 父页状态条必须明说「未接入」并带结构化标记（用户 2026-09-21 裁决第 3 项）。
+  function setVaultStatus(text) {
+    const value = text || '';
+    const kind = /未纳入当前切片/.test(value) ? 'not_integrated'
+      : (/暂时不可用/.test(value) ? 'service_unavailable' : '');
+    status.textContent = value;
+    if (kind) status.setAttribute('data-gw-degradation', kind);
+    else status.removeAttribute('data-gw-degradation');
+  }
+
+  // 把 iframe 内的显式降级同步到父页状态条，避免父页看起来「一切正常」。
+  function mirrorFrameDegradation() {
+    const doc = manager();
+    if (!doc) return;
+    const marked = doc.querySelector('[data-gw-degradation]');
+    if (!marked) return;
+    const kind = marked.getAttribute('data-gw-degradation') || 'not_integrated';
+    const text = (marked.textContent || '').trim();
+    status.textContent = text;
+    status.setAttribute('data-gw-degradation', kind);
+  }
   function waitForControl(selector) {
     const doc = manager();
     if (!doc) return Promise.reject(new Error('资产库暂不可访问，请刷新页面。'));
@@ -38,12 +59,12 @@ window.V2Assets = (() => {
       const button = await waitForControl(`[data-registry-stat="${CSS.escape(id)}"]`);
       if (current !== revision) return;
       if (button.getAttribute('aria-pressed') !== 'true') button.click();
-      status.textContent = '';
-    } catch (error) { status.textContent = error.message; }
+      setVaultStatus('');
+    } catch (error) { setVaultStatus(error.message); }
   }
 
   function syncCategories() {
-    if (manager()?.querySelector('[data-tab="registry"][aria-selected="true"]')) status.textContent = '';
+    if (manager()?.querySelector('[data-tab="registry"][aria-selected="true"]')) setVaultStatus('');
     const controls = [...(manager()?.querySelectorAll('[data-registry-stat]') || [])];
     if (!controls.length) {
       categorySnapshot = '';
@@ -93,16 +114,16 @@ window.V2Assets = (() => {
       if (tab.getAttribute('aria-selected') !== 'true') tab.click();
       // Async navigation cannot retain a file picker's user activation.
       const upload = await waitForControl('[data-localup-upload]');
-      status.textContent = '上传资源已打开';
+      setVaultStatus('上传资源已打开');
       upload.focus();
-    } catch (error) { status.textContent = error.message; }
+    } catch (error) { setVaultStatus(error.message); }
   }
 
   function initFrame() {
     observer?.disconnect();
     categorySnapshot = '';
     const doc = manager();
-    if (!doc?.body) { status.textContent = '资产库加载失败，请刷新页面。'; return; }
+    if (!doc?.body) { setVaultStatus('资产库加载失败，请刷新页面。'); return; }
     const current = new URL(doc.URL);
     if (current.protocol === 'about:') return;
     if (current.origin === location.origin && current.pathname === '/static/episode-pipeline.html') {
@@ -117,8 +138,10 @@ window.V2Assets = (() => {
     observer = new MutationObserver(syncCategories);
     observer.observe(doc.getElementById('assetManagerRoot') || doc.body, {childList: true, subtree: true});
     syncCategories();
-    waitForControl('[data-tab="registry"]').then(() => { status.textContent = ''; }).catch(error => { status.textContent = error.message; });
+    waitForControl('[data-tab="registry"]').then(() => { setVaultStatus(''); mirrorFrameDegradation(); }).catch(error => { setVaultStatus(error.message); });
   }
+  // 首屏若 iframe 已处于降级态，父页状态条必须同步（不等待下一次 load 事件）。
+  mirrorFrameDegradation();
   frame.addEventListener('load', initFrame);
   const source = new URL(frame.dataset.src, location.origin);
   const contextParams = new URLSearchParams(location.search);

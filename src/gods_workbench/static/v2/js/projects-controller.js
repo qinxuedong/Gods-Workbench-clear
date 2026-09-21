@@ -4,6 +4,52 @@
  */
 
 window.V2Projects = (function () {
+
+  // 统一「无后端时显式降级」工具（复用 window.GWDegradation；页面已先加载该脚本）。
+  const degradationApi = () => window.GWDegradation || null;
+
+  const degradationMessage = (kind, status) => {
+    const api = degradationApi();
+    if (api) {
+      if (kind === 'not_integrated') return `${api.NOT_INTEGRATED_MESSAGE}（HTTP ${status}）`;
+      if (kind === 'service_unavailable') return `${api.SERVICE_UNAVAILABLE_MESSAGE}（HTTP ${status}）`;
+    }
+    if (kind === 'not_integrated') return `该功能尚未接入后端（未纳入当前切片）（HTTP ${status}）`;
+    if (kind === 'service_unavailable') return `后端服务暂时不可用，请稍后重试（HTTP ${status}）`;
+    return `请求失败（HTTP ${status}）`;
+  };
+
+  async function classifyFetchFailure(res) {
+    let data = null;
+    try { data = await res.json(); } catch (_) { data = null; }
+    const api = degradationApi();
+    if (api && typeof api.classifyResponse === 'function') {
+      const verdict = api.classifyResponse(res, data);
+      return { kind: verdict.kind, status: verdict.status, message: verdict.message, detail: data };
+    }
+    const detailValue = data ? data.detail : undefined;
+    const isEnvelope = Boolean(detailValue) && typeof detailValue === 'object';
+    const isDefaultText = typeof detailValue === 'string' && /^(not found|not implemented)$/i.test(detailValue.trim());
+    let kind = 'error';
+    if (res.status === 503) kind = 'service_unavailable';
+    else if ([404, 501].indexOf(res.status) !== -1 && !isEnvelope && !(typeof detailValue === 'string' && detailValue.trim() && !isDefaultText)) kind = 'not_integrated';
+    return { kind: kind, status: res.status, message: degradationMessage(kind, res.status), detail: data };
+  }
+
+  function degradationNoticeHtml(degradation, extraHint) {
+    const api = degradationApi();
+    const hint = extraHint ? `<div class="mt-1 text-[10px] text-slate-500">${escHtml(extraHint)}</div>` : '';
+    if (api && typeof api.noticeHtml === 'function') {
+      return api.noticeHtml(degradation.kind, degradation.message) + hint;
+    }
+    return `<div class="bay-inset p-4 rounded-xl border border-white/10 text-center text-xs font-mono text-slate-400" role="status" data-gw-degradation="${escHtml(degradation.kind)}"><span class="block">${escHtml(degradation.message)}</span>${hint}</div>`;
+  }
+
+  // HTML 转义（页面渲染占位文案时使用；幂等，不改变已有渲染路径）。
+  function escHtml(value) {
+    return String(value === undefined || value === null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
   'use strict';
 
   const state = {
@@ -14,7 +60,8 @@ window.V2Projects = (function () {
     currentView: 'kanban',
     activeProjectId: null,
     pendingAction: null,
-    counts: { active: 0, archived: 0, trash: 0 }
+    counts: { active: 0, archived: 0, trash: 0 },
+    projectsDegradation: null
   };
 
   // 全局统一回收站数据状态池（工程、素材资产、工程画布集中隔离）
@@ -23,7 +70,9 @@ window.V2Projects = (function () {
     projects: [],
     assets: [],
     canvases: [],
-    initialized: false
+    initialized: false,
+    // 显式降级状态：null 表示治理总览已如实应答；否则记 { kind, message }。
+    degradation: null
   };
 
   const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -101,25 +150,36 @@ window.V2Projects = (function () {
       }
 
       const res = await fetch(targetUrl, { credentials: 'same-origin' });
-      if (!res.ok) throw new Error(`项目路由返回 HTTP ${res.status}`);
-      const data = await res.json();
-
-      const list = data?.projects || data;
-      if (Array.isArray(list) && list.length > 0) {
-        // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml
-        // 与 docs/fixtures/projects-hub-list-active.json）；此处统一归一化为前端内部使用的 id，
-        // 避免后端返回 project_id 时 p.id 为 undefined 导致渲染报错。
-        state.projects = list.map(p => ({ ...p, id: p.id || p.project_id }));
+      if (!res.ok) {
+        // 显式降级：接口未接入 / 服务不可用 / 请求失败一律如实标记并清空，
+        // 绝不回退 getDemoProjects() 之类的伪造数据。
+        const failure = await classifyFetchFailure(res);
+        state.projects = [];
+        state.projectsDegradation = { kind: failure.kind, message: failure.message };
       } else {
-        state.projects = getDemoProjects(state.filterScope);
+        const data = await res.json();
+        const list = data?.projects || data;
+        if (Array.isArray(list) && list.length > 0) {
+          // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml
+          // 与 docs/fixtures/projects-hub-list-active.json）；此处统一归一化为前端内部使用的 id，
+          // 避免后端返回 project_id 时 p.id 为 undefined 导致渲染报错。
+          state.projects = list.map(p => ({ ...p, id: p.id || p.project_id }));
+          state.projectsDegradation = null;
+        } else {
+          // 后端如实应答「确实为空」：保留空态，不伪造数据。
+          state.projects = [];
+          state.projectsDegradation = null;
+        }
       }
 
       // 异步读取活跃、已归档与回收站计数
       fetchCounts();
     } catch (e) {
-      console.warn('获取项目中心数据失败，装载离线数据:', e);
-      state.projects = getDemoProjects(state.filterScope);
-      updateCountBadges(state.projects.length, 1, 1);
+      // 网络异常：服务不可用（可恢复），同样不得装载离线伪造数据。
+      console.warn('项目中心读取失败（网络异常）:', e);
+      state.projects = [];
+      state.projectsDegradation = { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
+      updateCountBadges(null, null, null);
     }
 
     // URL 中的稳定项目 ID 优先，保证从排期等入口进入时选中对应项目。
@@ -133,6 +193,8 @@ window.V2Projects = (function () {
         state.activeProjectId = savedActive;
       } else if (state.projects.length > 0) {
         state.activeProjectId = state.projects[0].id;
+      } else {
+        state.activeProjectId = null;
       }
     } catch (e) {}
 
@@ -146,9 +208,15 @@ window.V2Projects = (function () {
         fetch('/api/asset-registry/projects?archived=true', { credentials: 'same-origin' }).catch(() => null),
         fetch('/api/asset-registry/projects?deleted=true', { credentials: 'same-origin' }).catch(() => null)
       ]);
-      const actData = resAct && resAct.ok ? await resAct.json() : null;
-      const arcData = resArc && resArc.ok ? await resArc.json() : null;
-      const traData = resTra && resTra.ok ? await resTra.json() : null;
+      const okAll = [resAct, resArc, resTra].every(r => r && r.ok);
+      if (!okAll) {
+        // 显式降级：计数不可信时显示「—」，不得用当前列表长度顶替。
+        updateCountBadges(null, null, null);
+        return;
+      }
+      const actData = await resAct.json();
+      const arcData = await resArc.json();
+      const traData = await resTra.json();
 
       const actLen = (actData?.projects || actData || []).length || 0;
       const arcLen = (arcData?.projects || arcData || []).length || 0;
@@ -156,161 +224,34 @@ window.V2Projects = (function () {
 
       updateCountBadges(actLen, arcLen, traLen);
     } catch (e) {
-      // 容错使用当前列表估算
-      updateCountBadges(state.projects.length, 1, 0);
+      // 显式降级：读取异常同样显示「—」，不估算、不伪造。
+      updateCountBadges(null, null, null);
     }
   }
 
   function updateCountBadges(actLen, arcLen, traLen) {
+    // 显式降级：null 代表计数不可用，显示「—」而不是伪造的 0/估算值。
+    const display = v => (v === null || v === undefined ? '—' : v);
     state.counts = { active: actLen, archived: arcLen, trash: traLen };
     const elAct = document.getElementById('countActive');
     const elArc = document.getElementById('countArchived');
     const elTra = document.getElementById('countTrash');
-    if (elAct) elAct.textContent = actLen;
-    if (elArc) elArc.textContent = arcLen;
-    if (elTra) elTra.textContent = traLen;
+    if (elAct) elAct.textContent = display(actLen);
+    if (elArc) elArc.textContent = display(arcLen);
+    if (elTra) elTra.textContent = display(traLen);
 
-    // 同步顶栏拟物垃圾桶红点数字与抽屉项目数量
-    const totalTrashCount = (traLen || 0) + (globalTrashState.assets?.length || 0) + (globalTrashState.canvases?.length || 0);
+    // 同步顶栏拟物垃圾桶红点数字与抽屉项目数量（计数不可用时不显示红点）。
+    const projTrash = (traLen === null || traLen === undefined) ? 0 : traLen;
+    const totalTrashCount = projTrash + (globalTrashState.assets?.length || 0) + (globalTrashState.canvases?.length || 0);
     const elTopBadge = document.getElementById('topbarTrashBadge');
     if (elTopBadge) {
       elTopBadge.textContent = totalTrashCount;
       elTopBadge.style.display = totalTrashCount > 0 ? 'inline-block' : 'none';
     }
     const elDrawerCountProj = document.getElementById('trashCountProjects');
-    if (elDrawerCountProj) elDrawerCountProj.textContent = traLen;
+    if (elDrawerCountProj) elDrawerCountProj.textContent = display(traLen);
   }
 
-  function getDemoProjects(scope = 'active') {
-    if (scope === 'trash') {
-      return [
-        {
-          id: 'proj-trash-01',
-          name: '已归档短片《尘埃之光》',
-          project_type: 'film',
-          stage: 'review',
-          progress: 90,
-          scenes: 10,
-          shots: 30,
-          version: 2,
-          owner: 'admin',
-          archived_at: Date.now() - 86400000 * 2,
-          deleted_at: Date.now() - 86400000,
-          cover_media_url: '',
-          description: '因剧本母题重构已移入统一回收站隔离，非物理删除，随时可恢复至归档工程。',
-          updated_at: Date.now() - 86400000
-        }
-      ];
-    }
-    if (scope === 'archived') {
-      return [
-        {
-          id: 'proj-arc-01',
-          name: '历史归档片《远航者号日记》',
-          project_type: 'other',
-          stage: 'production',
-          progress: 80,
-          scenes: 18,
-          shots: 54,
-          version: 2,
-          owner: 'admin',
-          archived_at: Date.now() - 86400000 * 5,
-          cover_media_url: '',
-          description: '首期概念原型已归档只读封存，支持随时取消归档恢复活跃生产状态。',
-          updated_at: Date.now() - 86400000 * 5
-        }
-      ];
-    }
-
-    return [
-      {
-        id: 'proj-01',
-        name: '院线科幻长片《神谕之地》',
-        project_type: 'film',
-        stage: 'production',
-        progress: 85,
-        scenes: 124,
-        shots: 418,
-        version: 1,
-        owner: 'admin',
-        cover_media_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=300&auto=format&fit=crop',
-        description: '末日废土与神谕AI冲突史诗，全景采用 ACEScg 色彩空间与 2.39:1 变形宽银幕构图，当前正在推进第 3 幕决战高潮镜头组。',
-        updated_at: Date.now() - 3600000 * 4
-      },
-      {
-        id: 'proj-02',
-        name: '微短剧《赛博修真：重构法则》',
-        project_type: 'series',
-        stage: 'storyboard',
-        progress: 45,
-        scenes: 48,
-        shots: 160,
-        version: 1,
-        owner: 'lin.concept',
-        cover_media_url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=300&auto=format&fit=crop',
-        description: '快节奏赛博朋克短剧集，多智能体协同编写多结局分镜，当前第 04、05 集并行重绘与神经口型对齐中。',
-        updated_at: Date.now() - 3600000 * 18
-      },
-      {
-        id: 'proj-03',
-        name: '概念预告 PV《钛金纪元：序幕》',
-        project_type: 'other',
-        stage: 'review',
-        progress: 96,
-        scenes: 16,
-        shots: 64,
-        version: 1,
-        owner: 'admin',
-        cover_media_url: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop',
-        description: '机械重构纪元概念视效，结合最新神经物理光影渲染管道，主视觉海报与全息粒子序列已交付定版。',
-        updated_at: Date.now() - 3600000 * 24
-      },
-      {
-        id: 'proj-04',
-        name: '动画长片《虚数之海探索日记》',
-        project_type: 'film',
-        stage: 'planning',
-        progress: 15,
-        scenes: 88,
-        shots: 290,
-        version: 1,
-        owner: 'story.lead',
-        cover_media_url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=300&auto=format&fit=crop',
-        description: '唯美超现实手绘风与3D资产结合，探索虚数奇点深处的未知世界，台本大纲与第一幕概念原画正在编织。',
-        updated_at: Date.now() - 3600000 * 48
-      },
-      {
-        id: 'proj-05',
-        name: '系列短剧《霓虹脉冲 2099》第01季',
-        project_type: 'series',
-        stage: 'production',
-        progress: 70,
-        scenes: 32,
-        shots: 110,
-        version: 1,
-        owner: 'director.chen',
-        cover_media_url: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=80&w=300&auto=format&fit=crop',
-        description: '全季16集精品网剧，高密度反转镜头与AI虚拟绿幕运镜，第08集决战场景多层合成实时预演中。',
-        updated_at: Date.now() - 3600000 * 60
-      },
-      {
-        id: 'proj-06',
-        name: '先导艺术实验《深渊回响》',
-        project_type: 'other',
-        stage: 'planning',
-        progress: 20,
-        scenes: 12,
-        shots: 36,
-        version: 1,
-        owner: 'art.feng',
-        cover_media_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=300&auto=format&fit=crop',
-        description: '极简暗黑光影实验短片，探索生成式声画张力边界。',
-        updated_at: Date.now() - 3600000 * 72
-      }
-    ];
-  }
-
-  // 2. 项目类型元数据
   function getProjectTypeMeta(type) {
     switch (type) {
       case 'film':
@@ -323,6 +264,23 @@ window.V2Projects = (function () {
     }
   }
 
+  // 数值解析（显式降级，安全关键）：
+  // 旧实现多处使用 `p.progress || 10` / `Number(p.progress) || 60` / `p.scenes || 24`：
+  // `0 || 10 === 10` 会把真实的 0 进度 / 0 场景数改写成伪造值。
+  // 现在：仅当字段存在且为有限数时返回数值；否则返回 null，由调用方显式降级。
+  function rawNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function progressMeta(project) {
+    const value = rawNumber(project && project.progress);
+    return value === null
+      ? { value: null, degraded: true,
+          html: '<span data-gw-degradation="not_integrated" title="后端未返回该项目的 progress 字段，本页不伪造进度">未接入</span>' }
+      : { value: Math.max(0, Math.min(100, value)), degraded: false, html: `<span>${Math.max(0, Math.min(100, value))}%</span>` };
+  }
   function getProjectStage(p) {
     if (p.stage) return p.stage;
     const progress = p.progress || 0;
@@ -379,7 +337,7 @@ window.V2Projects = (function () {
     const isArchived = Boolean(p.archived_at || state.filterScope === 'archived');
     const typeMeta = getProjectTypeMeta(p.project_type);
     const stageBadge = p.stage === 'review' ? '待审阅' : (p.stage === 'storyboard' ? '分镜中' : (p.stage === 'planning' ? '概念规划' : '制作中'));
-    const progress = Number(p.progress) || 60;
+    const progress = Number(p.progress) || 0;
     const coverUrl = String(p.cover_media_url || p.cover_url || '').trim();
 
     // 双轨总进度条计算规则
@@ -454,15 +412,15 @@ window.V2Projects = (function () {
             <div class="grid grid-cols-4 gap-1 mt-1">
               <div class="bay-inset px-1 py-0.5 rounded flex flex-col justify-center">
                 <span class="text-[6.5px] font-mono text-slate-400 uppercase leading-tight">镜头规模</span>
-                <span class="text-[8px] font-mono font-bold text-[#eddab3] leading-tight">${p.scenes || 24}场/${p.shots || 72}镜</span>
+                <span class="text-[8px] font-mono font-bold text-[#eddab3] leading-tight">${(rawNumber(p.scenes) === null || rawNumber(p.shots) === null) ? '—' : `${rawNumber(p.scenes)}场/${rawNumber(p.shots)}镜`}</span>
               </div>
               <div class="bay-inset px-1 py-0.5 rounded flex flex-col justify-center">
                 <span class="text-[6.5px] font-mono text-slate-400 uppercase leading-tight">资产规模</span>
-                <span class="text-[8px] font-mono font-bold text-cyan-300 leading-tight">1.4TB</span>
+                <span class="text-[8px] font-mono font-bold text-slate-500 leading-tight" data-gw-degradation="not_integrated">未接入</span>
               </div>
               <div class="bay-inset px-1 py-0.5 rounded flex flex-col justify-center">
                 <span class="text-[6.5px] font-mono text-slate-400 uppercase leading-tight">算力集群</span>
-                <span class="text-[8px] font-mono font-bold text-emerald-400 leading-tight">4090×4</span>
+                <span class="text-[8px] font-mono font-bold text-slate-500 leading-tight" data-gw-degradation="not_integrated">未接入</span>
               </div>
               <div class="bay-inset px-1 py-0.5 rounded flex flex-col justify-center">
                 <span class="text-[6.5px] font-mono text-slate-400 uppercase leading-tight">更新时间</span>
@@ -607,7 +565,10 @@ window.V2Projects = (function () {
     const stream = document.getElementById('projectsCardsStream');
     if (stream) {
       if (list.length === 0) {
-        stream.innerHTML = `
+        // 显式降级：区分「未接入 / 服务不可用 / 请求失败」与「确实没有匹配工程」。
+        stream.innerHTML = state.projectsDegradation
+          ? degradationNoticeHtml(state.projectsDegradation, '未取到工程列表；本页不会展示任何伪造的示例工程。')
+          : `
           <div class="champagne-card p-8 text-center text-slate-500 font-mono text-xs w-full">
             <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-slate-600"></i>
             <div>未检索到匹配的制片工程</div>
@@ -675,12 +636,12 @@ window.V2Projects = (function () {
             <td class="py-2.5">
               <div class="flex items-center space-x-2">
                 <div class="hw-fader-track-horizontal w-16 h-1">
-                  <div class="hw-fader-glow-bar" style="width: ${p.progress || 10}%;"></div>
+                  <div class="hw-fader-glow-bar" style="width: ${progressMeta(p).value === null ? 0 : progressMeta(p).value}%;"></div>
                 </div>
-                <span>${p.progress || 10}%</span>
+                ${progressMeta(p).html}
               </div>
             </td>
-            <td class="py-2.5 text-slate-400">${p.scenes || 24} / ${p.shots || 72}</td>
+            <td class="py-2.5 text-slate-400">${rawNumber(p.scenes) === null ? '—' : rawNumber(p.scenes)} / ${rawNumber(p.shots) === null ? '—' : rawNumber(p.shots)}</td>
             <td class="py-2.5 text-slate-400">${formatTime(p.updated_at)}</td>
             <td class="py-2.5 text-right">
               <div class="inline-flex items-center space-x-1.5">
@@ -921,6 +882,8 @@ window.V2Projects = (function () {
 
   // 10. 归档项目 (DELETE /api/asset-registry/projects/{project_id})
   async function archiveProject(projectId, version) {
+    // 显式降级：只有后端确认成功才提示成功；失败一律如实报错，
+    // 绝不本地改写状态后谎称「已成功归档」。
     try {
       const res = await fetch(`/api/asset-registry/projects/${encodeURIComponent(projectId)}`, {
         method: 'DELETE',
@@ -935,23 +898,17 @@ window.V2Projects = (function () {
         await load();
         return;
       }
+      const failure = await classifyFetchFailure(res);
+      showToast(failure.kind === 'not_integrated' ? '归档接口未接入' : ('归档失败：' + failure.message), 'error');
     } catch (e) {
-      console.warn('后端归档接口异常，转为客户端离线处理:', e);
+      console.warn('归档请求异常（网络异常）:', e);
+      showToast(degradationMessage('service_unavailable', 0), 'error');
     }
-
-    // 离线/演示降级处理
-    const item = state.projects.find(p => p.id === projectId);
-    if (item) {
-      item.archived_at = new Date().toISOString();
-      item.version = (item.version || 1) + 1;
-    }
-    showToast('项目已成功归档（可在已归档视图查看）', 'success');
-    await fetchCounts();
-    render();
   }
 
   // 11. 取消归档 (POST /api/asset-registry/governance/projects/{project_id}/restore)
   async function unarchiveProject(projectId, version) {
+    // 显式降级：失败不本地改写状态，也不谎称成功。
     try {
       const res = await fetch(`/api/asset-registry/governance/projects/${encodeURIComponent(projectId)}/restore`, {
         method: 'POST',
@@ -966,19 +923,12 @@ window.V2Projects = (function () {
         await load();
         return;
       }
+      const failure = await classifyFetchFailure(res);
+      showToast(failure.kind === 'not_integrated' ? '取消归档接口未接入' : ('取消归档失败：' + failure.message), 'error');
     } catch (e) {
-      console.warn('后端取消归档接口异常，转为客户端离线处理:', e);
+      console.warn('取消归档请求异常（网络异常）:', e);
+      showToast(degradationMessage('service_unavailable', 0), 'error');
     }
-
-    // 离线/演示降级处理
-    const item = state.projects.find(p => p.id === projectId);
-    if (item) {
-      item.archived_at = null;
-      item.version = (item.version || 1) + 1;
-    }
-    showToast('项目已取消归档并恢复为活跃状态', 'success');
-    await fetchCounts();
-    render();
   }
 
   // 12. 删除到统一回收站 (非物理直接删除，支持随时安全恢复)
@@ -987,6 +937,7 @@ window.V2Projects = (function () {
     let currentVersion = version || 1;
     const targetProject = state.projects.find(p => p.id === projectId);
 
+    // 显式降级：只有后端确认成功才提示成功；失败不得本地伪造删除状态。
     try {
       // 若尚未归档，先安全归档
       if (!targetProject || !targetProject.archived_at) {
@@ -999,6 +950,10 @@ window.V2Projects = (function () {
         if (archRes.ok) {
           const archData = await archRes.json();
           currentVersion = archData?.project?.version || (currentVersion + 1);
+        } else {
+          const failure = await classifyFetchFailure(archRes);
+          showToast(failure.kind === 'not_integrated' ? '归档接口未接入，无法移入回收站' : ('归档失败：' + failure.message), 'error');
+          return;
         }
       }
 
@@ -1016,23 +971,17 @@ window.V2Projects = (function () {
         await load();
         return;
       }
+      const failure = await classifyFetchFailure(trashRes);
+      showToast(failure.kind === 'not_integrated' ? '回收站接口未接入' : ('移入回收站失败：' + failure.message), 'error');
     } catch (e) {
-      console.warn('后端移入回收站接口异常，转为客户端离线处理:', e);
+      console.warn('移入回收站请求异常（网络异常）:', e);
+      showToast(degradationMessage('service_unavailable', 0), 'error');
     }
-
-    // 离线/演示降级处理
-    if (targetProject) {
-      targetProject.archived_at = targetProject.archived_at || new Date().toISOString();
-      targetProject.deleted_at = new Date().toISOString();
-      targetProject.version = (targetProject.version || 1) + 1;
-    }
-    showToast('项目已安全停放至统一回收站（非物理删除）', 'success');
-    await fetchCounts();
-    render();
   }
 
   // 13. 从统一回收站安全恢复 (POST /api/asset-registry/projects/{project_id}/trash/restore)
   async function restoreTrashedProject(projectId, version) {
+    // 显式降级：失败不本地改写状态，也不谎称成功。
     try {
       const res = await fetch(`/api/asset-registry/projects/${encodeURIComponent(projectId)}/trash/restore`, {
         method: 'POST',
@@ -1047,19 +996,12 @@ window.V2Projects = (function () {
         await load();
         return;
       }
+      const failure = await classifyFetchFailure(res);
+      showToast(failure.kind === 'not_integrated' ? '回收站恢复接口未接入' : ('恢复失败：' + failure.message), 'error');
     } catch (e) {
-      console.warn('后端回收站恢复接口异常，转为客户端离线处理:', e);
+      console.warn('回收站恢复请求异常（网络异常）:', e);
+      showToast(degradationMessage('service_unavailable', 0), 'error');
     }
-
-    // 离线/演示降级处理
-    const item = state.projects.find(p => p.id === projectId);
-    if (item) {
-      item.deleted_at = null;
-      item.version = (item.version || 1) + 1;
-    }
-    showToast('工程已从统一回收站安全恢复', 'success');
-    await fetchCounts();
-    render();
   }
 
   // 14. 实时搜索
@@ -1150,9 +1092,9 @@ window.V2Projects = (function () {
     if (nameInput) nameInput.value = p.name || '';
     if (typeSelect) typeSelect.value = p.project_type || 'film';
     if (stageSelect) stageSelect.value = getProjectStage(p);
-    if (scenesInput) scenesInput.value = p.scenes || 24;
-    if (shotsInput) shotsInput.value = p.shots || 72;
-    if (progressInput) progressInput.value = p.progress || 60;
+    if (scenesInput) scenesInput.value = rawNumber(p.scenes) === null ? '' : rawNumber(p.scenes);
+    if (shotsInput) shotsInput.value = rawNumber(p.shots) === null ? '' : rawNumber(p.shots);
+    if (progressInput) progressInput.value = rawNumber(p.progress) === null ? '' : rawNumber(p.progress);
     if (descInput) descInput.value = p.description || '';
     const dateRange = document.querySelector('#editProjectModal [data-project-date-range]');
     window.GWProjectDateRange?.setRange(dateRange, p.start_at, p.due_at);
@@ -1181,8 +1123,8 @@ window.V2Projects = (function () {
     const payload = {
       name: nameInput?.value?.trim() || '未命名工程',
       stage: stageSelect?.value || 'planning',
-      scenes: parseInt(scenesInput?.value, 10) || 24,
-      shots: parseInt(shotsInput?.value, 10) || 72,
+      scenes: Number.isFinite(parseInt(scenesInput?.value, 10)) ? parseInt(scenesInput?.value, 10) : null,
+      shots: Number.isFinite(parseInt(shotsInput?.value, 10)) ? parseInt(shotsInput?.value, 10) : null,
       progress: parseInt(progressInput?.value, 10) || 0,
       description: descInput?.value?.trim() || '',
       start_at: dateInputTimestamp(startAtInput?.value),
@@ -1236,12 +1178,28 @@ window.V2Projects = (function () {
   async function refreshGlobalTrash() {
     try {
       const response = await fetch('/api/asset-registry/governance/overview', { credentials: 'same-origin' });
-      if (!response.ok) throw new Error(`治理总览读取失败（${response.status}）`);
+      if (!response.ok) {
+        // 显式降级：治理总览未接入 / 不可用时清空并如实标记，不保留旧数据假装成功。
+        const failure = await classifyFetchFailure(response);
+        globalTrashState.projects = [];
+        globalTrashState.assets = [];
+        globalTrashState.canvases = [];
+        globalTrashState.degradation = { kind: failure.kind, message: failure.message };
+        ['trashCountAll', 'trashCountProjects', 'trashCountAssets', 'trashCountCanvases'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = '—';
+        });
+        const badge = document.getElementById('topbarTrashBadge');
+        if (badge) badge.style.display = 'none';
+        renderGlobalTrash();
+        return;
+      }
       const data = await response.json();
       globalTrashState.projects = (Array.isArray(data.projects) ? data.projects : [])
         .filter(item => item && (item.deleted_at != null || item.deleted_entity_id));
       globalTrashState.assets = Array.isArray(data.assets) ? data.assets : [];
       globalTrashState.canvases = Array.isArray(data.canvases) ? data.canvases : [];
+      globalTrashState.degradation = null;
 
       globalTrashState.initialized = true;
 
@@ -1251,7 +1209,6 @@ window.V2Projects = (function () {
       const countCanvases = globalTrashState.canvases.length;
       const totalTrash = countProj + countAssets + countCanvases;
       const elDrawerCountAll = document.getElementById('trashCountAll');
-
       const elDrawerCountProj = document.getElementById('trashCountProjects');
       const elDrawerCountAssets = document.getElementById('trashCountAssets');
       const elDrawerCountCanvases = document.getElementById('trashCountCanvases');
@@ -1268,10 +1225,15 @@ window.V2Projects = (function () {
 
       renderGlobalTrash();
     } catch (e) {
-      console.warn('刷新全局回收站池失败:', e);
+      console.warn('全局回收站刷新失败（网络异常）:', e);
       globalTrashState.projects = [];
       globalTrashState.assets = [];
       globalTrashState.canvases = [];
+      globalTrashState.degradation = { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
+      ['trashCountAll', 'trashCountProjects', 'trashCountAssets', 'trashCountCanvases'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '—';
+      });
       renderGlobalTrash();
     }
   }
@@ -1281,6 +1243,16 @@ window.V2Projects = (function () {
     if (!container) return;
 
     const tab = globalTrashState.currentTab;
+
+    // 显式降级：治理总览未接入 / 不可用时，不得显示「回收站为空」这类结论。
+    if (globalTrashState.degradation) {
+      container.innerHTML = degradationNoticeHtml(
+        globalTrashState.degradation,
+        '治理总览不可用；无法确认回收站内容，请勿据此判断「没有删除项」。'
+      );
+      window.lucide?.createIcons();
+      return;
+    }
 
     if (tab === 'all') {
       const groups = [['projects', '项目', globalTrashState.projects], ['canvases', '画布', globalTrashState.canvases], ['assets', '资产', globalTrashState.assets]];
@@ -1310,7 +1282,7 @@ window.V2Projects = (function () {
                   <span class="text-[8px] font-mono text-slate-400">${typeMeta.label}</span>
                 </div>
                 <div class="text-[9px] font-mono text-slate-400 mt-1 flex items-center space-x-3">
-                  <span>镜头: ${p.scenes || 24}场/${p.shots || 72}镜</span>
+                  <span>镜头: ${(rawNumber(p.scenes) === null || rawNumber(p.shots) === null) ? '—' : `${rawNumber(p.scenes)}场/${rawNumber(p.shots)}镜`}</span>
                   <span>隔离时间: ${formatTime(p.deleted_at)}</span>
                   <span>ID: ${esc(p.id)}</span>
                 </div>
@@ -1377,7 +1349,7 @@ window.V2Projects = (function () {
                 <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">画布节点</span>
               </div>
               <div class="text-[9px] font-mono text-slate-400 mt-1 flex items-center space-x-3">
-                <span>节点规模: ${c.nodes_count || 12} Nodes</span>
+                <span>节点规模: ${rawNumber(c.nodes_count) === null ? '未接入' : `${rawNumber(c.nodes_count)} Nodes`}</span>
                 <span>隔离时间: ${formatTime(c.deleted_at)}</span>
               </div>
             </div>
@@ -1397,15 +1369,24 @@ window.V2Projects = (function () {
 
   // 18. 恢复素材库资产
   async function restoreAssetFromTrash(id) {
+    // 显式降级：失败不本地伪造成功。
     try {
-      await fetch(`/api/asset-registry/governance/asset-trash/${encodeURIComponent(id)}/restore`, {
+      const res = await fetch(`/api/asset-registry/governance/asset-trash/${encodeURIComponent(id)}/restore`, {
         method: 'POST',
         credentials: 'same-origin'
       });
-    } catch (e) {}
+      if (!res.ok) {
+        const failure = await classifyFetchFailure(res);
+        showToast(failure.kind === 'not_integrated' ? '素材恢复接口未接入' : ('恢复失败：' + failure.message), 'error');
+        return;
+      }
+    } catch (e) {
+      showToast(degradationMessage('service_unavailable', 0), 'error');
+      return;
+    }
 
     globalTrashState.assets = globalTrashState.assets.filter(a => a.id !== id);
-    showToast('素材资产已安全恢复至素材库', 'success');
+    showToast('素材已安全恢复至素材库', 'success');
     refreshGlobalTrash();
   }
 
@@ -1422,12 +1403,21 @@ window.V2Projects = (function () {
 
   // 19. 恢复工程画布
   async function restoreCanvasFromTrash(id) {
+    // 显式降级：失败不本地伪造成功。
     try {
-      await fetch(`/api/canvases/${encodeURIComponent(id)}/restore`, {
+      const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/restore`, {
         method: 'POST',
         credentials: 'same-origin'
       });
-    } catch (e) {}
+      if (!res.ok) {
+        const failure = await classifyFetchFailure(res);
+        showToast(failure.kind === 'not_integrated' ? '画布恢复接口未接入' : ('恢复失败：' + failure.message), 'error');
+        return;
+      }
+    } catch (e) {
+      showToast(degradationMessage('service_unavailable', 0), 'error');
+      return;
+    }
 
     globalTrashState.canvases = globalTrashState.canvases.filter(c => c.id !== id);
     showToast('工程画布已安全恢复至分镜台', 'success');

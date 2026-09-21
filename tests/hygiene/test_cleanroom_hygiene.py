@@ -9,19 +9,23 @@ import re
 import pytest
 
 
-BANNED_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico",
-    ".ttf", ".otf", ".woff", ".woff2", ".eot",
-    ".mp3", ".wav", ".ogg", ".mp4", ".mov",
-}
+# 禁用扩展名 / 白名单的**唯一事实来源**：`tests/hygiene/cleanroom_extensions.py`。
+# 历史教训：同一份清单曾在三个位置各写一遍，并已实际漂移（39 / 39 / 27 项）。
+# 因此此处**禁止再写字面量**，一律从单一来源导入；CI 侧由下述契约用例反查比对。
+from cleanroom_extensions import (  # noqa: E402
+    ALLOWED_BINARY_ALLOWLIST,
+    BANNED_EXTENSIONS,
+    REQUIRED_BANNED_EXTENSIONS,
+)
 
-# 唯一二进制白名单：用户 2026-09-18 指示的 3 个开源思源黑体本地字体（本地运行期强依赖）。
-# 这三条为逐条精确路径；除此之外的任何二进制资源一律视为违规。
-ALLOWED_BINARY_ALLOWLIST = {
-    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf",
-    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf",
-    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf",
-}
+
+def _pytest_cleanroom_allowlist_is_consistent() -> None:
+    """唯一来源自检：必需集合不得超出实际清单（防止来源文件自身被削）。"""
+    assert REQUIRED_BANNED_EXTENSIONS <= BANNED_EXTENSIONS
+    assert len(ALLOWED_BINARY_ALLOWLIST) == 3
+
+
+_pytest_cleanroom_allowlist_is_consistent()
 
 
 def _canonical_sha256(path: Path) -> str:
@@ -55,6 +59,44 @@ def test_no_banned_binary_assets(repo_root: Path):
         "发现受限二进制资源进入仓库"
         f"（不在白名单内）: {found_banned}"
     )
+
+
+def test_banned_extensions_cover_required_categories():
+    """防止禁用扩展名清单被静默删减（回归护栏）。
+
+    AGENTS.md 1.2 条把压缩包与可执行文件同列为禁提交项；此处用最小必需集合
+    反查实际清单，任何被删掉的后缀都会立刻让门禁变红，而不是静默放行。
+    """
+    missing = sorted(REQUIRED_BANNED_EXTENSIONS - BANNED_EXTENSIONS)
+    assert not missing, f"禁用扩展名清单缺少必需项: {missing}"
+
+
+def test_ci_workflow_banned_extensions_match_single_source(repo_root: Path):
+    """CI 侧清单必须与 `cleanroom_extensions` 唯一来源逐项一致。
+
+    历史缺陷：CI heredoc 与 Python 用例各自维护一份清单，已实际漂移，
+    导致「本地绿 / CI 空窗」。此用例把 CI 清单也钉在唯一来源上，
+    任何一侧单独改动都会立刻变红。
+    """
+    workflow = (repo_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    block = re.search(r"banned_extensions = \{(.*?)\}", workflow, re.S)
+    assert block, "CI 工作流中未找到 banned_extensions 清单"
+    ci_set = set(re.findall(r'"(\.[a-z0-9]+)"', block.group(1)))
+    assert ci_set == BANNED_EXTENSIONS, (
+        "CI 清单与唯一来源不一致："
+        f"仅 CI 有 {sorted(ci_set - BANNED_EXTENSIONS)}；"
+        f"仅来源有 {sorted(BANNED_EXTENSIONS - ci_set)}"
+    )
+
+
+def test_phase6_deep_hygiene_uses_single_source(repo_root: Path):
+    """Phase 6 深度审计套件不得再自带一份禁用扩展名清单。"""
+    other = (repo_root / "tests" / "hygiene" / "test_phase6_deep_hygiene.py").read_text(
+        encoding="utf-8"
+    )
+    assert "cleanroom_extensions" in other, "Phase 6 套件必须导入唯一来源，禁止自带字面量清单"
+    literal = re.search(r"banned_extensions\s*=\s*\{", other)
+    assert not literal, "Phase 6 套件仍存在自带 banned_extensions 字面量"
 
 
 def test_src_has_no_legacy_code_artifacts(repo_root: Path):
@@ -234,3 +276,123 @@ def test_accepted_doc_slices_match_migration_manifest(repo_root: Path):
             f"设计文档迁移哈希不匹配: {relative_path}"
             f"（期望 {expected_sha.upper()}，实际 {actual.upper()}）"
         )
+
+
+# ---------------------------------------------------------------------------
+# 同形字（homoglyph）防污染守卫
+# ---------------------------------------------------------------------------
+
+# 可疑码点区间：西里尔（与拉丁同形）、零宽字符、双向控制/隐形字符、软连字符。
+# 说明：中文全角标点（U+FF00 段）属正常书写，不在本守卫范围。
+_SUSPICIOUS_RANGES = (
+    (0x0400, 0x04FF),   # 西里尔字母（U+0441 / U+0435 / U+043E / U+0430 / U+0440 / U+0445 等与拉丁同形）
+    (0x200B, 0x200F),   # 零宽空格/零宽连接符/双向控制
+    (0x2060, 0x2064),   # 词连接符、不可见分隔符
+    (0xFE00, 0xFE0F),   # 变体选择符
+    (0x00AD, 0x00AD),   # 软连字符
+)
+
+# 扫描范围：仓库自有文本（代码/文档/测试/配置）。
+# 排除项：
+#   * src/gods_workbench/static/vendor/            —— 上游不可变制品；
+#   * src/gods_workbench/static/prompt-registry/sources/ —— 第三方内容数据（含合法双向标记）。
+_HOMOGLYPH_TEXT_SUFFIXES = {
+    ".py", ".js", ".html", ".css", ".json",
+    ".yml", ".yaml", ".md", ".txt", ".toml", ".cfg", ".ini", ".sh", ".ps1",
+}
+_HOMOGLYPH_EXCLUDED_PREFIXES = (
+    "src/gods_workbench/static/vendor/",
+    "src/gods_workbench/static/prompt-registry/sources/",
+)
+
+
+def _is_suspicious_codepoint(codepoint: int) -> bool:
+    """判断码点是否属于同形字/隐形字符区间。"""
+    return any(low <= codepoint <= high for low, high in _SUSPICIOUS_RANGES)
+
+
+def _is_token_char(char: str) -> bool:
+    """标识符 token 的字符：ASCII 字母数字、下划线/美元符、或可疑字符。"""
+    if char in "_$":
+        return True
+    if char.isascii() and char.isalnum():
+        return True
+    return _is_suspicious_codepoint(ord(char))
+
+
+def _scan_homoglyph_tokens(text: str) -> list:
+    """返回文中「ASCII 标识符内混入可疑字符」的 (token, 起始偏移) 列表。
+
+    返回偏移而非仅 token，是为了让调用方计算**该次命中自身**所在的行号，
+    避免同一 token 多次出现时因 find() 取首次位置而报错行。
+    """
+    found = []
+    index = 0
+    length = len(text)
+    while index < length:
+        if not _is_token_char(text[index]):
+            index += 1
+            continue
+        start = index
+        end = index
+        while end < length and _is_token_char(text[end]):
+            end += 1
+        token = text[start:end]
+        if any(_is_suspicious_codepoint(ord(c)) for c in token) and any(
+            c.isascii() and c.isalpha() for c in token
+        ):
+            found.append((token, start))
+        index = end
+    return found
+
+
+def test_no_homoglyph_confusables(repo_root: Path):
+    """确保仓库自有文本中不存在混入 ASCII 标识符的同形字/隐形字符。
+
+    背景：多次审查发现文档或代码内出现「西里尔字母 + 零宽空格」伪装的标识符
+    （如把 ``credential`` 写成形近串）。这类字符肉眼不可辨、可绕过字符串比对，
+    属于典型的内容污染。本用例把它变成持续门禁，防止回归。
+    """
+    violations = []
+    for path in repo_root.rglob("*"):
+        if not path.is_file():
+            continue
+        if any(
+            part in {
+                ".git", "__pycache__", ".pytest_cache", "node_modules",
+                ".venv", "venv", "env", "build", "dist", ".mypy_cache", ".ruff_cache",
+            }
+            for part in path.parts
+        ):
+            continue
+        relative = path.relative_to(repo_root).as_posix()
+        if relative.startswith(_HOMOGLYPH_EXCLUDED_PREFIXES):
+            continue
+        suffix = path.suffix.lower()
+        if suffix not in _HOMOGLYPH_TEXT_SUFFIXES and path.name not in {".gitattributes", ".gitignore"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for token, offset in _scan_homoglyph_tokens(text):
+            line = text.count("\n", 0, offset) + 1
+            codepoints = " ".join(f"U+{ord(c):04X}" for c in token if _is_suspicious_codepoint(ord(c)))
+            violations.append(f"{relative}:{line} token={token!r} 可疑码点={codepoints}")
+    assert not violations, "发现同形字/隐形字符污染:\n" + "\n".join(violations)
+
+
+def test_homoglyph_guard_detects_injected_pollution():
+    """反向自检：证明上面的守卫不是恒真。
+
+    用 chr() 在运行时构造一个「西里尔 U+0441 + 零宽空格 U+200B」伪装的 ``credential``，
+    守卫必须命中；否则守卫失效（例如区间写错、匹配逻辑恒假）。
+    """
+    polluted = chr(0x0441) + "redential"          # U+0441 CYRILLIC SMALL LETTER ES
+    polluted_zwsp = "cred" + chr(0x200B) + "ential"  # 零宽空格
+    assert _scan_homoglyph_tokens(polluted), "守卫未能识别西里尔同形字"
+    assert _scan_homoglyph_tokens(polluted_zwsp), "守卫未能识别零宽空格"
+    assert all(isinstance(item, tuple) and len(item) == 2 for item in _scan_homoglyph_tokens(polluted))
+    # 反向对照：纯 ASCII 与正常中文不得误报
+    assert not _scan_homoglyph_tokens("credential"), "纯 ASCII 被误判"
+    assert not _scan_homoglyph_tokens("会话失效，请重新登录。"), "正常中文被误判"

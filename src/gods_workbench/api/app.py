@@ -6,9 +6,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from gods_workbench.api.routes_auth import router as auth_router
 from gods_workbench.api.routes_god_canvas import jobs_router, router as god_canvas_router
 from gods_workbench.api.routes_projects import router as projects_router
-from gods_workbench.core.config import load_runtime_auth_config
+from gods_workbench.core import session as session_store
+from gods_workbench.core.config import AUTH_MODE_OIDC, load_runtime_auth_config
 from gods_workbench.core.errors import CleanroomException
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -70,7 +72,27 @@ def create_app() -> FastAPI:
         """根路径重定向至 V2 项目中心。"""
         return RedirectResponse(url="/static/v2/projects.html", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
+    @app.middleware("http")
+    async def session_principal_middleware(request: Request, call_next):
+        """把 ``gw_session`` Cookie 解析出的服务端身份写入请求上下文。
+
+        只在 OIDC 模式下解析；未知/过期会话等价于未认证（不拒绝请求本身，
+        由各路由的权限检查决定 401/403）。上下文变量在响应后必须重置，
+        避免跨请求泄漏。
+        """
+        token = None
+        if request.url.path.startswith("/api/") and load_runtime_auth_config().mode == AUTH_MODE_OIDC:
+            session_id = request.cookies.get(session_store.SESSION_COOKIE_NAME)
+            principal = session_store.get_session(session_id)
+            token = session_store.set_current_principal(principal)
+        try:
+            return await call_next(request)
+        finally:
+            if token is not None:
+                session_store.reset_current_principal(token)
+
     # 挂载 API 路由
+    app.include_router(auth_router)
     app.include_router(projects_router)
     app.include_router(god_canvas_router)
     app.include_router(jobs_router)

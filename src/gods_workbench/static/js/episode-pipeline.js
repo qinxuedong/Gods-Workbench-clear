@@ -841,12 +841,13 @@
     const extracting = ['running', 'cancel_requested', 'recovering'].includes(stage.status);
 
     const textModel = selectedProviderModel(pipeline, 'assets', 'text');
-    const textModelDisplay = textModel.provider_name ? `${textModel.provider_name} / ${textModel.label || textModel.model}` : 'owai / gpt-5.6-luna';
+    // 无真实 providers 配置时**不得**回退到具体厂商/模型名（会让人误以为已选中某模型）。
+    const textModelDisplay = textModel.provider_name ? `${textModel.provider_name} / ${textModel.label || textModel.model}` : '未配置模型';
 
     const imgModels = modelOptions('image');
     const selectedImgModel = selectedProviderModel(pipeline, 'asset_image', 'image');
-    const imgModelDisplay = selectedImgModel.provider_name ? `${selectedImgModel.provider_name} / ${selectedImgModel.label || selectedImgModel.model}` : (imgModels[0] ? `${imgModels[0].provider_name} / ${imgModels[0].label}` : 'AIZZZ-gpt-image2 / gpt-image-2');
-    const imgModelOptions = imgModels.length ? imgModels.map(item => `<option value="${esc(`${item.provider_id}:::${item.model}`)}"${item.provider_id === selectedImgModel.provider_id && item.model === selectedImgModel.model ? ' selected' : ''}>${esc(item.provider_name)} / ${esc(item.label)}</option>`).join('') : '<option value="">AIZZZ-gpt-image2 / gpt-image-2</option>';
+    const imgModelDisplay = selectedImgModel.provider_name ? `${selectedImgModel.provider_name} / ${selectedImgModel.label || selectedImgModel.model}` : (imgModels[0] ? `${imgModels[0].provider_name} / ${imgModels[0].label}` : '未配置模型');
+    const imgModelOptions = imgModels.length ? imgModels.map(item => `<option value="${esc(`${item.provider_id}:::${item.model}`)}"${item.provider_id === selectedImgModel.provider_id && item.model === selectedImgModel.model ? ' selected' : ''}>${esc(item.provider_name)} / ${esc(item.label)}</option>`).join('') : '<option value="">未配置模型</option>';
 
     const totalCount = data.assets.length;
     const pendingCount = data.assets.filter(item => item.status !== 'ready' && !item.preview).length;
@@ -890,7 +891,7 @@
             <div class="flex items-center gap-2.5 bg-[#06070a] px-3 py-1.5 rounded-lg border border-[#181b24] shadow-[inset_0_2px_4px_rgba(0,0,0,0.9)]">
               <div class="flex flex-col text-right">
                 <span class="font-mono text-[9px] text-[#716a5e] uppercase">COMPUTE BUS</span>
-                <span class="font-mono text-xs text-primary font-bold">12.4 TFLOPS</span>
+                <span class="font-mono text-xs text-amber-300 font-bold" data-gw-degradation="not_integrated" title="未接入硬件遥测端点，无真实算力数据">未接入</span>
               </div>
               <div class="w-1.5 h-6 bg-[#13161f] rounded-full overflow-hidden flex flex-col justify-end p-0.5">
                 <div class="w-full h-4/5 bg-[#ffb689] rounded-full shadow-[0_0_6px_#ffb689]"></div>
@@ -899,7 +900,7 @@
             <div class="flex items-center gap-2.5 bg-[#06070a] px-3 py-1.5 rounded-lg border border-[#181b24] shadow-[inset_0_2px_4px_rgba(0,0,0,0.9)]">
               <div class="flex flex-col text-right">
                 <span class="font-mono text-[9px] text-[#716a5e] uppercase">VRAM CACHE</span>
-                <span class="font-mono text-xs text-[#ffb689] font-bold">21.8 / 24 GB</span>
+                <span class="font-mono text-xs text-amber-300 font-bold" data-gw-degradation="not_integrated" title="未接入显存遥测端点，无真实显存占用数据">未接入</span>
               </div>
               <span class="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#dfc384]"></span>
             </div>
@@ -910,8 +911,8 @@
           <div class="lg:col-span-5 bg-[#07080c] p-2.5 rounded-lg border border-[#191c26] shadow-[inset_0_2px_5px_rgba(0,0,0,0.85)] flex flex-col gap-1.5">
             <div class="flex items-center justify-between">
               <span class="font-mono text-[10px] text-[#857d6d] uppercase tracking-wider">文本模型 (EXTRACTION ENGINE)</span>
-              <span class="flex items-center gap-1 font-mono text-[10px] text-primary">
-                <span class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_5px_#dfc384]"></span>已就绪
+              <span class="flex items-center gap-1 font-mono text-[10px] text-amber-300" data-gw-degradation="not_integrated" title="未连接任何模型服务，未验证任何模型可用性">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_5px_#f59e0b]"></span>未接入
               </span>
             </div>
             <div class="flex items-center justify-between bg-[#11131a] px-3 py-2 rounded border border-[#232734]">
@@ -919,7 +920,7 @@
                 ${iconSvg('terminal', 'w-4 h-4 text-[#7a8194] shrink-0')}
                 <span class="font-mono text-xs font-semibold text-[#f0eae1] truncate">${esc(textModelDisplay)}</span>
               </div>
-              <span class="font-mono text-[9px] px-2 py-0.5 rounded bg-[#181c26] text-primary border border-primary/25 font-bold shrink-0">VERIFIED</span>
+              <span class="font-mono text-[9px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 font-bold shrink-0" data-gw-degradation="not_integrated" title="未连接任何模型服务，未验证任何模型可用性">未接入</span>
             </div>
           </div>
 
@@ -927,7 +928,7 @@
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
               <div class="flex items-center justify-between">
                 <span class="font-mono text-[10px] text-[#857d6d] uppercase tracking-wider">图片模型 (卡片生图 / LATENT DIFFUSION)</span>
-                <span class="font-mono text-[10px] text-[#ffb689]">SEED: 88492019</span>
+                <span class="font-mono text-[10px] text-amber-300" data-gw-degradation="not_integrated" title="未读取任何真实随机种子">未读取种子</span>
               </div>
               <div class="relative flex items-center justify-between bg-[#11131a] px-3 py-2 rounded border border-[#232734] hover:border-primary/40 transition-all cursor-pointer">
                 <div class="flex items-center gap-2 truncate flex-1 min-w-0 pointer-events-none">
@@ -1068,8 +1069,8 @@
       </select>
       <div class="h-4 w-px bg-[#20232f]"></div>
       <div class="flex items-center gap-1.5 pl-0.5">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse"></span>
-        <span class="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider">已就绪</span>
+        <span class="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b] animate-pulse"></span>
+        <span class="font-mono text-[10px] text-amber-300 font-bold uppercase tracking-wider" data-gw-degradation="not_integrated" title="未接入任何模型服务，无法判定就绪状态">未接入</span>
       </div>
     </div>`;
   }
@@ -1811,6 +1812,8 @@
       bindAssetTrackSync();
     }
   }
+  // 内置示例目录：**只在**真实 /api/asset-registry/projects 不可用时作为显式降级占位，
+  // 必须在 UI 上标明「未接入」，不得被读成真实项目数据。
   const DEMO_PROJECTS_FALLBACK = [
     { id: 'proj-01', name: '《神谕之地》', title: '《神谕之地》' },
     { id: 'proj-02', name: '《赛博修真：重构法则》', title: '《赛博修真：重构法则》' },
@@ -1818,6 +1821,7 @@
     { id: 'proj-05', name: '《霓虹脉冲 2099》', title: '《霓虹脉冲 2099》' }
   ];
 
+  // 同上：该演示流水线不存在于任何后端，不可被当作真实任务快照。
   const DEMO_PIPELINE_FALLBACK = {
     pipeline_id: 'pipe-demo-01',
     project_id: 'proj-01',

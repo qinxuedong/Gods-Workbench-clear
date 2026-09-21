@@ -540,7 +540,15 @@ function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 function setStatus(text='准备就绪'){
     currentStatusText = text || '准备就绪';
     const el = currentStatusElement();
-    if(el) el.textContent = currentStatusText;
+    if(el){
+        el.textContent = currentStatusText;
+        // 显式降级标记（用户 2026-09-21 裁决第 3 项）：未接入 / 暂不可用必须可被核验，
+        // 不得静默。父页 v2/assets.html 会读取该标记并同步展示。
+        const kind = /未纳入当前切片/.test(currentStatusText) ? 'not_integrated'
+            : (/暂时不可用/.test(currentStatusText) ? 'service_unavailable' : '');
+        if(kind) el.setAttribute('data-gw-degradation', kind);
+        else el.removeAttribute('data-gw-degradation');
+    }
 }
 function markAssetFloatingSurface(element, {surface, kind='modal', content='self', close, trigger, parent}={}){
     if(!element || !surface) return element;

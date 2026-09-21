@@ -265,6 +265,12 @@ let cardScale = Number(localStorage.getItem('canvas_card_scale') || 1);
 if (!Number.isFinite(cardScale) || cardScale < MIN_CARD_SCALE || cardScale > MAX_CARD_SCALE) cardScale = 1;
 
 /* ===== Status toast ===== */
+// 统一「无后端时显式降级」（用户…裁决第 3 项）：与 http-transport.js 同源判定。
+function canvasListDegradationLabel(error, fallback){
+    if(error && error.code === 'NOT_INTEGRATED') return '该功能尚未接入后端（未纳入当前切片）';
+    if(error && error.code === 'SERVICE_UNAVAILABLE') return '后端服务暂时不可用，请稍后重试';
+    return fallback;
+}
 function setStatus(text){
     if(!statusEl) return;
     if(!text){ statusEl.classList.remove('show'); return; }
@@ -391,7 +397,7 @@ async function loadAll(){
     } catch(e){
         if(requestSequence !== canvasListLoadSequence) return false;
         console.error(e);
-        setStatus(L('加载失败','Load failed'));
+        setStatus(canvasListDegradationLabel(e, L('加载失败','Load failed')));
         document.documentElement.dataset.canvasListReady = 'error';
         updateOverviewFooter('error');
         return false;
@@ -1797,7 +1803,10 @@ async function refreshTrashCount(){
         deletedCanvases = data.canvases || [];
         const n = deletedCanvases.length;
         if (trashBadge) { trashBadge.textContent = String(n); trashBadge.classList.toggle('visible', n > 0); }
-    } catch(e){}
+    } catch(e){
+        // 未接入 / 不可用时不得静默：列表器直接标明未接入。
+        if(canvasListDegradationLabel(e, '')) { if(trashBadge){ trashBadge.textContent = '未接入'; trashBadge.classList.add('visible'); trashBadge.dataset.gwDegradation = e.code === 'SERVICE_UNAVAILABLE' ? 'service_unavailable' : 'not_integrated'; } }
+    }
     try {
         const res = await canvasListApi().listArchivedCanvases();
         if(!res.ok) return;
@@ -1805,7 +1814,9 @@ async function refreshTrashCount(){
         archivedCanvases = data.canvases || [];
         archiveBadge.textContent = String(archivedCanvases.length);
         archiveBadge.classList.toggle('visible', archivedCanvases.length > 0);
-    } catch(e){}
+    } catch(e){
+        if(canvasListDegradationLabel(e, '')) { archiveBadge.textContent = '未接入'; archiveBadge.classList.add('visible'); archiveBadge.dataset.gwDegradation = e.code === 'SERVICE_UNAVAILABLE' ? 'service_unavailable' : 'not_integrated'; }
+    }
 }
 async function openTrashView(){
     closeArchiveView({restoreFocus:false});

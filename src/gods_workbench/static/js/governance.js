@@ -56,6 +56,12 @@
     return activeTab;
   }
 
+  // 统一显式降级（裁决第 3 项）：NOT_INTEGRATED / SERVICE_UNAVAILABLE 不得退回泛泛「载入失败」。
+  function governanceDegradationMessage(err) {
+    if (err && err.code === 'NOT_INTEGRATED') return err.message;
+    if (err && err.code === 'SERVICE_UNAVAILABLE') return err.message;
+    return err && err.message ? err.message : tr('common.requestFailed');
+  }
   function setTableFailure(selector, colSpan, message) {
     const table = q(selector);
     if (table) table.innerHTML = `<tr><td colspan="${colSpan}" class="empty-td">${esc(trf('governance.loadFailedTable', { message }))}</td></tr>`;
@@ -77,7 +83,7 @@
       renderOverview();
       renderTrash();
     } catch (err) {
-      const message = err.message || tr('common.requestFailed');
+      const message = governanceDegradationMessage(err);
       showToast(trf('governance.loadFailed', { message }), true);
       setTableFailure('#assetTrashRows', 6, message);
       setTableFailure('#projectTrashRows', 5, message);

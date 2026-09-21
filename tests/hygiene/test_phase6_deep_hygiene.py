@@ -11,15 +11,11 @@ from pathlib import Path
 import re
 import pytest
 
+# 从唯一事实来源导入禁用扩展名与白名单，避免多份清单再次漂移。
+from cleanroom_extensions import ALLOWED_BINARY_ALLOWLIST, BANNED_EXTENSIONS
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# 唯一二进制白名单：用户 2026-09-18 指示的 3 个开源思源黑体本地字体（逐条精确路径）。
-# 与 tests/hygiene/test_cleanroom_hygiene.py 的 ALLOWED_BINARY_ALLOWLIST 保持同名同义。
-ALLOWED_BINARY_ALLOWLIST = {
-    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf",
-    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Medium.otf",
-    "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Normal.otf",
-}
 
 
 def test_repo_wide_zero_binary_assets():
@@ -27,13 +23,8 @@ def test_repo_wide_zero_binary_assets():
 
     本用例仅校验工作区文件（ignored_dirs 中保留 .git），git 对象库由独立的治理流程负责。
     """
-    banned_extensions = {
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico",
-        ".ttf", ".otf", ".woff", ".woff2", ".eot",
-        ".exe", ".dll", ".so", ".dylib", ".bin",
-        ".zip", ".tar", ".gz", ".7z", ".rar",
-        ".pdf", ".mp3", ".mp4", ".wav", ".avi",
-    }
+    # 禁用扩展名清单来自**唯一事实来源**，禁止在此自带字面量（历史曾漂移 27 vs 39）。
+    banned_extensions = BANNED_EXTENSIONS
 
     ignored_dirs = {".git", ".pytest_cache", "__pycache__", ".venv", "venv", ".idea", ".vscode"}
 

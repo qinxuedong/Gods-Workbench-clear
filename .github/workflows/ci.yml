@@ -44,9 +44,19 @@ jobs:
           import sys
 
           banned_extensions = {
-              ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico",
+              # 图片 / 截图
+              ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".svg",
+              # 字体（仅 3 条思源黑体白名单例外）
               ".ttf", ".otf", ".woff", ".woff2", ".eot",
-              ".mp3", ".wav", ".ogg", ".mp4", ".mov",
+              # 音频 / 视频
+              ".mp3", ".wav", ".ogg", ".mp4", ".mov", ".avi", ".mkv",
+              # 压缩包
+              ".zip", ".gz", ".7z", ".rar", ".tar", ".tgz", ".bz2", ".xz",
+              # 可执行文件 / 动态库 / 安装包 / 脚本二进制
+              ".exe", ".dll", ".so", ".dylib", ".bin", ".msi", ".app",
+              ".bat", ".cmd", ".com", ".scr",
+              # 文档类二进制（本地策略超集；与 tests/hygiene/cleanroom_extensions.py 逐项一致）
+              ".pdf",
           }
           allowlist = {
               "src/gods_workbench/static/vendor/fonts/SourceHanSansCN-Bold.otf",

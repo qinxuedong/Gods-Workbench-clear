@@ -37,7 +37,16 @@
     let reviewOpenKey = '';
     let reviewOpenPromise = null;
     const roleLevel = role => ({reviewer:20,editor:30,admin:40}[role] || 0);
-    const can = role => !state.auth?.auth_required || roleLevel(state.auth?.principal?.role) >= roleLevel(role);
+    // 授权判定必须失败关闭：只有后端确认 authenticated === true 且 principal 存在时才比对角色等级。
+    // 历史缺陷（独立复核 R6-9）：旧实现为 `!state.auth?.auth_required || ...`，而后端
+    // GET /api/asset-auth/status 的契约里根本没有 auth_required 字段（见 api/routes_auth.py
+    // 的 auth_status()），`!undefined === true` 使该表达式恒为 true，导致**未认证访客**
+    // 被判定拥有 admin/editor/reviewer 权限。
+    const can = role => Boolean(state.auth?.authenticated && state.auth?.principal)
+        && roleLevel(state.auth?.principal?.role) >= roleLevel(role);
+    // 「是否需要先登录」的唯一口径：以服务端确认的 authenticated 为准，
+    // 不再依赖后端不存在的 auth_required 字段。
+    const needsLogin = () => !(state.auth?.authenticated && state.auth?.principal);
     const icon = (name, size=16) => '<i data-lucide="' + name + '" style="width:'+size+'px;height:'+size+'px"></i>';
 
     function reviewContextValues(context={}){
@@ -177,12 +186,26 @@
     async function loadAuth(){
         try {
             state.auth = await reviewJsonResponse(assetAuthApi().getStatus());
+            state.authDegraded = false;
         } catch(error){
-            state.auth = {auth_required:false, configured:false, principal:null};
+            // 认证状态端点不可达：**显式降级**，绝不写入放宽权限的默认值。
+            // 历史缺陷（R6-9）：旧 catch 写入 {auth_required:false}，配合旧 can() 等于无条件放行。
+            state.auth = {
+                degraded:true,
+                reason:'认证服务未接入或不可达',
+                auth_mode:'unknown',
+                oidc_ready:false,
+                authenticated:false,
+                principal:null,
+                login_available:false,
+                logout_available:false,
+            };
+            state.authDegraded = true;
+            toast('认证服务未接入或不可达：审阅与团队特权操作已禁用', true);
         }
         renderAccountButton();
         notifyParentAuthChanged();
-        if(state.auth.auth_required && !state.auth.principal) openAuth();
+        if(needsLogin() && state.auth?.login_available) openAuth();
     }
 
     function renderAccountButton(){
@@ -193,7 +216,7 @@
     function openAuth(options={}){
         if(typeof options.host === 'boolean') state.parentModalHost = options.host;
         const layer = ensureLayer();
-        const needsSetup = Boolean(state.auth?.needs_setup);
+        const loginAvailable = Boolean(state.auth?.login_available);
         const user = state.auth?.principal;
         layer.className = 'asset-review-layer auth-open';
         if(user){
@@ -205,13 +228,14 @@
                 (user.role==='admin'?'<section id="reviewAdminPanel" class="review-admin-panel"><div class="share-spinner"></div></section>':'')+
                 '</div><footer><button data-review-logout>退出登录</button><button class="review-primary" data-review-close>完成</button></footer></section>';
         } else {
+            // 本切片认证由**外部 IdP**（OIDC 授权码 + PKCE）承担：本页**不收集**任何用户名或口令。
+            // 历史缺陷（R6-9）：旧实现渲染用户名/口令表单并 POST 给 /api/asset-auth/login，
+            // 而新后端该端点不消费任何请求体，只返回 {authorization_url, state} —— 属静默坏掉。
             layer.innerHTML = '<div class="asset-review-backdrop"></div><section class="asset-account-modal" data-floating-content>' +
-                '<header><div><strong>'+(needsSetup?'初始化资产中心':'登录资产中心')+'</strong><span>'+(needsSetup?'创建首位管理员':'使用 NAS 账号继续')+'</span></div></header>' +
+                '<header><div><strong>登录资产中心</strong><span>通过外部身份提供商（OIDC 授权码 + PKCE）继续</span></div></header>' +
                 '<form id="assetAuthForm" class="asset-account-body">' +
-                (needsSetup?'<label>显示名称<input name="display_name" value="管理员" maxlength="120"></label>':'') +
-                '<label>用户名<input name="username" autocomplete="username" required></label>' +
-                '<label>密码<input name="password" type="password" autocomplete="'+(needsSetup?'new-password':'current-password')+'" minlength="8" required></label>' +
-                '<button class="review-primary" type="submit">'+icon(needsSetup?'shield-plus':'log-in')+(needsSetup?'完成初始化':'登录')+'</button>' +
+                '<p class="review-hint"'+(loginAvailable?'':' data-gw-degradation="not_integrated"')+'>本页不收集用户名或密码；凭据只在 IdP 页面输入。'+(loginAvailable?'':'认证服务未接入或未配置：'+esc(state.auth?.reason || '未启用外部 IdP 校验'))+'</p>' +
+                '<button class="review-primary" type="submit" '+(loginAvailable?'':'disabled')+'>'+icon('log-in')+'使用外部身份提供商登录</button>' +
                 '<p class="review-auth-error" id="assetAuthError"></p></form></section>';
         }
         window.lucide?.createIcons();
@@ -486,21 +510,17 @@
     }
 
     async function submitAuth(form){
-        const values = Object.fromEntries(new FormData(form).entries());
+        // 只请求授权地址；凭据绝不经过本页（OIDC 授权码 + PKCE，无用户名/口令字段）。
         try {
-            await reviewJsonResponse(state.auth?.needs_setup
-                ? assetAuthApi().bootstrap(values)
-                : assetAuthApi().login(values));
-            closeLayer();
-            await loadAuth();
-            state.wsBlocked=false;
-            connectReviewSocket();
-            if(typeof refreshRegistryWorkspace === 'function') await refreshRegistryWorkspace();
-            await resumePendingReview();
-            toast('登录成功');
+            const data = await reviewJsonResponse(assetAuthApi().login());
+            const authorizationUrl = String(data?.authorization_url || '');
+            if(!authorizationUrl){
+                throw new Error('认证服务未返回授权地址，已显式降级');
+            }
+            window.location.assign(authorizationUrl);
         } catch(error){
             const node = q('#assetAuthError');
-            if(node) node.textContent = error.message;
+            if(node) node.textContent = '认证服务未接入或不可达：' + error.message;
         }
     }
 
@@ -538,7 +558,7 @@
 
     async function performOpenReview(asset, context={}){
         const incoming = reviewContextValues(context);
-        if(state.auth?.auth_required && !state.auth?.principal){
+        if(needsLogin()){
             pendingReviewContext = incoming;
             openAuth();
             return;
@@ -944,7 +964,7 @@
 
     function connectReviewSocket(){
         clearTimeout(state.wsRetryTimer);
-        if(state.ws || state.wsBlocked || (!state.auth?.principal && state.auth?.auth_required)) return;
+        if(state.ws || state.wsBlocked || needsLogin()) return;
         const protocol=location.protocol==='https:'?'wss:':'ws:';
         let socket;
         try { socket=new WebSocket(protocol+'//'+location.host+'/ws/stats?client_id=asset-review-'+Math.random().toString(36).slice(2)); }
@@ -965,7 +985,7 @@
             state.ws=null;
             // A rejected handshake is often surfaced as browser code 1006,
             // so authenticated pages must never spin on an opaque 403.
-            if(state.auth?.auth_required || [4001,4003,4401,4403].includes(Number(event.code))){ state.wsBlocked=true; return; }
+            if(needsLogin() || [4001,4003,4401,4403].includes(Number(event.code))){ state.wsBlocked=true; return; }
             const delay=Math.min(30000, 4000 * 2 ** Math.min(state.wsRetryCount++, 3));
             state.wsRetryTimer=setTimeout(connectReviewSocket, delay);
         };
@@ -997,7 +1017,7 @@
 
     async function resumePendingReview(){
         if(!reviewReady || !pendingReviewContext) return;
-        if(state.auth?.auth_required && !state.auth?.principal) return;
+        if(needsLogin()) return;
         const context = pendingReviewContext;
         pendingReviewContext = null;
         await openReview(null, context);
@@ -1032,7 +1052,7 @@
             if(event.data?.type==='asset-open-review'){
                 const context = event.data.context || event.data;
                 if(!reviewReady){ pendingReviewContext = context; return; }
-                if(state.auth?.auth_required && !state.auth?.principal){ pendingReviewContext = context; openAuth(); return; }
+                if(needsLogin()){ pendingReviewContext = context; openAuth(); return; }
                 openReview(event.data.asset || null, context).catch(error=>toast(error.message,true));
             }
         });

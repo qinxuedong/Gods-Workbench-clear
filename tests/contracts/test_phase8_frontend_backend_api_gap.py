@@ -45,7 +45,15 @@ CONTRACTS = [
 # ---------------------------------------------------------------------------
 
 #: 前端引用且后端**已实现**的端点（归一化路径）
+# 2026-09-21 Phase 9D 更新：`/api/asset-auth/status`、`/api/asset-auth/login`、
+# `/api/asset-auth/logout`、`/api/asset-auth/callback` 已由
+# `src/gods_workbench/api/routes_auth.py` 真实实现（OIDC 授权码 + PKCE + 服务端会话），
+# 故由 KNOWN_UNIMPLEMENTED 迁入本基线。
 KNOWN_IMPLEMENTED = frozenset([
+    '/api/asset-auth/callback',
+    '/api/asset-auth/login',
+    '/api/asset-auth/logout',
+    '/api/asset-auth/status',
     '/api/asset-registry/governance/projects/{p}/restore',
     '/api/asset-registry/projects',
     '/api/asset-registry/projects/{p}',
@@ -61,11 +69,8 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/ai/upload',
     '/api/app-info',
     '/api/asset-auth/bootstrap',
-    '/api/asset-auth/login',
-    '/api/asset-auth/logout',
     '/api/asset-auth/operation-approvals',
     '/api/asset-auth/operation-approvals/{p}',
-    '/api/asset-auth/status',
     '/api/asset-auth/teams',
     '/api/asset-auth/teams/{p}',
     '/api/asset-auth/tokens',
@@ -252,6 +257,10 @@ KNOWN_CONTRACT_WITHOUT_FRONTEND_CALLER = frozenset([
 #: 后端已实现路由的归一化路径（用于断言后端集合未被意外缩小）
 KNOWN_BACKEND_PATHS = frozenset([
     '/',
+    '/api/asset-auth/callback',
+    '/api/asset-auth/login',
+    '/api/asset-auth/logout',
+    '/api/asset-auth/status',
     '/api/asset-registry/governance/projects/{p}/restore',
     '/api/asset-registry/projects',
     '/api/asset-registry/projects/{p}',

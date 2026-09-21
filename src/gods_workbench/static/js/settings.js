@@ -1,5 +1,18 @@
 (function(){
   const {api, escapeHtml:esc, navigate} = Workspace;
+  // 统一「无后端时显式降级」（裁决第 3 项）：不得静默吞掉未接入错误。
+  const NOT_INTEGRATED_TEXT = '未接入（未纳入当前切片）';
+  const SERVICE_UNAVAILABLE_TEXT = '服务暂不可用';
+  function degradationText(error, fallback){
+    const shared = window.GWDegradation;
+    if(shared && typeof shared.isNotIntegrated === 'function'){
+      if(shared.isNotIntegrated(error)) return shared.NOT_INTEGRATED_MESSAGE || NOT_INTEGRATED_TEXT;
+      if(shared.isServiceUnavailable(error)) return shared.SERVICE_UNAVAILABLE_MESSAGE || SERVICE_UNAVAILABLE_TEXT;
+    }
+    if(error && error.code === 'NOT_INTEGRATED') return NOT_INTEGRATED_TEXT;
+    if(error && error.code === 'SERVICE_UNAVAILABLE') return SERVICE_UNAVAILABLE_TEXT;
+    return fallback;
+  }
   const q = selector => document.querySelector(selector);
   const key = 'workspace_preferences';
   const promptSourceKey = 'prompt_source_settings_v1';
@@ -122,7 +135,12 @@
     const p = (res && res.preferences) || {};
     if (q('#teamNaming')) q('#teamNaming').value = p.naming_convention || '{project}_{entity}_{version}';
     if (q('#teamVisibility')) q('#teamVisibility').value = p.default_review_visibility || 'team';
-  }).catch(() => {});
+  }).catch(error => {
+    const label = degradationText(error, '');
+    if (!label) return;
+    const button = q('#btnSaveTeamPrefs');
+    if (button) { button.textContent = label; button.dataset.gwDegradation = error.code === 'SERVICE_UNAVAILABLE' ? 'service_unavailable' : 'not_integrated'; }
+  });
 
   q('#btnSaveTeamPrefs')?.addEventListener('click', async () => {
     const naming = q('#teamNaming')?.value.trim() || '{project}_{entity}_{version}';
@@ -138,14 +156,25 @@
       q('#btnSaveTeamPrefs').textContent = '已同步';
       setTimeout(() => { q('#btnSaveTeamPrefs').disabled = false; q('#btnSaveTeamPrefs').textContent = '保存同步'; }, 1200);
     } catch (e) {
-      alert(`保存失败: ${e.message}`);
+      alert(`${degradationText(e, '保存失败')}: ${e.message}`);
       q('#btnSaveTeamPrefs').disabled = false;
       q('#btnSaveTeamPrefs').textContent = '保存同步';
     }
   });
 
-  Promise.all([api('/api/app-info').catch(()=>({})),api('/api/asset-registry/status').catch(()=>({}))]).then(([app,status])=>{
-    q('#systemInfo').innerHTML=`<div class="summary-stat"><span>工作台版本</span><strong style="font-size:17px">${esc(app.version||'—')}</strong></div><div class="summary-stat"><span>资产后端</span><strong style="font-size:17px">${esc(status.backend||'—')}</strong></div><div class="summary-stat"><span>注册表状态</span><strong style="font-size:17px">${status.ready?'正常':'未就绪'}</strong></div><button class="btn" id="checkUpdate" style="margin-top:14px">检查更新</button>`;
+  Promise.all([
+    api('/api/app-info').then(value => ({ value, error: null })).catch(error => ({ value: null, error })),
+    api('/api/asset-registry/status').then(value => ({ value, error: null })).catch(error => ({ value: null, error })),
+  ]).then(([appResult, statusResult]) => {
+    const app = appResult.value || {};
+    const status = statusResult.value || {};
+    const appLabel = appResult.error ? degradationText(appResult.error, '未知') : (app.version || '不可用');
+    const backendLabel = statusResult.error ? degradationText(statusResult.error, '未知') : (status.backend || '不可用');
+    const readyLabel = statusResult.error ? degradationText(statusResult.error, '未知') : (status.ready ? '正常' : '未就绪');
+    const degraded = appResult.error || statusResult.error;
+    const info = q('#systemInfo');
+    if (info) info.dataset.gwDegradation = degraded ? (degraded.code === 'SERVICE_UNAVAILABLE' ? 'service_unavailable' : 'not_integrated') : 'ok';
+    q('#systemInfo').innerHTML=`<div class="summary-stat"><span>工作台版本</span><strong style="font-size:17px">${esc(appLabel)}</strong></div><div class="summary-stat"><span>资产后端</span><strong style="font-size:17px">${esc(backendLabel)}</strong></div><div class="summary-stat"><span>注册表状态</span><strong style="font-size:17px">${esc(readyLabel)}</strong></div><button class="btn" id="checkUpdate" style="margin-top:14px">检查更新</button>`;
     q('#checkUpdate')?.addEventListener('click',()=>{try{parent.checkForUpdates(true);}catch(e){}});
   });
 

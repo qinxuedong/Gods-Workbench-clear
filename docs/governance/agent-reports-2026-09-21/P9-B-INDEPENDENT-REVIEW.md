@@ -403,3 +403,120 @@ node --check（非 vendor .js，54 个）                     -> 54/0 failed
 - 未接入生产 IdP、未做 authorization code / PKCE 回调、未做密钥轮换并发压测、未执行生产验收。
 - 全部结论为**未提交工作树**的本地实测，**不绑定**远端 CI。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+---
+
+## 13. R5 / R6 闭环：R6-8 修复与前端降级收口（2026-09-21 追加，实现方自采 + 独立复核读回）
+
+> 本节**仅追加**，不修改 §0–§12 的任何历史行与哈希快照。
+> 落盘权说明：本节由**主代理**（实现方）依据独立复核代理的实测结论登记；
+> 独立复核方另出具 `docs/governance/agent-reports-2026-09-21/P9-D-INDEPENDENT-REVIEW.md`，
+> 其结论与本节交叉印证，但**同框架内复核 ≠ 外部第三方审计**。
+
+### 13.1 R6-8（高）：OIDC 重定向逐跳重校验未锁同源 —— 已修复
+
+- **缺陷**：`src/gods_workbench/core/config.py` 的 `_ValidatingRedirectHandler.redirect_request`
+  在跟随重定向时逐跳重校验「目标在白名单范围内」，但**未校验同源**，异源 302 被跟随。
+- **复现（修复前）**：双端口真实 HTTP，`fetched kids = ['ATTACKER-KEY']`、attacker hits = **1**。
+- **修复**：`redirect_request` 增加「与**起始 origin** 同源」校验（`is_same_origin_as`）；
+  起始 origin 由 `_read_limited` 在发请求前写入 `threading.local()`（`_REDIRECT_GUARD`），
+  `finally` 恢复，避免并发串号；**未绑定起始 origin 时一律拒绝**。
+- **实测（修复后）**：`exception: HTTPError 302`、attacker hits = **0**、`VERDICT: blocked`。
+- **新增守卫**：`tests/contracts/test_phase9d_r6_hardening.py` 追加 3 条（累计 20 用例）；
+  `tests/contracts/test_oidc_runtime_wiring.py` 的 `test_redirect_within_whitelist_is_followed`
+  重写为**真正同源**（同一台服务器 `/jwks` → `/keys`），并新增 `test_redirect_to_foreign_origin_is_blocked`。
+- **独立复核要求**：303 / 307、相对 Location、主机名大小写、显式端口 vs 默认端口、IDN/punycode、多跳链式、
+  并发串号 —— 由 `P9-D-INDEPENDENT-REVIEW.md` 逐条给出实测结果。
+
+### 13.2 R6-7（中）：会话绝对过期上限 —— **未实施，已登记待裁决**
+
+`src/gods_workbench/core/session.py` 的 `get_session` 目前**只有滑动过期**，无绝对过期上限。
+本轮**未实施**，登记为待用户裁决项（见 `docs/governance/TASK-NOTES-2026-09-18.md` §21.13.6）。
+
+### 13.3 前端「无后端时显式降级」收口（用户裁决第 3 项）
+
+补齐 §9/§11 未覆盖的入口，**全部明说未接入 / 未验证**：
+
+- `v2/js/home-controller.js`：删除伪造工程目录（`proj-demo-*` / `proj-local-*`）与伪造资产 `AURA_Protagonist_*` 等 4 条；
+  `/api/chat` 失败不再谎称「已调配本地智能体管线，就绪待命」。
+- `v2/js/projects-controller.js`：整体删除 `getDemoProjects()`（含 `proj-trash-01`）；
+  写路径「只有后端确认成功才提示成功」；计数不可知显示 `—`。
+- `v2/workshop.html`（内联脚本）：`demoProjectCatalog` **不再并入真实 `projects`**；
+  分集失败不再伪装成「该项目没有分集」；`prevProject` / `nextProject` 增加空目录守卫。
+- 头像键帽 / 席位凭据块 / 就绪·在线断言：全部改为显式未接入占位，**只有真实认证成功**才点亮绿色
+  （`.hw-avatar-keycap-status` 默认中性琥珀脉冲，`data-gw-identity="authenticated"` 才为绿色）。
+
+### 13.4 新增跨模块一致性守卫（回应独立复核 D-建议）
+
+- 新增 `tests/contracts/test_phase9d_cross_module_consistency.py`（6 用例，Node 真实执行），
+  同时加载 `static/js/degradation.js` 与 `static/js/http-transport.js`，对 10 个输入逐条对照。
+- **分歧数 = 0**（对照表见 `docs/governance/TASK-NOTES-2026-09-18.md` §21.13.4）。此守卫防止任一侧改判定后 CI 不报错。
+
+### 13.5 口径漂移更正（登记）
+
+§11.2 L328 与 §9.2 L202 写「tracked **269**」，实为 **275** —— **本轮不改写历史行**，
+在 `docs/governance/TASK-NOTES-2026-09-18.md` §21.13.6 登记为待裁决项 **O6**。
+
+### 13.6 本轮门禁（主代理实测，未提交工作树）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                 -> 160 passed
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 11 passed
+python -m pytest -q --no-header -p no:cacheprovider tests/contracts/test_phase7_projects_id_contract.py -> 10 passed
+node --check（非 vendor .js，55 个）                                  -> 55 / 0 failed
+同形字扫描（28 个改动文件，ord() 判定）                                 -> 0 命中
+```
+
+### 13.7 独立性与边界
+
+- 本节由**实现方（主代理）**自采登记；R6-8 / 前端降级的**独立复算**见 `P9-D-INDEPENDENT-REVIEW.md`。
+- **同框架内复核 ≠ 外部第三方独立审计**；**未**接入生产 IdP；**未**做令牌撤销与密钥轮换并发压测。
+- `_SESSIONS` / `_FLOW_STATES` 为**单进程内存存储**；多实例 / 多 worker 部署前必须换外部共享存储。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**；发布授权**待第三方独立审计完成**。
+
+---
+
+## §14 Phase 9E / 9F / 9G 追加登记（2026-09-21，**落盘权 = 主代理**）
+
+> 本节由**主代理**追加登记；§13.x 及其以前各节的数字/判断为**当时真实值**，**不就地改写**。
+> 独立复核方（R6，外部线程）另行出具 `P9-D-INDEPENDENT-REVIEW.md`；**本节不代表其结论**。
+
+### 14.1 本轮由**独立复核方**发现、主代理复核并已修复的真实缺陷
+
+| 编号 | 缺陷 | 影响 | 状态 |
+|---|---|---|---|
+| R6-9 | `static/js/asset-review.js` 授权门禁 **fail-open**：`can()` 依赖后端**不存在**的 `auth_required` 字段，`!undefined === true` | **未认证访客**在 `asset-manager.html` / `v2/collab.html` 被判为拥有 admin/editor/reviewer **全部权限** | **已修复**（fail-closed + `needsLogin()` + 显式降级） |
+| R6-10 | 真实 IdP 互操作：Google `issuer` 与 `jwks_uri` / `token_endpoint` **跨主机**，原「逐字同源」判据使其**无任何配置可接线** | `oidc_ready=false`、`/api/asset-auth/login` **503 OIDC_NOT_CONFIGURED** | **已修复**（opt-in `GW_OIDC_ENDPOINT_HOSTS`，默认严格） |
+| R6-12 | `X \|\| 默认值` 静默伪造：`progress \|\| 10/60/75`、`scenes \|\| 24`、`shots \|\| 72` | 后端 `create_project()` 即 `progress=0.0`，**真实 0% 被显示成 10% / 60% / 75%**（与真实值相反） | **已修复**（`Number.isFinite` 判定 + 显式「未接入」+ Node 行为级守卫） |
+
+### 14.2 主代理本轮独立发现并修复的事项
+
+- 顶栏拟物推子的**具体读数**（`78% / 82% / 75% / 92% / 68% / 88%` 与 `14.8G / 18.4G / 12.2G`）
+  会被读成真实算力/显存遥测 → 统一改为 **`0%` + 「未接入」+ 结构化降级标记**。
+- 令牌交换路径原会跟随同源 3xx → 新增 `_NO_REDIRECT_OPENER`，**任何 3xx 失败关闭**。
+- `authorization_endpoint` 与 `token_endpoint` 采用**刻意不对称**的受信口径（前者严格同源，后者可白名单）。
+
+### 14.3 本轮门禁（主代理实测，未提交工作树）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                 -> 208 passed
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 11 passed
+node --check（static/ 下非 vendor 全量 55 个 + vendor 2 个）           -> 57 / 0 failed
+同形字扫描（42 个改动文件，ord() 判定）                                 -> 0 命中
+真实浏览器 E2E（16 页，Playwright/Chrome）                             -> pageerror 0
+```
+
+### 14.4 §13.1 / §13.7 对 `P9-D-INDEPENDENT-REVIEW.md` 的引用
+
+§13.1 / §13.7 引用的 `docs/governance/agent-reports-2026-09-21/P9-D-INDEPENDENT-REVIEW.md`
+**由独立复核方（外部线程）创建**；主代理**不创建、不改写**该文件，引用保持原样。
+
+### 14.5 边界（不得外推）
+
+- `GW_OIDC_ENDPOINT_HOSTS` 为**部署方显式 opt-in**；默认严格同源未变；本仓不预置第三方主机；
+  其匹配为**幼稚逐字相等**（**无 PSL / 无 eTLD+1**），**不是通用安全边界**。
+- 本地通过 ≠ 远端 CI ≠ 生产验收；**同框架内 / 外部线程复核 ≠ 外部第三方独立审计**。
+- **未接入生产 IdP**；未做令牌撤销与密钥轮换并发压测；Google 联调仅覆盖元数据 / JWKS / 授权 URL 构造。
+- `_SESSIONS` / `_FLOW_STATES` 为单进程内存存储；多实例 / 多 worker 前须换外部共享存储。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，发布授权**待第三方独立审计完成**。

@@ -39,11 +39,31 @@ export function createAssetAuthApi(http) {
         getStatus(init = {}) {
             return request('/api/asset-auth/status', sameOriginInit(init));
         },
+        /**
+         * 本仓当前切片**未提供** /api/asset-auth/bootstrap（本地首位管理员初始化）。
+         * 保留该 façade 仅为兼容既有调用方；调用方必须按未接入错误显式降级，
+         * 不得把它当作可用的初始化入口（见 http-transport.js 的 NOT_INTEGRATED 语义）。
+         */
         bootstrap(payload, init = {}) {
             return request('/api/asset-auth/bootstrap', jsonInit(payload, sameOriginInit({...init, method: 'POST'})));
         },
-        login(payload, init = {}) {
-            return request('/api/asset-auth/login', jsonInit(payload, sameOriginInit({...init, method: 'POST'})));
+        /**
+         * 发起外部 IdP 登录（OIDC Authorization Code + PKCE）。
+         *
+         * 该端点**不接收用户名/密码**：后端返回 { authorization_url, state }，
+         * 调用方应把 authorization_url 交给浏览器跳转（见 hardware-telemetry.js）。
+         * 凭据只在 IdP 页面输入，前端不得收集或转发。
+         */
+        login(init = {}) {
+            return request('/api/asset-auth/login', sameOriginInit({...init, method: 'POST'}));
+        },
+        /** 登出：清除服务端会话与 Cookie（204）。 */
+        logout(init = {}) {
+            return request('/api/asset-auth/logout', sameOriginInit({...init, method: 'POST'}));
+        },
+        callback(query = '', init = {}) {
+            const suffix = String(query || '').replace(/^\?/, '');
+            return request(`/api/asset-auth/callback${suffix ? `?${suffix}` : ''}`, sameOriginInit(init));
         },
         listUsers(init = {}) {
             return request('/api/asset-auth/users', sameOriginInit(init));
@@ -96,9 +116,6 @@ export function createAssetAuthApi(http) {
         },
         createToken(payload, init = {}) {
             return request('/api/asset-auth/tokens', jsonInit(payload, sameOriginInit({...init, method: 'POST'})));
-        },
-        logout(init = {}) {
-            return request('/api/asset-auth/logout', sameOriginInit({...init, method: 'POST'}));
         },
     };
 }

@@ -50,9 +50,32 @@ def require_authenticated(
     """要求已认证会话并返回角色上下文。
 
     OIDC 模式下角色完全来自 IdP 声明；``user_role``（请求头）被忽略。
+    本模式接受两种凭据，均**只**由服务端校验得出角色：
+
+    1. 服务端会话：中间件已按 ``gw_session`` Cookie 解析出的会话身份
+       （授权码 + PKCE 登录后的常规路径，见 ``api/routes_auth.py``）；
+    2. ``Authorization: Bearer <id_token>``：便于服务间/脚本直连的令牌路径。
+
+    两者都缺失或校验失败一律 401，绝不回落到本地信任。
     """
-    token = _extract_bearer_token(authorization)
     runtime = load_runtime_auth_config()
+
+    if runtime.mode == AUTH_MODE_OIDC:
+        # 优先使用中间件写入的服务端会话身份（Cookie 承载不透明会话标识）。
+        from gods_workbench.core import session as session_store  # 延迟导入
+
+        principal = session_store.get_current_principal()
+        if principal:
+            role = str(principal.get("role") or "").strip().lower()
+            if role not in KNOWN_ROLES:
+                raise ForbiddenException(message="会话角色不合法，已拒绝请求")
+            return AuthContext(
+                role=role,
+                subject=str(principal.get("username") or "") or None,
+                mode=AUTH_MODE_OIDC,
+            )
+
+    token = _extract_bearer_token(authorization)
 
     if runtime.mode == AUTH_MODE_OIDC:
         if not runtime.ready:

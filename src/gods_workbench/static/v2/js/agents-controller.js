@@ -5,12 +5,14 @@
 window.V2Agents = (function () {
   'use strict';
 
+  // 内置示例目录：**未接入后端**。本切片无智能体运行时端点（/api/chat/agent 未实现），
+  // 因此 status 一律为 not_integrated，绝不静态声称 online。
   const state = {
     agents: [
-      { id: 'aura-01', name: 'AURA·核心调度脑', role: '系统编排与逻辑拆解', status: 'online', model: 'Claude-3.5-Sonnet', active: true },
-      { id: 'flux-02', name: 'FLUX-PRO 电影原画师', role: '4K ACEScg 视觉生成', status: 'online', model: 'FLUX.1-DEV + LoRA', active: false },
-      { id: 'script-03', name: 'SCRIPT-ARCH 剧本架构师', role: '文学分镜与冲突提炼', status: 'online', model: 'DeepSeek-R1 / V3', active: false, route: '/static/episode-pipeline.html?agent=script-03' },
-      { id: 'vox-04', name: 'VOX-SYNCLIP 配音合成师', role: '音效唇形与声音克隆', status: 'idle', model: 'Wav2Lip + GPT-SoVITS', active: false }
+      { id: 'aura-01', name: 'AURA·核心调度脑', role: '系统编排与逻辑拆解', status: 'not_integrated', model: 'Claude-3.5-Sonnet', active: true },
+      { id: 'flux-02', name: 'FLUX-PRO 电影原画师', role: '4K ACEScg 视觉生成', status: 'not_integrated', model: 'FLUX.1-DEV + LoRA', active: false },
+      { id: 'script-03', name: 'SCRIPT-ARCH 剧本架构师', role: '文学分镜与冲突提炼', status: 'not_integrated', model: 'DeepSeek-R1 / V3', active: false, route: '/static/episode-pipeline.html?agent=script-03' },
+      { id: 'vox-04', name: 'VOX-SYNCLIP 配音合成师', role: '音效唇形与声音克隆', status: 'not_integrated', model: 'Wav2Lip + GPT-SoVITS', active: false }
     ],
     traces: [],
     traceUnsubscribe: null
@@ -27,8 +29,8 @@ window.V2Agents = (function () {
         <div class="flex items-center justify-between mb-1">
           <div class="font-bold text-slate-100 text-xs truncate">${esc(ag.name)}</div>
           ${ag.route ? `<a href="${esc(ag.route)}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-[#dfc384] shrink-0" title="打开剧本架构师路由" aria-label="打开剧本架构师路由" onclick="event.stopPropagation()"><i data-lucide="external-link" class="w-3 h-3"></i></a>` : ''}
-          <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full ${ag.status === 'online' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-500/15 text-slate-400'}">
-            ${ag.status}
+          <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full ${ag.status === 'online' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}"${ag.status === 'not_integrated' ? ' data-gw-degradation="not_integrated"' : ''}>
+            ${ag.status === 'not_integrated' ? '未接入' : ag.status}
           </span>
         </div>
         <div class="text-[8.5px] text-slate-400 truncate mb-1">${esc(ag.role)}</div>
@@ -118,12 +120,12 @@ window.V2Agents = (function () {
       status,
     });
     publish('INPUT', `已接收：${val}`, {message_chars: val.length}, 'running');
-    publish('THINK', '已进入 AURA 测试路由，等待执行结果', {route: '/api/chat/agent'}, 'running');
-    window.setTimeout(() => publish('EXEC', `测试指令已完成：${val}`, {message: val, result: 'local-test'}, 'succeeded'), 400);
+    publish('THINK', 'AURA 测试路由未接入：本切片没有 /api/chat/agent 端点', {route: '/api/chat/agent', degraded: 'not_integrated'}, 'running');
+    publish('EXEC', `指令未发送：智能体执行端点未接入（未纳入当前切片），未产生任何真实执行结果`, {message_chars: val.length, result: 'not_integrated'}, 'not_integrated');
   }
 
   function createAgent() {
-    alert('正在打开智能体微调与模型挂载向导...');
+    alert('智能体挂载未接入：本切片没有智能体管理端点，未打开任何向导，也未挂载任何模型。');
   }
 
   function init() {

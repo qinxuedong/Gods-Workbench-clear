@@ -572,17 +572,29 @@ def test_negative_cache_default_is_bounded(clean_env):
 
 
 def test_redirect_within_whitelist_is_followed(clean_env):
-    """O2：白名单内重定向（同一 IdP 换路径）应被允许，只拒绝越界跳转。"""
-    payload = {"keys": [{"kty": "RSA", "kid": "ok", "n": "AA", "e": "AQAB"}]}
-    state = {"keys_hits": 0, "target": ""}
+    """O2：**同源**重定向（同一 IdP 换路径）应被允许，只拒绝越界或异源跳转。
 
-    class _Keys(BaseHTTPRequestHandler):
+    R6-8 更正：原用例把「同源」误解为「同一白名单内」，用**不同端口**的第二台
+    服务器验证跟随，这恰好放行了「合法端点 302 到异源主机」的攻击路径。
+    现改为在**同一台**服务器内从 /jwks 302 到 /keys（真正同源）。
+    """
+    payload = {"keys": [{"kty": "RSA", "kid": "ok", "n": "AA", "e": "AQAB"}]}
+    state = {"jwks_hits": 0, "keys_hits": 0}
+
+    class _SameOrigin(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
         def log_message(self, *args):  # noqa: D102
             return
 
         def do_GET(self):  # noqa: N802
+            if self.path == "/jwks":
+                state["jwks_hits"] += 1
+                self.send_response(302)
+                self.send_header("Location", "/keys")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             state["keys_hits"] += 1
             body = json.dumps(payload).encode("utf-8")
             self.send_response(200)
@@ -591,10 +603,40 @@ def test_redirect_within_whitelist_is_followed(clean_env):
             self.end_headers()
             self.wfile.write(body)
 
-    keys = ThreadingHTTPServer(("127.0.0.1", 0), _Keys)
-    state["target"] = f"http://127.0.0.1:{keys.server_address[1]}/keys"
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _SameOrigin)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        doc = gw_config.fetch_jwks(gw_config.JwksEndpointConfig(url=f"{base}/jwks", timeout_seconds=5))
+        assert [k.get("kid") for k in doc["keys"]] == ["ok"]
+        assert state["jwks_hits"] == 1
+        assert state["keys_hits"] == 1, "同源换路径的重定向应被跟随"
+    finally:
+        server.shutdown()
+        server.server_close()
 
-    class _Jwks(BaseHTTPRequestHandler):
+
+def test_redirect_to_foreign_origin_is_blocked(clean_env):
+    """R6-8：合法端点的 302 不得把 JWKS 拉到**异源**主机（否则可用攻击者公钥伪造令牌）。"""
+    payload = {"keys": [{"kty": "RSA", "kid": "ATTACKER-KEY", "n": "AA", "e": "AQAB"}]}
+    state = {"attacker_hits": 0, "target": ""}
+
+    class _Attacker(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *args):  # noqa: D102
+            return
+
+        def do_GET(self):  # noqa: N802
+            state["attacker_hits"] += 1
+            body = json.dumps(payload).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    class _Redirector(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
         def log_message(self, *args):  # noqa: D102
@@ -606,16 +648,21 @@ def test_redirect_within_whitelist_is_followed(clean_env):
             self.send_header("Content-Length", "0")
             self.end_headers()
 
-    jwks = ThreadingHTTPServer(("127.0.0.1", 0), _Jwks)
-    for server in (keys, jwks):
+    attacker = ThreadingHTTPServer(("127.0.0.1", 0), _Attacker)
+    state["target"] = f"http://127.0.0.1:{attacker.server_address[1]}/jwks.json"
+    redirector = ThreadingHTTPServer(("127.0.0.1", 0), _Redirector)
+    for server in (attacker, redirector):
         threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        start_url = f"http://127.0.0.1:{jwks.server_address[1]}/jwks"
+        start_url = f"http://127.0.0.1:{redirector.server_address[1]}/jwks.json"
+        # 两个 URL 都各自「在允许范围内」，只有同源锁能区分它们。
+        assert gw_config.is_allowed_jwks_url(start_url) is True
         assert gw_config.is_allowed_jwks_url(state["target"]) is True
-        doc = gw_config.fetch_jwks(gw_config.JwksEndpointConfig(url=start_url, timeout_seconds=5))
-        assert [k.get("kid") for k in doc["keys"]] == ["ok"]
-        assert state["keys_hits"] == 1
+        assert gw_config.is_same_origin_as(state["target"], start_url) is False
+        with pytest.raises(Exception):
+            gw_config.fetch_jwks(gw_config.JwksEndpointConfig(url=start_url, timeout_seconds=5))
+        assert state["attacker_hits"] == 0, "异源 302 目标不得被访问（否则可用攻击者公钥验签）"
     finally:
-        for server in (keys, jwks):
+        for server in (attacker, redirector):
             server.shutdown()
             server.server_close()

@@ -101,7 +101,8 @@ def _b64url_decode(segment: str) -> bytes:
         raise UnauthorizedException(message="令牌片段为空，已拒绝")
     padded = segment + "=" * (-len(segment) % 4)
     try:
-        return base64.urlsafe_b64decode(padded.encode("ascii"))
+        # validate=True：让 Python 对非法字符直接抛错，而不是静默丢弃后返回空字节串。
+        return base64.b64decode(padded.encode("ascii"), altchars=b"-_", validate=True)
     except (binascii.Error, ValueError, UnicodeEncodeError):
         raise UnauthorizedException(message="令牌片段不是合法 Base64URL，已拒绝")
 

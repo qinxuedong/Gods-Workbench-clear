@@ -430,3 +430,747 @@ node --check（非 vendor .js，54 个）                    -> 54 / 0 failed
 
 **边界**：远端 CI `success` 只证明该 SHA 在 CI 环境通过；**不等于**生产验收，
 也**不构成**发布授权。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+---
+
+## Phase 9D 状态更新（2026-09-21 追加，主代理实测）
+
+### 一、用户裁决第 3 项「前端统一显式降级」收口
+
+本轮补齐 §六 未覆盖的入口，全部为**明说未接入 / 未验证**，不留静默坏掉：
+
+- `v2/js/home-controller.js`：删除伪造工程目录（`proj-demo-*` / `proj-local-*`）与伪造资产（`AURA_Protagonist_*` 等 4 条）；
+  `/api/chat` 失败不再谎称「已调配本地智能体管线，就绪待命」；提示词库 / 索引备份失败均带 `data-gw-degradation`。
+- `v2/js/projects-controller.js`：整体删除 `getDemoProjects()`（含 `proj-trash-01`）；
+  归档 / 解归档 / 移入回收站 / 恢复**只有后端确认成功才提示成功**；计数不可知时显示 `—`。
+- `v2/workshop.html`（内联脚本）：内置目录改名 `demoProjectCatalog` 且**不再并入真实 `projects`**；
+  分集列表失败不再伪装成「该项目没有分集」；`prevProject` / `nextProject` 增加空目录守卫。
+- 9 个 v2 页 + `v2/js/v2-shell.js`：头像键帽静态「当前登录席位：admin (主创)」→ 中性 `data-gw-identity="unverified"`；
+  `hardware-design-system.css` 的 `.hw-avatar-keycap-status` 默认改中性琥珀脉冲，**只有** `data-gw-identity="authenticated"` 才点亮绿色。
+- `v2/index.html`、`v2/settings.html`：静态「ACTIVE SESSION / 超级管理员 (Admin) / 免密单机·本地凭据 / <1ms(Localhost)」
+  与静态 `admin (本机管理员席位) … ONLINE` → 显式「未接入 / 席位列表待读取」。
+- `v2/workshop.html`、`v2/projects.html`、`v2/index.html`、`v2/production.html`：
+  静态「PIPELINE ENGINE BUS: CONNECTED / 4/4 ONLINE / 核心调度就绪 / 渲染总线就绪 / 渲染就绪(0.8s) / RTX 4090 fps」
+  → 显式「未接入」占位 + `data-gw-degradation`。
+
+### 二、R6-8：OIDC 重定向未锁同源（高）已修复
+
+- 缺陷：`core/config.py` 的 `_ValidatingRedirectHandler.redirect_request` 逐跳重校验未锁**同源**，异源 302 被跟随。
+- 实测（修复前）：`fetched kids = ['ATTACKER-KEY']`、attacker hits=1。
+- 修复：增加「与起始 origin 同源」校验；起始 origin 用 `threading.local()` 线程本地绑定，未绑定即拒绝。
+- 实测（修复后）：`exception: HTTPError 302`、attacker hits=0、`VERDICT: blocked`。
+- 新增守卫：`tests/contracts/test_phase9d_r6_hardening.py`（累计 20 用例）、
+  `tests/contracts/test_oidc_runtime_wiring.py` 重写 `test_redirect_within_whitelist_is_followed` 为真正同源并新增异源拒绝用例。
+
+### 三、跨模块降级语义一致性守卫（本轮新增）
+
+- 新增 `tests/contracts/test_phase9d_cross_module_consistency.py`（6 用例，Node 真实执行）：
+  同时加载 `static/js/degradation.js`（经典脚本）与 `static/js/http-transport.js`（ESM），
+  对 10 个输入逐条对照，**分歧数 = 0**（对照表见 `docs/governance/TASK-NOTES-2026-09-18.md` §21.13.4）。
+- 口径漂移更正：`http-transport.js` 第 18 行注释由「404/501/503」更正为「404/501；503 属可恢复的服务不可用」
+  （仅改该行注释，7354 B → 7387 B，CRLF 保留）。
+
+### 四、门禁（本轮实测，未提交工作树）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                 -> 160 passed
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 11 passed
+node --check（非 vendor .js，55 个）                                  -> 55 / 0 failed
+同形字扫描（28 个改动文件，ord() 判定）                                 -> 0 命中
+二进制白名单越界 / 根级 LICENSE、NOTICES / 嵌套 .git                    -> 0
+```
+
+### 五、待用户裁决（不擅自执行）
+
+- **O4**：`static/css/tailwind-utilities.css` 首行指向 `tools/build_static_tailwind_utilities.py`，
+  而 `git ls-files tools`=0、`Test-Path tools`=False，替代路径**不可复现**。
+- **O5**：死类是否一次性修正 —— `py-0.2` 70 处 / 11 文件、`h-4.5`+`w-4.5` 各 1、`backdrop-blur-xs` 2 处；
+  Tailwind v3.4.17 均不生成规则，**修正会产生视觉变更**。
+- **O6**：`P9-B-INDEPENDENT-REVIEW.md`「tracked 269」应为 **275**。
+- **R6-7**：会话绝对过期上限未实施。
+- **`static/js/canvas/http.js`**（512 B、零调用方、触犯 AGENTS.md §4.2）：建议删除，属破坏性操作。
+
+### 六、边界（不得外推）
+
+本地通过 ≠ 远端 CI ≠ 生产验收；同框架内复核 ≠ 外部第三方独立审计；
+**未接入生产 IdP**、未做令牌撤销与密钥轮换并发压测；`_SESSIONS` / `_FLOW_STATES` 为单进程内存存储；
+仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，发布授权**待第三方独立审计完成**。
+
+---
+
+## Phase 9E / 9F / 9G 状态更新（2026-09-21 追加，主代理实测，未提交工作树）
+
+### 一、Phase 9E：随机伪遥测与虚假运行态清零（用户裁决 3 收尾）
+
+- `static/js/hardware-telemetry.js`：删除 `Math.random` 伪造的 CPU/RAM VU 抖动；无端点时显式「未接入」。
+- 9 个 v2 页顶栏：静态绿色 `Online` 胶囊与 `bg-emerald-400 shadow-[0_0_6px_#34d399]` 就绪灯清零，
+  改为中性 `data-gw-degradation="not_integrated"` + 琥珀脉冲；头像键帽统一 `data-gw-identity="unverified"`。
+- `static/js/episode-pipeline.js`：删除伪造 TFLOPS / 显存占用 / `SEED:` 常量 / 默认厂商模型名回退，
+  改为显式「未配置模型 / 未接入」+ `data-gw-degradation`。
+- 静态页残留伪造运行态断言（`3 运行中` / `生成中 85%` / `ETA 45s` / `24-BUS` 等 16 类）扫描命中 **0**。
+
+### 二、Phase 9F：顶栏拟物推子具体读数清零
+
+- 7 个 v2 页 + `v2/js/v2-shell.js` 的顶栏推子由 `width:78%/82%/75%/92%/68%/88%` 及
+  `14.8G / 18.4G / 12.2G` 等具体读数，统一改为 **`0%` + 「未接入」+ `data-gw-degradation="not_integrated"`**。
+- 标签 → 降级文案按语义化 `title` 逐条说明（FLUX→算力、VRAM→显存、STAGE→阶段进度、FLOW→流程管线、BUFFER→缓冲）。
+- **刻意保留**（属真实交互输入，非遥测断言）：`production.html` LoRA / roughness / CFG 推子、
+  `agents.html` 温度推子、`index.html` 温度推子；守卫已按「推子块 + 降级标记」限定范围，不误判。
+- **同类残留一并清理（本轮追加）**：侧栏项目树 / 场景树的伪造进度 `100% / 85% / 75% / 20%`、
+  `index.html` 的 `online` 状态胶囊与 `4节点`、`projects.html` 的 `VRAM CAP 85%`、
+  `storyboard-controller.js` 示例台词中的 `92%` 显存断言，全部改为
+  **「未接入 / 未验证」+ `data-gw-degradation="not_integrated"`**。
+  真实交互参数（LoRA 85% / roughness 18% / CFG 65% / 温度 70%）**保持不变**。
+
+### 三、R6-9：`asset-review.js` 授权门禁 fail-open（高）已修复
+
+- **真实缺陷**：后端 `GET /api/asset-auth/status` 契约**没有** `auth_required` 字段；
+  旧 `can()` 使用 `!state.auth?.auth_required || ...`，`!undefined === true`，
+  **未认证访客被判定拥有 admin/editor/reviewer 全部权限**（受影响入口 `asset-manager.html`、`v2/collab.html`）。
+- **修复**：`can()` 改为 fail-closed（先要求 `authenticated && principal`，再做 `roleLevel` 比较）；
+  新增 `needsLogin()` 并替换其余 6 处旧字段读取；`loadAuth()` 失败分支改为显式降级对象 + toast；
+  登录弹窗删除用户名/口令表单，改为 OIDC 授权跳转（明说「本页不收集用户名或密码」）。
+- 独立复算（7 组场景，从文件原文抽取表达式逐字 `eval`）：**MISMATCHES = 0**。
+
+### 三点五、R6-12：`X || 默认值` 吞掉真实 0（高）已修复
+
+- **真实缺陷**：`v2/js/home-controller.js` 的 `const progress = p.progress || (... : 75)`、
+  `v2/js/projects-controller.js` 的 `Number(p.progress) || 60`、表格行 `p.progress || 10`、
+  编辑弹窗 `p.progress || 60` / `p.scenes || 24` / `p.shots || 72`，均为 **falsy 兜底**。
+  当后端返回**真实 `progress = 0`**（后端 `create_project()` 就是这么建项目的）时，
+  `0 || 10 === 10`、`0 || 60 === 60`、`0 || 75 === 75` —— **把 0% 显示成 10% / 60% / 75%，与真实值相反**。
+  同类还覆盖 `p.scenes || 24` / `p.shots || 72`（伪造场次/镜头数）。
+- **修复**：新增 `rawNumber()` / `progressMeta()`（projects）与 `projectProgressMeta()`（home），
+  统一用 `Number.isFinite` 判定；**字段存在且有限才显示数值**，缺失 / null / 空串 / 非数
+  一律显式返回 `degraded` 并渲染「未接入」（不得静默给数字）；编辑表单空值提交 `null`，不再伪造 24/72/60。
+- **行为级守卫（Node 真实执行，非字符串断言）**：`tests/contracts/test_phase9_frontend_degradation.py`
+  新增 `test_progress_zero_is_preserved_at_runtime`，用 `progress: 0` / `'0'` / 缺失 / null / 空串 /
+  非数 / 仅 `entity_count` 共 8 组 fixture 真实调用两处 helper，断言 0 原样保留为 `0%`
+  且渲染结果**不含** 10% / 60% / 75%。
+- **静态守卫**：新增 `test_controllers_have_no_falsy_numeric_fallback`（正则禁 `|| 数字` 兜底，
+  允许 `|| 0`）与 `test_no_fake_scene_shot_counts`。
+- 另修 `v2/js/production-controller.js` 场次卡：进度推子与 `shotsCount` / `duration`
+  不再用示例目录数值伪装遥测，改为**显式「进度/镜头数/时长未接入」+ `data-gw-degradation`**。
+
+### 四、R6-10 / P9G：真实外部 IdP 互操作缺陷（高）已修复并实测接线
+
+- **真实缺陷**：Google 官方 discovery 的 `issuer=https://accounts.google.com`、
+  `jwks_uri=https://www.googleapis.com/oauth2/v3/certs`、`token_endpoint=https://oauth2.googleapis.com/token`；
+  原「逐字同源」判据使 `resolve_jwks_url()` / `resolve_endpoint()` 一律抛错 →
+  **`oidc_ready=false`、`/api/asset-auth/login` 503 `OIDC_NOT_CONFIGURED`；
+  即使显式配置 `GW_OIDC_JWKS_URL` 仍被拒 → 无任何配置可接线。**
+- **修法（opt-in、默认严格）**：新增 `GW_OIDC_ENDPOINT_HOSTS`（逗号/空白分隔，**完整替换**集合）；
+  `DEFAULT_ENDPOINT_HOSTS = frozenset()`（**不预置任何第三方主机**）。
+  `is_trusted_endpoint()` = 「逐字同源 OR 显式白名单」，白名单分支要求
+  **issuer 主机与端点主机同时精确命中**，且拒绝 userinfo / 异 scheme / 异端口 / 未列主机。
+- **全局安全收紧（本轮新增，比原方案更严）**：
+  - `authorization_endpoint` 仍**强制逐字同源**（不受白名单放宽）；
+  - `token_endpoint` 允许白名单，但**令牌交换不再跟随任何 3xx**（`_NO_REDIRECT_OPENER`）；
+  - `_ValidatingRedirectHandler` 保持严格 `is_same_origin_as`，**未被白名单放宽**（R6-8 不回退）。
+- **局限（必须原样读）**：白名单匹配是**幼稚的逐字相等**，**无 PSL、无 eTLD+1 推导**，
+  即 `a.example.co.uk` 与 `b.example.co.uk` 视为不同主机（更严）；填错清单＝自毁信任根。
+  该清单**不是通用安全边界**，必须由部署方按 IdP 官方 discovery 文档逐条照抄。
+- **实测（真实 Google，经代理 `127.0.0.1:7897`）**：设
+  `GW_OIDC_ENDPOINT_HOSTS=accounts.google.com,www.googleapis.com,oauth2.googleapis.com` 后
+  `jwks_url=https://www.googleapis.com/oauth2/v3/certs` 解析成功、`oidc_ready=true`、`login_available=true`、
+  `/api/asset-auth/login` 返回 **200** 且 `authorization_url` 含 `code_challenge_method=S256`。
+  未设白名单时同一配置仍为 503（默认严格，未放松）。
+- 新增守卫：`tests/contracts/test_phase9d_r6_hardening.py` 追加 R6-11 段（默认严格等价性、
+  opt-in 矩阵、空串=严格、完整替换、授权端点不放宽、重定向守卫不回退、令牌不跟随重定向、无 PSL 行为固定）。
+
+### 五、门禁（本轮实测，未提交工作树；以下为**最新**值）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                 -> 208 passed
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 11 passed
+node --check（static/ 下非 vendor 全量，55 个，含未跟踪 degradation.js） -> 55 / 0 failed
+node --check（另 2 个 vendor .js 单独复算）                            -> 2 / 0 failed（跟踪 .js 共 56 个全通过）
+同形字扫描（42 个改动文件，ord() 判定）                                 -> 0 命中
+真实浏览器 E2E（16 页，Playwright/Chrome）                             -> pageerror 0
+二进制白名单越界 / 根级 LICENSE、THIRD_PARTY_NOTICES.md / 嵌套 .git     -> 0 / False / False / 0
+```
+
+> 数字滚动说明：`CLEANROOM-STATUS.md` 「Phase 9D」§四（160 passed / 55 node）与
+> `docs/governance/TASK-NOTES-2026-09-18.md` §21.13.5、`P9-B-INDEPENDENT-REVIEW.md` §13.6、
+> `P9-ACCEPTANCE-AUDIT.md` §10.5 记录的是**各自轮次当时**的真实值，**保留不改写**；最新值为本节。
+
+### 六、待用户裁决（不擅自执行，已双处登记）
+
+- **O4**：`static/css/tailwind-utilities.css` 首行指向 `tools/build_static_tailwind_utilities.py`，
+  而 `git ls-files tools`=0、`Test-Path tools`=False，替代路径**不可复现**。
+- **O5**（本轮第 5 次复验，计数再确认）：死类**至今 0 处置、0 修正**——
+  `py-0.2` **70 处 / 11 个文件**、`h-4.5` + `w-4.5` 各 1（`v2/js/projects-controller.js`）、
+  `backdrop-blur-xs` **2 处**（同文件）。Tailwind v3.4.17 **均不生成这些规则**，属**真实样式缺失**，
+  最小修正为 `py-0.2→py-0.5` / `backdrop-blur-xs→backdrop-blur-sm` / `h-4.5,w-4.5→h-4,w-4`，
+  **修会产生视觉变更**，故仍待裁决。已在 `TASK-NOTES-2026-09-18.md` §21.13.6 与本文件双处登记。
+- **O6**：`P9-B-INDEPENDENT-REVIEW.md` §11.2 / §9.2 写「tracked 269」，实为 **275**（本轮复算仍为 275）。
+- **R6-7**：`core/session.py` 仅有滑动过期，**无绝对过期上限**。
+- **`static/js/canvas/http.js`**（512 B、零调用方、触犯 AGENTS.md §4.2）：建议删除，属破坏性操作。
+
+## Phase 9H 状态更新（2026-09-21 追加，主代理实测 + 真实第三方 OP 互操作，未提交工作树）
+
+> 本节追加在 Phase 9E/9F/9G 之后；上文 208 passed 等数字为**该轮当时**的真实值，保留不改写。
+> 本节数字见 §五。
+
+### 一、R6-13：真实第三方 OP 互操作（高，新增能力证据）
+
+前几轮 IdP 证据全部来自**本仓自写测试桩**（自写 OP + 自写校验），只能证明自洽，
+不能证明能对接「非本仓实现」的 IdP。本轮补充**真实第三方 OP**：
+
+- 对端：npm `oidc-provider@9.12.2`（panva 实现，非本仓代码），真实 discovery /
+  JWKS / 授权 / 交互 / 令牌端点；RSA 密钥由该 OP 运行时生成。
+- 方式一（端到端脚本实测）：完整授权码 + PKCE(S256) 登录 —— `POST /api/asset-auth/login`
+  → 跳转第三方 OP → 完成 OP 交互 → 回调 `GET /api/asset-auth/callback` → 建立会话
+  → `role=editor`（来自 IdP `groups` 声明）→ 带会话写操作 201 → 伪造 `X-User-Role: governor`
+  治理操作 403 → 登出 204 且会话失效。**RESULT: PASS**。
+- 方式二（真实浏览器）：Playwright/Chromium 打开 `/static/v2/index.html`，点击界面真实登录按钮
+  → 落到第三方 OP 页面 → 提交 OP 表单 → 回到应用。**`gw_session` 已建立、`authenticated=true`、
+  `role=editor`、pageerror 0**。
+- 负向路径（同样对真实第三方 OP）：篡改 `code_verifier` → OP 拒绝换码，本仓
+  `auth_error=token_exchange_failed` 且**不建会话**；nonce 不符 → 第三方 OP 签发的**合法**
+  id_token 仍被拒（`auth_error=id_token_rejected`）且不建会话。
+- 已固化为**仓库内 opt-in 用例** `tests/contracts/test_phase9g_real_op_interop.py`（3 例）：
+  未安装第三方 OP 时 **skip**，显式配置 `GW_OIDC_PROVIDER_MODULE_DIR` 时**必须真跑**
+  （启动失败会是 fail 而不是 skip）。
+
+### 二、R6-14：discovery 文档 issuer 未校验（中，本轮新发现并修复）
+
+OIDC Discovery 1.0 §4.3 要求 discovery 文档自述 `issuer` 与检索所用 issuer **完全一致**。
+修复前不校验：文档由 A 主机提供却自述是 B 时，后续端点会按 B 的信任口径比对，
+构成混合攻击（mix-up）路径。
+
+- 新增 `_require_document_issuer_matches()`：两侧去尾部斜杠后**逐字**比较，不一致/缺失
+  一律 `ValueError` 失败关闭；**缓存命中路径同样复核**（避免首次校验后污染缓存绕过）。
+- 新增 4 条守卫：issuer 不一致被拒、issuer 缺失被拒、仅差尾部斜杠被接受、缓存命中同样复核。
+
+### 三、R6-15：伪硬件读数与随机遥测残留清零（中，本轮修复）
+
+独立复核方第 2/3 次复查发现前几轮遗漏项，本轮全部处置：
+
+| 位置 | 改前 | 改后 |
+|---|---|---|
+| `v2/js/projects-controller.js` 资产规模 | `1.4TB` | 「未接入」+ `data-gw-degradation="not_integrated"` |
+| 同文件 算力集群 | `4090×4` | 「未接入」+ 降级标记 |
+| 同文件 回收站节点规模 | `c.nodes_count \|\| 12`（真实 0 → 12） | `Number.isFinite` 口径，缺失「未接入」，真实 0 显示 0 |
+| `v2/index.html` 资产池 | `3.84 TB / 10 TB` | `—` + 降级标记 |
+| `v2/js/home-controller.js` | `${pool_size} / 10 TB`（编造分母） | 只用真实字段，缺失 `—` + 降级标记 |
+| `v2/index.html` 静态推子 | `width: 70%` / `width: 100%` | `0%` + 降级标记 |
+| `v2/agents.html` 静态推子 | `width: 70%` | `0%` + 降级标记 |
+| `v2/settings.html` CPU/RAM | `Math.random()` 每 3 秒伪造读数并驱动指针 | 固定「未接入」，指针归零，降级标记 |
+| `js/hardware-telemetry.js` 团队/席位徽标 | 无条件 `ACTIVE` / `ONLINE` | 由真实 `status` / `online` 字段驱动；缺失显示「未接入」 |
+
+**刻意保留**：`v2/production.html` 的 LoRA 0.85 / Roughness 0.18 / CFG 6.5 是**真实用户交互参数初值**
+（不是遥测读数），已显式加 `data-gw-control="user-input"` 标记，使守卫能区分两者。
+
+### 四、新增守卫（`tests/contracts/test_phase9_frontend_degradation.py`，追加式）
+
+新增 6 条（`Phase 9F-3` 一节）：伪硬件读数、`Math.random` 驱动遥测、
+静态推子非零写死宽度、资产池降级标记、`nodes_count` 保 0、在线徽标须由真实字段驱动。
+
+另做**变异测试**（负向对照）：把 5 处修复逐一回退成原缺陷写法，5/5 守卫均**失败**，
+证明守卫非恒真；探针结束后文件逐字还原。
+
+### 五、门禁（本节为**最新**真实值，未提交工作树）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                 -> 218 passed, 3 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 11 passed
+设 GW_OIDC_PROVIDER_MODULE_DIR 后全量                                      -> 221 passed
+第三方 OP 互操作用例（显式配置时）                                          -> 3 passed
+第三方 OP 互操作用例（指向空目录）                                          -> 3 skipped（证明真 opt-in）
+node --check（static/ 下非 vendor 全量，55 个）                            -> 55 / 0 failed
+同形字扫描（44 个改动文件，ord() 判定）                                     -> 0 命中
+真实浏览器 E2E（Playwright/Chrome，16 页）                                 -> pageerror 0
+真实浏览器 IdP 登录（Chromium，点界面按钮走第三方 OP）                       -> 会话建立 / role=editor / pageerror 0
+```
+
+> `CLEANROOM-STATUS.md` 「Phase 9D」§四（160 passed）与「Phase 9E/9F/9G」§五（208 passed）
+> 是**各自轮次当时**的真实值，**保留不改写**；最新值为本节数字。
+
+### 六、边界（不得外推）
+
+- 第三方 OP 是**开源 OP 软件**（panva `oidc-provider`）的**本地实例**，**不等于**接入任何
+  真实生产 IdP：无真实 `client_id`、无真实用户目录、无 TLS 终止、无密钥轮换、无撤销策略。
+- 本轮全部为**本地实测**，**不等于**远端 CI，更**不等于**生产验收；同框架内复核
+  **≠** 外部第三方独立审计。
+- `_SESSIONS` / `_FLOW_STATES` 仍为**单进程内存存储**，多实例 / 多 worker 前必须换外部共享存储。
+- **180 条未实现端点**保持**未实现原状**；三块大功能面（`asset-manager` / `api-settings` /
+  `task-center`）标注「未纳入当前切片」**不代表已实现或已验收**。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，发布授权**待第三方独立审计完成**。
+
+- 本轮仍为**本地实测**，**不等于**远端 CI，更**不等于**生产验收；
+  同框架内复核 **≠** 外部第三方独立审计。
+- **未接入生产 IdP**；**未做**令牌撤销与密钥轮换并发压测；
+  Google 联调只验证**元数据 / JWKS / 授权 URL 构造**，**不等于**完成真实授权码交换（无真实 `client_id`）。
+- `_SESSIONS` / `_FLOW_STATES` 为**单进程内存存储**，多实例 / 多 worker 部署前必须换外部共享存储。
+- **180 条未实现端点**保持**未实现原状**；三块大功能面（`asset-manager` / `api-settings` / `task-center`）
+  标注「未纳入当前切片」**不代表已实现或已验收**。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，发布授权**待第三方独立审计完成**。
+
+
+## Phase 9H-2 状态更新（2026-09-21 追加，本轮新发现的两个真实缺陷，未提交工作树）
+
+> 本节追加在 Phase 9H 之后；上文 218 passed / 221 passed 等数字为**该轮当时**的真实值，保留不改写。
+
+### 一、R6-16：签名篡改用例本身不可靠（低危但真实，导致**伪失败**）
+
+独立复算发现 `tests/contracts/test_oidc_verifier.py::test_tampered_signature_rejected`
+的篡改方式不稳定：原写法把签名 Base64URL 的**末尾两字符**替换成固定字面量 `xx`，
+而 Base64URL **末位存在同值别名** —— 当签名最后一个 Base64URL 字符落在只需 2 bit
+的填充位上时，替换后**解码出的字节串完全相同**（实测 `urlsafe_b64decode("xw==")` 与
+`urlsafe_b64decode("xx==")` 同为 `b"\xc7"`）。
+
+- **命中条件（确定性证明）**：固定 256 字节签名体、尾字节取遍 0..255 逐一试验，
+  **仅当末字节 == `0xC7`（末两字符 == `xw`）** 时替换成 `xx` 解码后字节不变。
+  签名末字节在密钥随机时近似均匀，故**失败概率恰为 1/256 = 0.3906%**（等价于该守卫每约 256 次运行就有一次失去意义）。
+- **实测校验**：每次新建 2048-bit RSA 密钥采样 1500 次命中 11 次；采样 6000 次命中 15 次（均在 1/256 的统计波动区间内，不作为概率估计）。
+  旧写法在命中时篡改无效 → 本应拒绝却**不产生拒绝**，用例伪失败。
+- **修复**：改为**确定性**翻转签名原始字节的首字节 1 个 bit，再重新 Base64URL 编码；
+  并加 `assert tampered_signature != signature` 自检。
+- **对照实测**：同一脚本 1500 次，新写法无效篡改 **0 次**。
+- **变异验证**：把 `_verify_signature` 改为直接 `return`（不校验签名）后，
+  该用例**确实失败**（`1 failed`），证明修复后的守卫**非恒真**；探针结束后文件逐字还原。
+
+### 二、R6-17：第三方 OP 版本无断言，文档结论可被静默漂移
+
+文档（本节 / `TASK-NOTES` / `TASKS` / `P9-ACCEPTANCE-AUDIT`）声明互操作对端为
+npm `oidc-provider@9.12.2`。复核时实测本机 `%TEMP%\gw-idp-node` 的
+`node_modules/oidc-provider/package.json` 为 **8.8.1**，`package.json` 亦为 `^8.8.1`。
+
+- **成因**（有证据、非推测）：npm 缓存索引显示 **21:43** 曾抓取 `9.12.2`（即原轮次真实使用，
+  文档当时准确）；**22:09:33** 该目录被重装为 `8.8.1`。故属**事后环境漂移**，
+  不是文档造假，但**原用例不会因此失败**，存在「文档结论失去事实基础却无人报警」的风险。
+- **修复**：`tests/contracts/test_phase9g_real_op_interop.py` 新增版本断言
+  `EXPECTED_OIDC_PROVIDER_VERSION = "9.12.2"`，fixture 读取真实 `package.json` 的
+  `version` 并与此声明比对，不一致即 `pytest.fail`；实际版本作为
+  `real_op["provider_version"]` 暴露。
+- **负向实测**：显式设 `GW_OIDC_PROVIDER_VERSION=8.8.1` 时 **3 errors**（版本漂移被拦下）；
+  不设该变量且实际为 9.12.2 时 **3 passed**。
+
+### 三、环境处置（对齐文档声明）
+
+已把 `%TEMP%\gw-idp-node` 重装为 `oidc-provider@9.12.2`（npm 注册表确认该版本存在，
+`dist-tags.latest` 亦为 9.12.2），使本机对端与文档声明**逐字一致**后再复跑。
+
+### 四、门禁（本节为**最新**真实值，未提交工作树）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                 -> 218 passed, 3 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 11 passed
+设 GW_OIDC_PROVIDER_MODULE_DIR=%TEMP%\gw-idp-node 后全量                        -> 221 passed
+第三方 OP 互操作用例（9.12.2，显式配置）                                    -> 3 passed
+第三方 OP 互操作用例（版本声明不符 8.8.1）                                  -> 3 errors（版本守卫生效）
+第三方 OP 互操作用例（指向空目录）                                          -> 3 skipped（真 opt-in）
+node --check（static/ 下非 vendor 全量）                                   -> 55 / 0 failed
+tracked 文件数                                                            -> 275
+```
+
+### 五、边界（不得外推）
+
+- 上述均为**本地实测**；**不等于**远端 CI，更**不等于**生产验收；
+  **同框架内复核 ≠ 外部第三方独立审计**。
+- 两个缺陷均为**测试/证据可靠性**缺陷，**不是**运行时安全缺陷：
+  R6-16 影响的是守卫可信度，R6-17 影响的是证据可追溯性。
+- 第三方 OP 仍是**开源 OP 软件的本地实例**，**不等于**接入任何真实生产 IdP。
+- **O4 / O5 / O6 / R6-7 / `static/js/canvas/http.js`** 仍未处置，不得写 PASS。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，发布授权**待第三方独立审计完成**。
+
+## Phase 9I 状态更新（2026-09-22 追加：裁决 3 legacy 页收口 + 真实外部 IdP 接线核验）
+
+本节为**追加**，不改动上方任何历史行；上方 218 passed / 221 passed 等数字为**各轮当时**的真实值。
+
+### 一、裁决 3「前端统一显式降级」legacy 页收口（本轮新增）
+
+用户裁决第 3 项此前只覆盖 V2 页与共享 transport；本轮把 5 个 legacy/v2 页全部接入
+`static/js/degradation.js`（`window.GWDegradation`），做到「未接入就说未接入」，不静默坏掉：
+
+| 文件 | 改动 |
+|---|---|
+| `static/js/degradation.js` | 新增共享语义模块（`statusKind` / `isNotIntegrated` / `isServiceUnavailable` / 文案常量） |
+| `static/js/api-settings.js` | `requestJson` 内联 `degradationKind`/`degradationMessage`；新增 `degradationLabel(error, fallback)`；9 处 catch 改为显式降级文案；优先委派 `window.GWDegradation.statusKind` |
+| `static/js/settings.js` | 新增 `degradationText(error, fallback)`；团队偏好 `.catch(() => {})` → 显式标注按钮 + `data-gw-degradation`；`Promise.all` 双静默 catch → 逐项 `{value, error}`，`#systemInfo` 写 `data-gw-degradation` |
+| `static/js/governance.js` | 新增 `governanceDegradationMessage(err)` 并用于 `loadOverview` catch |
+| `static/js/task-center.js` | 新增 `taskCenterDegradationNotice(error)` + `state.loadErrorKind`；提示条带 `data-gw-degradation` |
+| `static/js/canvas-list.js` | 新增 `canvasListDegradationLabel(error, fallback)`；两处 `catch(e){}` 静默 → 徽标显「未接入」+ `data-gw-degradation` |
+| `static/api-settings.html` / `governance.html` / `canvas-list.html` / `task-center.html` | 在页面自身脚本**之前**引入 `degradation.js` |
+| `static/v2/settings.html` | 调整顺序：`degradation.js` 提到 `settings.js` **之前**（原在其后，`window.GWDegradation` 未就绪） |
+
+守卫：`tests/contracts/test_phase9_frontend_degradation.py` 追加 7 条静态守卫
+（单源共享、委派关系、无静默 catch、`loadErrorKind`、徽标标记、5 页接线顺序）。
+
+### 二、Phase 9I：真实外部 IdP（生产端点）接线核验（本轮新增）
+
+新增 `tests/contracts/test_phase9i_real_idp_wiring.py`（5 用例，**opt-in**）：
+
+- 默认未设 `GW_REAL_IDP_ISSUER` / `GW_REAL_IDP_ENDPOINT_HOSTS` 时 **5 skipped**，不污染离线门禁；
+- 显式配置后**必须真跑**，覆盖：discovery 自述 issuer 一致 + JWKS 仅公钥、端点可信且 HTTPS、
+  授权 URL 含 PKCE S256 且不含任何密钥、运行期 `oidc_ready=true` 且缺失/伪造凭据与提权头一律 401、
+  未显式配置时保持 `local` 默认（显式 opt-in）。
+
+真实上游只读实测（2026-09-22，**未使用任何用户令牌**，证据写入 `%TEMP%\gw-real-idp-evidence\`）：
+
+| 目标 | discovery issuer 一致 | jwks_uri | 端点可信 | 运行期 ready | 结果 |
+|---|---|---|---|---|---|
+| Google `https://accounts.google.com` | 是（逐字一致） | `www.googleapis.com/oauth2/v3/certs` | 是 | true / login_ready=true | 5 passed |
+| Microsoft 单租户 `<租户ID>/v2.0` | 是 | 同主机 | 是 | true | 5 passed |
+| Microsoft 多租户 `common` / `organizations` | **否**（自述 issuer 含 `{tenantid}`） | — | — | false | **正确拒绝**（R6-14 mix-up 防护） |
+
+实测要点：`/healthz` → `auth_mode=oidc`、`oidc_ready=true`、`release_authorized=false`；
+`/login` → 200 + PKCE S256 + state/nonce，URL 中**无** client_secret / access_token / id_token；
+写操作（无凭据 / 伪造 Bearer / 仅 `X-User-Role: governor` / 本地 legacy 凭据）→ **均 401**；
+`/api/asset-auth/callback` 缺参 → 302 `auth_error=invalid_callback`，state 失配 → 302 `auth_error=state_mismatch`。
+
+未设 `GW_OIDC_ENDPOINT_HOSTS` 时 Google 跨主机 IdP **不可接线**（`oidc_ready=false`、`/login` 503
+`OIDC_NOT_CONFIGURED`）——证明白名单是**部署方显式 opt-in**，本仓不预置任何第三方主机。
+
+部署方接线手册：`docs/governance/EXTERNAL-IDP-WIRING-RUNBOOK-2026-09-22.md`。
+
+### 三、门禁（本节为**最新**真实值，未提交工作树）
+> 说明：本小节数字为 Phase 9J 之前的历史值，历史行保留不改写；最新门禁以本文档后面的「Phase 9J 状态更新」一节为准。
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                 -> 226 passed, 7 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 11 passed
+设 GW_OIDC_PROVIDER_MODULE_DIR=%TEMP%\gw-idp-node 后全量                        -> 229 passed, 4 skipped
+设 GW_REAL_IDP_ISSUER / GW_REAL_IDP_ENDPOINT_HOSTS（Google）后全量              -> 230 passed, 3 skipped
+node --check（static/ 下非 vendor 全量）                                   -> 55 / 0 failed
+前端 /api 引用 / 已实现 / 未实现                                              -> 189 / 12 / 177
+```
+
+### 四、边界（不得外推）
+
+- 上述均为**本地实测**；**不等于**远端 CI，更**不等于**生产验收；**同框架内复核 ≠ 外部第三方独立审计**。
+- 真实外部 IdP 接线只到**公开元数据 / JWKS / 授权 URL 构造 / 运行期失败关闭**；
+  **未执行真实用户登录**（无真实 `client_id`、无用户目录授权、无授权码换 id_token），
+  **不能**证明生产登录可用。
+- `_SESSIONS` / `_FLOW_STATES` 仍为**单进程内存存储**；多实例 / 多 worker 前必须换共享存储。
+- **180 条未实现端点口径已更正为 177 条**（实测 189 引用 / 12 已实现 / 177 未实现）；
+  三块大功能面（`asset-manager` / `api-settings` / `task-center`）标「未纳入当前切片」
+  **不代表已实现或已验收**。
+- `GW_OIDC_ENDPOINT_HOSTS` 匹配为**逐字相等**（无 PSL / 无 eTLD+1），**不是通用安全边界**。
+- **O4 / O5 / O6 / R6-7 / `static/js/canvas/http.js`** 仍未处置，不得写 PASS。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，发布授权**待第三方独立审计完成**。
+
+---
+
+## Phase 9J 状态更新：R6-7 会话绝对过期上限闭环（2026-09-22，追加）
+
+本节仅追加，不改写上方任何历史行。
+
+### 一、缺陷与修复
+
+- **R6-7（中）**：`src/gods_workbench/core/session.py` 原先**只有滑动过期**——
+  `get_session()` 每次命中都把 `expires_at` 推到 `now + 8h`，因此**活跃会话永不过期**；
+  对已泄露的不透明会话标识缺少最终失效边界。
+- 修复（最小改动，失败关闭口径不变）：
+  - 新增 `SESSION_ABSOLUTE_MAX_SECONDS = 24 * 60 * 60`（自登录时刻起算的硬上限）；
+  - `_Session` 新增 `absolute_expires_at` 字段；
+  - `get_session()` **先**判绝对上限（越过即删除并拒绝），滑动续期改为
+    `min(now + SESSION_TTL_SECONDS, absolute_expires_at)` **封顶**；
+  - `_prune()` 同时按滑动窗口与绝对上限清理。
+
+### 二、新增守卫与变异测试
+
+- 新增 `tests/contracts/test_phase9i_session_absolute_expiry.py`（6 用例，行为级 + 可控假时钟）：
+  持续活跃仍须在上限后失效；续期不得越过上限；正常会话不受误伤；
+  `_prune` 清理越限会话；记录必须携带绝对到期字段；上限必须有限且不小于单次窗口。
+- **变异测试**（在临时副本上执行，本仓零改动）：把绝对上限改回「永不生效」+
+  移除 `get_session` 上限判定 + 取消续期封顶后，
+  `test_absolute_cap_terminates_actively_renewed_session`、
+  `test_sliding_renewal_never_exceeds_absolute_cap` **2 failed / 4 passed**，
+  证明守卫非恒真；还原后 6 passed。
+
+### 三、门禁（本节为**最新**真实值，未提交工作树）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                 -> 232 passed, 7 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 11 passed
+设 GW_OIDC_PROVIDER_MODULE_DIR=%TEMP%\gw-idp-node 后全量                       -> 235 passed, 4 skipped
+设 GW_REAL_IDP_ISSUER / GW_REAL_IDP_ENDPOINT_HOSTS（Google）后真实 IdP 用例      -> 5 passed
+node --check（git ls-files "*.js" 全量）                                  -> 56 / 0 failed
+同形字扫描（改动文件，ord() 判定）                                        -> 0 命中
+```
+
+### 四、边界（不得外推）
+
+- **本地通过 ≠ 远端 CI ≠ 生产验收**；**同框架内复核 ≠ 外部第三方独立审计**。
+- 真实外部 IdP 只验证到公开元数据 / JWKS / 授权 URL 构造与运行期失败关闭，
+  **未执行真实用户登录**（无真实 `client_id`、用户目录、授权码换 id_token）。
+- 会话 Cookie 的 `Max-Age`（`api/routes_auth.py::_SESSION_COOKIE_MAX_AGE` = 8h）**只在登录回调写入一次**，
+  不随请求刷新；因此浏览器可见的实际可用期受该 8h 约束，而服务端会话记录另受 24h 绝对上限约束（两者均在服务端生效，非同一时钟）。
+- `_SESSIONS` / `_FLOW_STATES` 仍为**单进程内存存储**；多实例 / 多 worker 前必须换共享存储。
+- **R6-7 已在本地闭环，但 O4 / O5 / O6 与 `static/js/canvas/http.js` 仍未处置，不得写 PASS。**
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，发布授权**待第三方独立审计完成**。
+
+---
+
+## Phase 9K 追加：文档同形字污染修正 + 自动化防污染守卫（2026-09-22，追加）
+
+> 本节仅追加，不改写上方任何历史行。基线：`HEAD == origin/master == 6c8ca98`，未提交工作树。
+
+### 一、新发现的真实缺陷（前序审核未捕获）
+
+- **P8-A2 报告 L355 存在同形字污染**（`docs/governance/agent-reports-2026-09-21/P8-A2-FRONTEND-DEEP-E2E.md`）。
+- 该行是**文档内引用的代码片段**，其中 `credential` 被写成「西里尔字母 U+0441 / U+0435 + 零宽空格 U+200B ×4」的形近串。
+- 归属：**既有缺陷**，随提交 `da80cb4`（Phase 8 第三轮）进入仓库，**非本轮引入**。
+- 影响面（实测）：
+  - **真实源码零污染** —— `src/gods_workbench/core/errors.py:49`、`static/js/asset-manager/api.js:677`、
+    `core/config.py`、`api/app.py`、`core/auth.py` 等逐字节校验均为**纯 ASCII**；上述文件**全部历史版本**同样零污染。
+  - 因此该缺陷属**文档层污染**，不是运行时安全缺陷，不会改变任何代码行为。
+- 处置：**已就地更正**为纯 ASCII `credential`（唯一正确值，不改变任何结论、不删除任何内容）；
+  `git diff --numstat` = **1 加 / 1 删**，行尾 CRLF 保持不变，全文同形字计数 **0**。
+
+### 二、把人工门禁升级为自动化守卫（本轮新增）
+
+- 新增 `tests/hygiene/test_cleanroom_hygiene.py::test_no_homoglyph_confusables`：
+  扫描仓库自有文本（`.py/.js/.html/.css/.json/.yml/.md/.txt/.toml/.cfg/.ini/.sh/.ps1` 及 `.gitattributes/.gitignore`），
+  检出「ASCII 标识符内混入可疑码点」的 token。可疑区间：
+  西里尔 `U+0400–U+04FF`、零宽与双向控制 `U+200B–U+200F`、不可见分隔符 `U+2060–U+2064`、
+  变体选择符 `U+FE00–U+FE0F`、软连字符 `U+00AD`。
+- **刻意排除**：
+  - `src/gods_workbench/static/vendor/`（上游不可变制品）；
+  - `src/gods_workbench/static/prompt-registry/sources/`（第三方内容数据，含合法双向标记——
+    实测 `youmind-gpt-image-2.json` 作者名 `Laraib Fatima` 后带 `U+200E`，属上游合法数据，不是污染）。
+  - 说明：中文**全角标点**（`U+FF00` 段）属正常书写，**不在**本守卫范围；实测全仓全角标点均为正常中文标点。
+- 新增 `test_homoglyph_guard_detects_injected_pollution`：反向自检，用 `chr()` 运行时构造污染串，
+  证明守卫**非恒真**，且纯 ASCII / 正常中文**不会误报**。
+
+### 三、变异测试（证明守卫真实生效）
+
+```text
+在 %TEMP% 副本注入真实字节的同形字 token（西里尔 с + 零宽空格）
+  -> test_no_homoglyph_confusables  1 failed（命中 U+0441）
+删除注入文件后重跑
+  -> test_no_homoglyph_confusables  1 passed
+```
+
+### 四、门禁（本轮实测，未提交工作树）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene    -> 13 passed（新增 2 例）
+python -m pytest -q --no-header -p no:cacheprovider                 -> 234 passed, 7 skipped
+node --check（git ls-files "*.js" 全量）                              -> 56 / 0 failed
+全仓同形字扫描（tracked 自有文本，排除 vendor 与第三方数据源）              -> 0 命中
+```
+
+### 五、边界（不得外推）
+
+- 上述均为**本地实测**；**不等于**远端 CI，更**不等于**生产验收；**同框架内复核 ≠ 外部第三方独立审计**。
+- 该修正属**文档口径与内容卫生**范畴，**不是**运行时安全缺陷修复。
+- **O4 / O5 / O6 与 `static/js/canvas/http.js` 仍未处置，不得写 PASS**。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+---
+
+## Phase 9L（2026-09-22）：禁用扩展名清单补齐 + 行尾归一
+
+### 一、缺陷
+
+AGENTS.md 1.2 条禁提交「图片 / 字体 / 音视频 / 压缩包 / 可执行文件」等六类，白名单仅 3 个思源黑体。
+但守卫与 CI **同一份清单都只覆盖图片 / 字体 / 音视频**，漏掉压缩包（`.zip` 等 8 种）与
+可执行文件 / 动态库 / 安装包（`.exe` 等 11 种）以及 `.svg .avi .mkv`。
+
+```text
+修复前变异测试：注入 payload.zip / tool.exe / bundle.7z
+  -> test_no_banned_binary_assets  1 passed（exit 0，静默放行）
+```
+
+属**预防性缺口**：仓库真实不存在这些文件，但「声明口径 ≠ 守卫口径」。
+
+### 二、处置
+
+1. `tests/hygiene/test_cleanroom_hygiene.py::BANNED_EXTENSIONS` 补齐至与 AGENTS.md 1.2 条同口径；
+   新增 `REQUIRED_BANNED_EXTENSIONS` + `test_banned_extensions_cover_required_categories` 回归护栏。
+2. `.github/workflows/ci.yml` 的 `banned_extensions` 同步补齐（本地 / CI 清单必须同口径）。
+3. 行尾归一：本轮改动文件中此前为整文件 CRLF 的 29 个统一归一为 LF，
+   与 `.gitattributes` 的 `* text=auto eol=lf` 及 HEAD 保持一致；归一前后 `git diff --numstat` 逐文件一致。
+
+### 三、变异测试与门禁（本地实测，未提交、未推送）
+
+```text
+注入 .zip/.exe/.7z                                   -> test_no_banned_binary_assets  1 failed（命中 3 项）
+删除清单中的压缩包 / 可执行段                          -> test_banned_extensions_cover_required_categories  1 failed（列出 19 项缺失）
+CI heredoc 抽出独立执行：干净仓库 exit 0 / 注入 .zip 副本 exit 1
+tests/hygiene                                        -> 14 passed（+1 新护栏）
+python -m pytest -q --no-header -p no:cacheprovider  -> 235 passed, 7 skipped
+git ls-files --eol（本轮 60 个改动路径）               -> w/crlf = 0, w/mixed = 0
+```
+
+### 四、边界（不得外推）
+
+- 全部为**本地实测**；**不等于**远端 CI，更**不等于**生产验收；**同框架内复核 ≠ 外部第三方独立审计**。
+- `.github/workflows/ci.yml` 的补齐**尚未在远端执行**，推送读回 `headSha` 前不得称 CI 通过。
+- 本项属**文档口径 + 卫生守卫 + CI 清单**范围，**不是**运行时安全缺陷修复。
+- **O4 / O5 / O6 与 `static/js/canvas/http.js` 仍未处置，不得写 PASS**。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+---
+
+## Phase 9L 补遗（2026-09-22）：未跟踪新文件行尾归一 + E 第五轮复核
+
+### 一、E 第五轮复核结论（独立审核代理，只读）
+
+| 项 | 判定 | 依据 |
+|---|---|---|
+| 禁用扩展名清单同口径 | **PASS** | 三处清单均 39 项，两两差集全空（E 独立解析） |
+| 清单回归护栏非恒真 | **PASS** | 变异：删清单段 -> EXPECTED_FAIL（列 19 项缺失） |
+| 二进制守卫有效 | **PASS** | 变异：注入 zip/exe/7z -> EXPECTED_FAIL（命中 3 项） |
+| CI heredoc 抽取执行 | **PASS** | 干净仓库 exit 0；注入 `.zip` exit 1 |
+| 三份台账纯追加 | **PASS** | HEAD 内容为当前内容完整前缀；575/0、171/0、653/0 |
+| 全量门禁 | **PASS** | 235 passed / 7 skipped；hygiene 14 passed |
+| §7 第 1/2/3/4/5/7 项 | **PASS** | E 复查 |
+| §7 第 6 项（绑定确切提交） | **NEEDS WORK** | 60 条未提交变更，测试未绑定提交 SHA |
+| 本轮行尾归一覆盖面 | **NEEDS WORK** | 见下节（3 个 untracked 文件仍 CRLF） |
+
+### 二、E 发现的真实盲区（已修复）
+
+`git ls-files --eol` **只报告 tracked 文件**，因此原先「所有已改动文件均已 LF」的说法**不成立**：
+
+```text
+src/gods_workbench/api/routes_auth.py               CRLF=274   11633 B -> 11359 B
+src/gods_workbench/core/session.py                  CRLF=205    8263 B ->  8058 B
+tests/contracts/test_phase9d_oidc_login_flow.py     CRLF=472   20324 B -> 19852 B
+```
+
+字节差恰等于行数 -> **仅行尾表示变化，无内容改动**。已逐个归一，复算结果：
+
+```text
+git status --porcelain -uall                                   -> 60 条目
+其中文件内容含 \r 的条目数                                      -> 0   （tracked + untracked 全口径）
+python -m pytest -q --no-header -p no:cacheprovider            -> 235 passed, 7 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene -> 14 passed
+```
+
+**教训**：行尾 / 编码 / 卫生类检查若只用 `git ls-files` 取样，会**系统性漏掉尚未 `git add` 的新文件**。
+本轮真实发生过一次，故在此显式登记。
+
+### 三、日期口径（时区，不是未来日期）
+
+本机时区 **Asia/Shanghai（UTC+8）**：`git log` 最新提交 `2026-09-21 16:01:51 +0800`；
+当前本地时间 `2026-09-22 03:21 +0800`（等值 UTC `2026-09-21T19:21Z`）。
+E 以 UTC 参照判「未来日期」，两种口径并存；**日期自身不是证据**，
+远端 CI / 生产结论只能以提交后读回的 `headSha` 为准。
+
+### 四、仍未闭环（不得写 PASS）
+
+- **§7 第 6 项**：工作树 + 测试输出绑定确切提交 —— 需用户授权提交与推送。
+- **本轮 `.github/workflows/ci.yml` 变更**：尚无远端 CI 读回证据。
+- **O4 / O5 / O6** 与 `static/js/canvas/http.js` 删除（破坏性）—— 待用户裁决。
+- **第三方独立审计（T36/T40）** —— 用户已裁决「另行安排」，未执行。
+
+### 五、边界
+
+全部为**本地实测**；**不等于**远端 CI，更**不等于**生产验收；
+**同框架内复核 ≠ 外部第三方独立审计**。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+---
+
+## Phase 9L 复核闭环（2026-09-22）：E 第六轮增量复核 PASS
+
+独立审核代理 E 第六轮（`%TEMP%\gw-team-e\E-ROUND6-DELTA-VERIFY.md`，只读、未改仓库、未 commit）
+对本轮两条 NEEDS WORK 做增量复核：
+
+| 上轮 NEEDS WORK | 本轮判定 | E 的独立依据 |
+|---|---|---|
+| 3 个 untracked 新文件仍 CRLF | **PASS，已闭环** | 用其**归一前副本**比对：`SHA(normalize(old)) == SHA(current)`，字节差 = 原 CRLF 行数（274 / 205 / 472）；全工作树 `status_entries=60 / cr_entries=0` |
+| 「2026-09-22 属未来日期」 | **PASS，已澄清** | E 现场读 `Get-Date -> 2026-09-22 03:25 +08:00`、`git log -1 -> 2026-09-21 16:01:51 +0800`、UTC `2026-09-21 19:25Z`；本地时区 Asia/Shanghai 下该日期**不是未来**，E 明确收回上轮判定 |
+| 新增台账是否纯追加 | PASS | `STATUS 635/0`、`TASKS 220/0`、`NOTES 713/0`，HEAD 内容均为完整前缀 |
+| delta 是否引入新缺陷 | PASS | 未发现新的恒真断言、自指污染、台账改写或行尾不一致 |
+
+E 现场复跑门禁：`tests/hygiene` **14 passed**；全量 **235 passed, 7 skipped**；
+`node --check` tracked **56/0 failed**、static 非 vendor **55/0 failed**。
+
+`static/js/canvas/http.js` 增量核验（E）：**仍 tracked**、**非文档代码引用 = 无命中**、
+`AGENTS.md` 第 4 节冲突**仍在**；删除属破坏性操作 -> **继续待用户裁决**。
+
+### §7 验收清单现状（E 判定 + 本轮自查一致）
+
+| # | 项 | 状态 |
+|---|---|---|
+| 1 | 接受迁移文件有来源/哈希/依赖/授权 | **PASS** |
+| 2 | 项目中心与 `god-canvas` 不依赖旧画布代码 | **PASS** |
+| 3 | 未引入旧仓 `.git` / 历史 / 资源 / 用户数据 | **PASS** |
+| 4 | 错误语义覆盖 `401/403/409/202` | **PASS** |
+| 5 | `PLUGIN-PROTOCOL-SPEC` 未实现 | **PASS** |
+| 6 | **工作树和测试输出已绑定确切提交** | **NEEDS WORK**（需用户授权提交/推送） |
+| 7 | 仓库仍为 NOT AUTHORIZED FOR PUBLIC DISTRIBUTION | **PASS** |
+
+### 待用户裁决项（未处置，不得写 PASS）
+
+1. **O4** Tailwind 预构建路径不可复现（生成器不存在）。
+2. **O5** `py-0.2` / `backdrop-blur-xs` / `h-4.5` / `w-4.5` 死类是否修正（有可见视觉变化）。
+3. **O6** `P9-B-INDEPENDENT-REVIEW.md` 两处「tracked 269」（实为 275）历史行是否更正。
+4. **`static/js/canvas/http.js` 删除**（破坏性，与 `AGENTS.md` §4.2 冲突）。
+5. **第三方独立审计（T36/T40）** —— 用户已裁决「另行安排」。
+6. **提交与推送授权** —— §7 第 6 项闭环的前提。
+
+### 边界
+
+本轮全部为**本地实测**（Windows / Asia-Shanghai）；**不等于**远端 CI，更**不等于**生产验收；
+**同框架内复核 ≠ 外部第三方独立审计**。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+---
+
+## Phase 9M（2026-09-22）：禁用扩展名清单三处漂移修复 + 单一来源收口
+
+### 一、缺陷（T49 之后的第二次同类发现）
+
+T49 已发现并修复 2 处清单（卫生用例、CI 工作流）。本轮继续深挖，发现**第 3 处**独立清单：
+
+| 位置 | 修复前项数 | 状态 |
+|---|---|---|
+| `.github/workflows/ci.yml` | 39 | T49 已修 |
+| `tests/hygiene/test_cleanroom_hygiene.py` | 39 | T49 已修 |
+| **`tests/hygiene/test_phase6_deep_hygiene.py`** | **27** | **本轮新发现，与另两处不一致** |
+
+差异（集合运算实测）：
+
+```text
+phase6 缺失 13 项：.app .bat .bz2 .cmd .com .mkv .mov .msi .ogg .scr .svg .tgz .xz
+phase6 多出：      .pdf
+```
+
+即 Phase 6「全仓零二进制深度审计」对上述 13 类**完全无覆盖**，提交这些文件会被静默放行。
+
+### 二、处置：单一事实来源 + 两道跨文件护栏
+
+- 新增 `tests/hygiene/cleanroom_extensions.py` 作为**唯一事实来源**：
+  `BANNED_EXTENSIONS`（40 项 = 三份历史清单的并集，含 `.pdf`）、`REQUIRED_BANNED_EXTENSIONS`、
+  `ALLOWED_BINARY_ALLOWLIST`（3 条思源黑体）；**并集严格强于任一历史清单，不含任何放宽**。
+  模块导入期自检 `REQUIRED ⊆ BANNED`，来源文件被削时**收集期即红**。
+- 两个 Python 套件改为 `from cleanroom_extensions import ...`，删除各自字面量。
+- CI heredoc 补齐 `.pdf`，与唯一来源逐项一致。
+- 新增护栏：`test_ci_workflow_banned_extensions_match_single_source`（双向差集必须为空）、
+  `test_phase6_deep_hygiene_uses_single_source`（禁止 Phase 6 再带字面量清单）。
+
+### 三、变异测试（三处均按预期变红，非恒真）
+
+```text
+M1 CI 清单删 ".pdf"                    -> 1 failed，精确指出 "Extra items in the right set: '.pdf'"
+M2 Phase 6 重新写入字面量清单           -> 1 failed
+M3 削掉唯一来源中的可执行文件段          -> 收集期 error（导入期自检失败，不会被静默跳过）
+```
+
+### 四、门禁（本地实测，未提交、未推送）
+
+```text
+tests/hygiene                                        -> 16 passed（由 14 增至 16）
+python -m pytest -q --no-header -p no:cacheprovider  -> 237 passed, 7 skipped（由 235 增至 237）
+git status --porcelain -uall                         -> 62 条目，其中含 CR 的条目数 = 0
+独立同形字扫描 in-scope                               -> 0
+node --check tracked / static 非 vendor              -> 56 / 0 failed、55 / 0 failed
+并集清单在两种扫描口径下的 repo-wide 命中数             -> 0 / 0
+```
+
+### 五、边界（不得外推）
+
+- 全部为**本地实测**；**不等于**远端 CI，更**不等于**生产验收；**同框架内复核 ≠ 外部第三方独立审计**。
+- `.github/workflows/ci.yml` 尚未在远端执行，推送读回 `headSha` 前不得称 CI 通过。
+- 本项属**卫生守卫 + CI 清单 + 文档口径**范围，**不是**运行时安全缺陷修复。
+- **O4 / O5 / O6 与 `static/js/canvas/http.js` 仍未处置，不得写 PASS**。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

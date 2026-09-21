@@ -12,8 +12,8 @@ window.V2Collab = (() => {
     const date = Number.isFinite(n) ? new Date(n < 100000000000 ? n * 1000 : n) : new Date(value);
     return Number.isNaN(date.getTime()) ? '时间未知' : date.toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
   };
-  const statusText = status => ({loading:'读取中', ready:'已读取', unauthorized:'请先登录', forbidden:'无读取权限', error:'读取失败，请刷新重试', degraded:'数据源降级，结果可能不完整'}[status] || status);
-  const empty = (page, message) => '<div class="collab-empty">' + esc(page.status === 'ready' ? message : statusText(page.status)) + '</div>';
+  const statusText = status => ({loading:'读取中', ready:'已读取', unauthorized:'请先登录', forbidden:'无读取权限', error:'读取失败，请刷新重试', not_integrated:'未接入（未纳入当前切片）', service_unavailable:'后端服务暂时不可用', degraded:'数据源降级，结果可能不完整'}[status] || status);
+  const empty = (page, message) => { const kind = page.status === 'not_integrated' ? 'not_integrated' : (page.status === 'service_unavailable' ? 'service_unavailable' : ''); return '<div class="collab-empty"' + (kind ? ' data-gw-degradation="' + kind + '"' : '') + '>' + esc(page.status === 'ready' ? message : statusText(page.status)) + '</div>'; };
   const roles = {admin:'管理员', editor:'编辑者', reviewer:'审阅者'};
 
   function renderMembers() {
@@ -94,8 +94,16 @@ window.V2Collab = (() => {
     try {
       const response = await fetch(requestUrl(key, page), {credentials:'same-origin', cache:'no-store', signal:AbortSignal.timeout(15000)});
       if (!response.ok) {
-        page.status = response.status === 401 ? 'unauthorized' : response.status === 403 ? 'forbidden' : 'error';
+        // 统一判定：路由不存在（404/501，且不含标准错误包）→ 未接入；503 → 暂不可用；其余才是一般错误。
+        const gwd = window.GWDegradation;
+        const body = await response.json().catch(() => ({}));
+        const kind = gwd ? gwd.statusKind(response.status, body && body.detail)
+          : (response.status === 503 ? 'service_unavailable' : 'error');
+        page.status = response.status === 401 ? 'unauthorized'
+          : response.status === 403 ? 'forbidden'
+          : (kind === 'not_integrated' ? 'not_integrated' : (kind === 'service_unavailable' ? 'service_unavailable' : 'error'));
         if (response.status === 401 || response.status === 403) { page.items = []; page.cursor = ''; }
+        render(key);
         return;
       }
       const data = await response.json();

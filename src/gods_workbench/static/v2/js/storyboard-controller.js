@@ -15,7 +15,7 @@ window.V2Storyboard = (function () {
         dialogue: '【艾伦 独白】我们用了三百年才找到这里，而它已经在黑暗中沉睡了数个纪元。',
         duration: '4.5s',
         img: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
-        status: 'done'
+        status: 'not_integrated'
       },
       {
         id: 'sb-02',
@@ -25,7 +25,7 @@ window.V2Storyboard = (function () {
         dialogue: '【系统音】身份识别通过。欢迎归来，席位 #01 工程师。',
         duration: '3.2s',
         img: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=600&auto=format&fit=crop',
-        status: 'done'
+        status: 'not_integrated'
       },
       {
         id: 'sb-03',
@@ -35,7 +35,7 @@ window.V2Storyboard = (function () {
         dialogue: '【艾伦】你早就知道我会来，对吗，AURA？',
         duration: '5.0s',
         img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=600&auto=format&fit=crop',
-        status: 'done'
+        status: 'not_integrated'
       },
       {
         id: 'sb-04',
@@ -45,17 +45,17 @@ window.V2Storyboard = (function () {
         dialogue: '【AURA 语音】我没有预测未来，我只是穷尽了所有因果概率的交点。',
         duration: '6.0s',
         img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=600&auto=format&fit=crop',
-        status: 'done'
+        status: 'not_integrated'
       },
       {
         id: 'sb-05',
         code: 'SC03_SH05',
         title: '动态摇镜 · 环形管道超载冷光脉冲',
         shotType: '运动镜头 · 50mm',
-        dialogue: '【警告音】核心显存过载达 92%，神经流即将反噬外部矩阵！',
+        dialogue: '【警告音】核心显存压力告警，神经流即将反噬外部矩阵！（本切片无真实显存遥测，数值未接入）',
         duration: '3.8s',
         img: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop',
-        status: 'done'
+        status: 'not_integrated'
       },
       {
         id: 'sb-06',
@@ -65,7 +65,7 @@ window.V2Storyboard = (function () {
         dialogue: '【艾伦】那么，让真正的重构法则开始运转。',
         duration: '4.0s',
         img: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=600&auto=format&fit=crop',
-        status: 'generating'
+        status: 'not_integrated'
       }
     ]
   };
@@ -89,8 +89,8 @@ window.V2Storyboard = (function () {
             </div>
             <div class="flex items-center space-x-1.5 text-[8.5px] font-mono">
               <span class="text-slate-400">${sh.duration}</span>
-              <span class="${sh.status === 'generating' ? 'text-amber-300 animate-pulse' : 'text-emerald-400'}">
-                ${sh.status === 'generating' ? '渲染中 68%' : '就绪'}
+              <span class="${sh.status === 'generating' ? 'text-amber-300 animate-pulse' : (sh.status === 'not_integrated' ? 'text-slate-400' : 'text-emerald-400')}"${sh.status === 'not_integrated' ? ' data-gw-degradation="not_integrated"' : ''}>
+                ${sh.status === 'generating' ? '渲染中' : '未接入（无渲染端点）'}
               </span>
             </div>
           </div>
@@ -155,22 +155,17 @@ window.V2Storyboard = (function () {
     renderGrid();
   }
 
+  // 显式降级：本仓当前切片无分镜渲染端点，禁止用 setTimeout 假装生成完成。
   function regenerateShot(idx) {
-    state.shots[idx].status = 'generating';
+    state.shots[idx].status = 'not_integrated';
     renderGrid();
-    setTimeout(() => {
-      state.shots[idx].status = 'done';
-      renderGrid();
-    }, 1800);
+    alert('分镜渲染端点尚未接入（未纳入当前切片），不会伪造生成结果。');
   }
 
   function batchGenerate() {
-    state.shots.forEach(s => s.status = 'generating');
+    state.shots.forEach(s => s.status = 'not_integrated');
     renderGrid();
-    setTimeout(() => {
-      state.shots.forEach(s => s.status = 'done');
-      renderGrid();
-    }, 2200);
+    alert('批量渲染端点尚未接入（未纳入当前切片），不会伪造生成结果。');
   }
 
   function addNewShot() {
@@ -183,13 +178,13 @@ window.V2Storyboard = (function () {
       dialogue: '【剧本情节】补充过渡镜头与情绪留白...',
       duration: '3.0s',
       img: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
-      status: 'done'
+      status: 'not_integrated'
     });
     renderGrid();
   }
 
   function exportPdf() {
-    alert('正在排版导出 4K ACEScg 导演标准分镜剧本 PDF 文档...');
+    alert('分镜 PDF 导出端点尚未接入（未纳入当前切片），未生成任何文件。');
   }
 
   function init() {

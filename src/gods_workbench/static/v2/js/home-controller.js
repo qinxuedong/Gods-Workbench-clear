@@ -23,7 +23,12 @@ window.V2Home = (function () {
     jobs: [],
     chatHistory: [],
     loading: false,
-    viewMode: localStorage.getItem('v2_proj_view_mode') || 'grid' // 'grid' (2列卡片) 或 'list' (行条列表)
+    viewMode: localStorage.getItem('v2_proj_view_mode') || 'grid', // 'grid' (2列卡片) 或 'list' (行条列表)
+    // 显式降级状态：null 表示后端已如实应答（含「确实为空」）；否则记 { kind, message }，
+    // 用于把「未接入 / 服务不可用 / 请求失败」如实展示，绝不静默伪造数据。
+    projectsDegradation: null,
+    assetOverviewDegradation: null,
+    promptSourcesDegradation: null
   };
 
   // 切换视图模式 (grid / list)
@@ -48,6 +53,50 @@ window.V2Home = (function () {
     renderProjectsList();
   }
 
+  // 统一「无后端时显式降级」工具（复用 window.GWDegradation；页面已先加载该脚本）。
+  // 口径：404/501 且无标准错误包 -> 未接入；503 -> 服务暂时不可用；其余 -> 如实报错。
+  const degradationApi = () => window.GWDegradation || null;
+
+  const degradationMessage = (kind, status) => {
+    const api = degradationApi();
+    if (api) {
+      if (kind === 'not_integrated') return `${api.NOT_INTEGRATED_MESSAGE}（HTTP ${status}）`;
+      if (kind === 'service_unavailable') return `${api.SERVICE_UNAVAILABLE_MESSAGE}（HTTP ${status}）`;
+    }
+    if (kind === 'not_integrated') return `该功能尚未接入后端（未纳入当前切片）（HTTP ${status}）`;
+    if (kind === 'service_unavailable') return `后端服务暂时不可用，请稍后重试（HTTP ${status}）`;
+    return `请求失败（HTTP ${status}）`;
+  };
+
+  // 读取响应体并分类；响应体非 JSON 或读取失败时按状态码单独判定，绝不静默吞掉错误。
+  async function classifyFetchFailure(res) {
+    let data = null;
+    try { data = await res.json(); } catch (_) { data = null; }
+    const api = degradationApi();
+    if (api && typeof api.classifyResponse === 'function') {
+      const verdict = api.classifyResponse(res, data);
+      return { kind: verdict.kind, status: verdict.status, message: verdict.message, detail: data };
+    }
+    const detailValue = data ? data.detail : undefined;
+    const isEnvelope = Boolean(detailValue) && typeof detailValue === 'object';
+    const isDefaultText = typeof detailValue === 'string' && /^(not found|not implemented)$/i.test(detailValue.trim());
+    let kind = 'error';
+    if (res.status === 503) kind = 'service_unavailable';
+    else if ([404, 501].indexOf(res.status) !== -1 && !isEnvelope && !(typeof detailValue === 'string' && detailValue.trim() && !isDefaultText)) kind = 'not_integrated';
+    return { kind: kind, status: res.status, message: degradationMessage(kind, res.status), detail: data };
+  }
+
+  // 显式降级占位（带 data-gw-degradation 标记，便于契约测试与人工核验）。
+  function degradationNoticeHtml(degradation, extraHint) {
+    const api = degradationApi();
+    const hint = extraHint ? `<span class="block mt-1 text-[9px] text-slate-500">${esc(extraHint)}</span>` : '';
+    if (api && typeof api.noticeHtml === 'function') {
+      return api.noticeHtml(degradation.kind, degradation.message) + hint;
+    }
+    return `<div class="bay-inset p-3 rounded-xl border border-white/10 text-center text-[10px] font-mono text-slate-400" role="status" data-gw-degradation="${esc(degradation.kind)}"><span class="block">${esc(degradation.message)}</span>${hint}</div>`;
+  }
+
+
   // 工具辅助函数
   const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -64,90 +113,35 @@ window.V2Home = (function () {
 
     try {
       const res = await fetch('/api/asset-registry/projects?archived=false', { credentials: 'same-origin' });
-      if (!res.ok) throw new Error(`项目路由返回 HTTP ${res.status}`);
-      const data = await res.json();
-
-      const list = data?.projects || data || [];
-      if (Array.isArray(list) && list.length > 0) {
-        // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml
-        // 与 docs/fixtures/projects-hub-list-active.json）；此处统一归一化为前端内部使用的 id，
-        // 避免后端返回 project_id 时卡片 data-project-id 为空、点击与双击均失效。
-        state.projects = list.map(p => ({ ...p, id: p.id || p.project_id }));
+      if (!res.ok) {
+        // 显式降级：接口未接入 / 服务不可用 / 请求失败一律如实标记并清空列表，
+        // 绝不填入任何伪造的示例工程数据。
+        const failure = await classifyFetchFailure(res);
+        state.projects = [];
+        state.projectsDegradation = { kind: failure.kind, message: failure.message };
       } else {
-        // 无数据或空工程时展示默认初始化工程（覆盖电影、剧集、概念艺术三种典型，包含缩略图与状态）
-        state.projects = [
-          {
-            id: 'proj-demo-01',
-            name: '院线长片《神谕之地》',
-            project_type: 'film',
-            status: 'in_progress',
-            progress: 85,
-            cover_media_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=300&auto=format&fit=crop',
-            metric_label: '制作进度',
-            scenes: 124,
-            updated_at: Date.now() - 3600000 * 2
-          },
-          {
-            id: 'proj-demo-02',
-            name: '剧集《赛博修真：重构法则》',
-            project_type: 'series',
-            status: 'planning',
-            progress: 35,
-            cover_media_url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=300&auto=format&fit=crop',
-            metric_label: '制作进度',
-            scenes: 48,
-            updated_at: Date.now() - 3600000 * 18
-          },
-          {
-            id: 'proj-demo-03',
-            name: '概念概念设计 PV《钛金纪元》',
-            project_type: 'other',
-            status: 'in_progress',
-            progress: 92,
-            cover_media_url: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=300&auto=format&fit=crop',
-            metric_label: '制作进度',
-            scenes: 16,
-            updated_at: Date.now() - 3600000 * 48
-          },
-          {
-            id: 'proj-demo-04',
-            name: '先导预告《黑曜之门》',
-            project_type: 'film',
-            status: 'completed',
-            progress: 100,
-            cover_media_url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=300&auto=format&fit=crop',
-            metric_label: '制作进度',
-            scenes: 28,
-            updated_at: Date.now() - 3600000 * 72
-          }
-        ];
+        const data = await res.json();
+        const list = data?.projects || data || [];
+        if (Array.isArray(list) && list.length > 0) {
+          // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml
+          // 与 docs/fixtures/projects-hub-list-active.json）；此处统一归一化为前端内部使用的 id，
+          // 避免后端返回 project_id 时卡片 data-project-id 为空、点击与双击均失效。
+          state.projects = list.map(p => ({ ...p, id: p.id || p.project_id }));
+          state.projectsDegradation = null;
+        } else {
+          // 后端如实应答「确实为空」：保留空态文案，不伪造数据。
+          state.projects = [];
+          state.projectsDegradation = null;
+        }
       }
     } catch (e) {
-      console.warn('获取远程项目失败，启用离线保护态:', e);
-      state.projects = [
-        {
-          id: 'proj-local-01',
-          name: '《神谕之地 · 概念先导片》',
-          project_type: 'film',
-          status: 'in_progress',
-          progress: 78,
-          cover_media_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=300&auto=format&fit=crop',
-          metric_label: '制作进度',
-          scenes: 36,
-          updated_at: Date.now()
-        },
-        {
-          id: 'proj-local-02',
-          name: '《机舱分镜校准篇》',
-          project_type: 'series',
-          status: 'planning',
-          progress: 25,
-          cover_media_url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=300&auto=format&fit=crop',
-          metric_label: '制作进度',
-          scenes: 12,
-          updated_at: Date.now()
-        }
-      ];
+      // 网络异常：服务不可用（可恢复），同样不得伪造工程数据。
+      console.warn('项目列表读取失败（网络异常）:', e);
+      state.projects = [];
+      state.projectsDegradation = {
+        kind: 'service_unavailable',
+        message: degradationMessage('service_unavailable', 0)
+      };
     }
 
     renderProjectsList();
@@ -171,12 +165,19 @@ window.V2Home = (function () {
     }
 
     if (!state.projects || state.projects.length === 0) {
-      container.innerHTML = `
+      // 空态必须区分：显式降级（未接入/服务不可用/请求失败）与「后端如实应答确实为空」。
+      container.innerHTML = state.projectsDegradation
+        ? degradationNoticeHtml(state.projectsDegradation, '未取到工程列表；本页不会展示任何伪造的示例工程。')
+        : `
         <div class="bay-inset p-4 rounded-xl text-center text-slate-400 text-xs">
           <i data-lucide="folder-open" class="w-6 h-6 mx-auto mb-1 text-slate-500"></i>
           暂无工程，点击上方“+ 新建”快速开启
         </div>
       `;
+      if (state.projectsDegradation) {
+        const busTitleEmpty = document.getElementById('busActiveProjectTitle');
+        if (busTitleEmpty) busTitleEmpty.textContent = '未接入';
+      }
       window.lucide?.createIcons();
       return;
     }
@@ -187,8 +188,27 @@ window.V2Home = (function () {
       busTitle.textContent = state.projects[0].name || '未命名工程';
     }
 
-    // 辅助：获取进行状态文案与样式 (规划中 / 制作中 / 已完成)
-    const getProjectStatusMeta = status => {
+    // 项目进度解析（显式降级，安全关键）：
+  // 旧实现为 `p.progress || ... : 75`，当后端返回真实 progress=0（新建项目）时，
+  // `0 || 75` 会把它显示成 75% —— 这是静默伪造，且与真实值相反。
+  // 现在：仅当字段存在且为有限数时才显示数值；缺失/非数一律显式「未接入」。
+  function projectProgressMeta(project) {
+    const raw = project ? project.progress : null;
+    if (raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw))) {
+      return { value: Number(raw), degraded: false };
+    }
+    const total = Number(project && project.entity_count);
+    if (Number.isFinite(total) && total > 0) {
+      const done = Number(project.completed_entity_count);
+      if (Number.isFinite(done)) {
+        return { value: Math.max(0, Math.min(100, Math.round((done / total) * 100))), degraded: false };
+      }
+    }
+    return { value: 0, degraded: true };
+  }
+
+  // 辅助：获取进行状态文案与样式 (规划中 / 制作中 / 已完成)
+  const getProjectStatusMeta = status => {
       const s = String(status || '').toLowerCase();
       if (['completed', 'approved', 'closed', 'done', 'succeeded', 'finished'].includes(s)) {
         return { text: '已完成', key: 'completed', dotColor: 'bg-emerald-400' };
@@ -214,7 +234,11 @@ window.V2Home = (function () {
       // 结构：左上角方形缩略图，右侧项目名称，名称下方一行小状态栏（类型图标 + 进行状态），最下面制作进度条 (去掉编号)
       const cardsHtml = state.projects.map((p, idx) => {
         const isSelected = (state.activeProject && state.activeProject.id === p.id) || (!state.activeProject && idx === 0);
-        const progress = p.progress || (p.entity_count ? Math.round((p.completed_entity_count || 0) / p.entity_count * 100) : 75);
+        const progressMeta = projectProgressMeta(p);
+        const progress = progressMeta.value;
+        const progressHtml = progressMeta.degraded
+          ? '<span class="text-[#eddab3] font-bold" data-gw-degradation="not_integrated" title="后端未返回该项目的 progress 字段，本页不伪造进度">未接入</span>'
+          : `<span class="text-[#eddab3] font-bold">${progress}%</span>`;
         const statusMeta = getProjectStatusMeta(p.status);
         const typeMeta = getProjectTypeMeta(p.project_type);
         const coverUrl = String(p.cover_media_url || p.cover_url || '').trim();
@@ -267,7 +291,7 @@ window.V2Home = (function () {
               <div class="flex justify-between items-center text-[9px] font-mono">
                 <span class="text-slate-400">制作进度</span>
                 <div class="flex items-center space-x-2">
-                  <span class="text-[#eddab3] font-bold">${progress}%</span>
+                  ${progressHtml}
                   <a href="/static/v2/workshop.html?project_id=${encodeURIComponent(p.id)}"
                      class="tactile-keycap px-1.5 py-0.2 rounded text-[8px] text-[#eddab3] hover:text-white flex items-center space-x-0.5"
                      onclick="event.stopPropagation(); localStorage.setItem('workspace_project_id', '${esc(p.id)}'); localStorage.setItem('workspace_project_name', '${esc(p.name)}');"
@@ -278,7 +302,7 @@ window.V2Home = (function () {
                 </div>
               </div>
               <div class="hw-fader-track-horizontal w-full h-1">
-                <div class="hw-fader-glow-bar" style="width: ${progress}%;"></div>
+                <div class="hw-fader-glow-bar" style="width: ${progressMeta.degraded ? 0 : progress}%;"></div>
               </div>
             </div>
 
@@ -291,7 +315,11 @@ window.V2Home = (function () {
       // 模式 2: 行条列表 (List Mode，紧凑单行，同样采用方形缩略图 + 名称 + 状态栏 + 制作进度条，无编号)
       const listHtml = state.projects.map((p, idx) => {
         const isSelected = (state.activeProject && state.activeProject.id === p.id) || (!state.activeProject && idx === 0);
-        const progress = p.progress || (p.entity_count ? Math.round((p.completed_entity_count || 0) / p.entity_count * 100) : 75);
+        const progressMeta = projectProgressMeta(p);
+        const progress = progressMeta.value;
+        const progressHtml = progressMeta.degraded
+          ? '<span class="text-[#eddab3] font-bold" data-gw-degradation="not_integrated" title="后端未返回该项目的 progress 字段，本页不伪造进度">未接入</span>'
+          : `<span class="text-[#eddab3] font-bold">${progress}%</span>`;
         const statusMeta = getProjectStatusMeta(p.status);
         const typeMeta = getProjectTypeMeta(p.project_type);
         const coverUrl = String(p.cover_media_url || p.cover_url || '').trim();
@@ -331,10 +359,10 @@ window.V2Home = (function () {
               <div class="w-20 space-y-0.5">
                 <div class="flex justify-between text-[8px] font-mono text-slate-400">
                   <span>制作进度</span>
-                  <span class="text-[#eddab3]">${progress}%</span>
+                  ${progressHtml}
                 </div>
                 <div class="hw-fader-track-horizontal w-full h-1">
-                  <div class="hw-fader-glow-bar" style="width: ${progress}%;"></div>
+                  <div class="hw-fader-glow-bar" style="width: ${progressMeta.degraded ? 0 : progress}%;"></div>
                 </div>
               </div>
               <a href="/static/v2/workshop.html?project_id=${encodeURIComponent(p.id)}"
@@ -605,6 +633,9 @@ window.V2Home = (function () {
   }
 
   // 处理附件上传 (对齐原系统路由 POST /api/ai/upload)
+  // 处理附件上传 (对齐原系统路由 POST /api/ai/upload)
+  // 显式降级：本仓当前切片未实现该端点；本地 Blob 预览只用于界面预览，
+  // 必须明确告知用户「未上传到服务器」，绝不伪造上传成功。
   async function handleAuraFilesUpload(files) {
     if (!files || files.length === 0) return;
 
@@ -613,6 +644,19 @@ window.V2Home = (function () {
       formData.append('files', files[i]);
     }
 
+    const pushLocalPreviewAttachments = () => {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        auraState.attachments.push({
+          url: URL.createObjectURL(file),
+          name: file.name,
+          size: file.size,
+          uploadState: 'not_uploaded'
+        });
+      }
+    };
+
+    let uploadNotice = null;
     try {
       const res = await fetch('/api/ai/upload', {
         method: 'POST',
@@ -627,33 +671,39 @@ window.V2Home = (function () {
           auraState.attachments.push({
             url: f.url || URL.createObjectURL(files[0]),
             name: f.name || f.filename || '附件',
-            size: f.size || 0
+            size: f.size || 0,
+            uploadState: 'uploaded'
           });
         });
       } else {
-        // 本地对象 URL 降级预览
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          auraState.attachments.push({
-            url: URL.createObjectURL(file),
-            name: file.name,
-            size: file.size
-          });
-        }
+        const failure = await classifyFetchFailure(res);
+        pushLocalPreviewAttachments();
+        uploadNotice = '附件上传 API 未接入，以下仅为本地预览，未上传到服务器。（' + failure.message + '）';
       }
     } catch (e) {
-      console.warn('上传附件接口未连通，使用本地 Blob 预览:', e);
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        auraState.attachments.push({
-          url: URL.createObjectURL(file),
-          name: file.name,
-          size: file.size
-        });
-      }
+      console.warn('附件上传请求异常（网络异常）:', e);
+      pushLocalPreviewAttachments();
+      uploadNotice = '附件上传 API 请求失败，以下仅为本地预览，未上传到服务器。（' + degradationMessage('service_unavailable', 0) + '）';
     }
 
+    if (uploadNotice) showAuraUploadNotice(uploadNotice);
     renderAuraAttachments();
+  }
+
+  // 附件未上传时的显式提示条（用户可见，不用 console 代替）。
+  function showAuraUploadNotice(text) {
+    const strip = document.getElementById('v2AuraAttachmentsStrip');
+    if (!strip) return;
+    let notice = document.getElementById('v2AuraUploadNotice');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.id = 'v2AuraUploadNotice';
+      notice.setAttribute('role', 'status');
+      notice.setAttribute('data-gw-degradation', 'not_integrated');
+      notice.className = 'mb-1 px-2 py-1 rounded-lg border border-amber-500/30 text-[9px] font-mono text-amber-300';
+      strip.parentNode.insertBefore(notice, strip);
+    }
+    notice.textContent = text;
   }
 
   // 渲染已上传的附件缩略条
@@ -670,8 +720,9 @@ window.V2Home = (function () {
     strip.classList.remove('hidden');
     strip.innerHTML = auraState.attachments.map((item, idx) => `
       <div class="bay-inset px-2 py-1 rounded-lg border border-[#dfc384]/30 flex items-center space-x-1.5 text-[9px] font-mono text-slate-200 bg-[#121620]">
-        <i data-lucide="file-check" class="w-2.5 h-2.5 text-emerald-400"></i>
+        <i data-lucide="file-warning" class="w-2.5 h-2.5 text-amber-300"></i>
         <span class="max-w-[100px] truncate" title="${esc(item.name)}">${esc(item.name)}</span>
+        ${item.uploadState === 'not_uploaded' ? '<span class="px-1 rounded border border-amber-500/30 text-amber-300" title="未上传到服务器">未上传</span>' : ''}
         <button type="button" class="text-slate-400 hover:text-rose-400 ml-1" onclick="V2Home.removeAuraAttachment(${idx})" title="移除此附件">
           &times;
         </button>
@@ -799,27 +850,20 @@ window.V2Home = (function () {
         const text = reply.response || reply.reply || reply.message || '已成功执行您的指令。';
         if (botBubble) botBubble.innerHTML = esc(text).replace(/\n/g, '<br>');
       } else {
-        // 智能模拟响应，确保本地演示极其丝滑
-        let simText = '';
-        if (query.includes('高潮') || query.includes('冲突')) {
-          simText = `已为您扫描第 3 幕分镜脚本（输出规格: ${auraState.ratio} ${auraState.sizeSpec}）。当前主角【艾伦】与中枢母机的对峙镜头（SC_03_24）张力指标为 94%，建议调整景别为【微距特写 + 35mm 变形宽银幕耀斑】，并强化背景算力管道过载时的冷青色补光。`;
-        } else if (query.includes('钛金') || query.includes('光感') || query.includes('面容')) {
-          simText = `面容与光影参数已校准：已锁定 LoRA 权重 0.85，金属漫反射高光粗糙度降至 0.18，并启用双侧冷暖补光通道（已应用 ${auraState.imageModel} 节点管线）。`;
-        } else if (query.includes('队列') || query.includes('显存')) {
-          simText = '集群总线检测报告：当前 RTX 4090 #1 正在执行 4K 超分渲染（剩余 2分14秒）；排队中任务 1 项；VRAM 峰值占用 22.4 GB，显存处于安全阈值内。';
-        } else if (attachedCount > 0) {
-          simText = `已解析您提交的 ${attachedCount} 个附件上下文。已将素材特征编码注入当前镜头生成提示链，匹配生图比例为【${auraState.ratio}】。`;
-        } else {
-          simText = `已接收指令：“${esc(query)}”。AURA 神经管道已关联当前工程上下文（调度模型: ${auraState.chatModel}，画幅: ${auraState.ratio}），正在协同分镜与资产池。`;
-        }
+        // 显式降级：请求失败必须如实告知，不得伪造任何成功文案。
+        const failure = await classifyFetchFailure(res);
         if (botBubble) {
-          botBubble.innerHTML = simText;
+          botBubble.setAttribute('data-gw-degradation', failure.kind);
+          botBubble.innerHTML = `<span class="text-amber-300">未能完成本次指令（未接入或服务不可用）。</span>`
+            + `<span class="block mt-1 text-[10px] text-slate-400">${esc(failure.message)}</span>`;
         }
       }
     } catch (e) {
       const botBubble = document.querySelector(`#${botMsgId} .aura-content`);
       if (botBubble) {
-        botBubble.innerHTML = `已接收指令：“${esc(query)}”。已调配本地智能体管线，就绪待命。`;
+        botBubble.setAttribute('data-gw-degradation', 'service_unavailable');
+        botBubble.innerHTML = `<span class="text-amber-300">对话服务暂时不可用，请联系后端部署方。</span>`
+          + `<span class="block mt-1 text-[10px] text-slate-400">${esc(degradationMessage('service_unavailable', 0))}</span>`;
       }
     }
 
@@ -989,14 +1033,24 @@ window.V2Home = (function () {
 
     // 团队偏好载入与同步
     fetch('/api/asset-registry/preferences/team', { credentials: 'same-origin' })
-      .then(res => res.ok ? res.json() : null)
+      .then(async res => {
+        if (res.ok) return res.json();
+        const failure = await classifyFetchFailure(res);
+        const namingEl = document.getElementById('teamNaming');
+        if (namingEl) namingEl.placeholder = '未接入（' + failure.kind + '）';
+        return null;
+      })
       .then(data => {
+        if (!data) return;
         const p = data?.preferences || {};
         const teamNaming = document.getElementById('teamNaming');
         const teamVisibility = document.getElementById('teamVisibility');
         if (teamNaming && p.naming_convention) teamNaming.value = p.naming_convention;
         if (teamVisibility && p.default_review_visibility) teamVisibility.value = p.default_review_visibility;
-      }).catch(() => {});
+      }).catch(() => {
+        const namingEl = document.getElementById('teamNaming');
+        if (namingEl) namingEl.placeholder = '服务暂时不可用';
+      });
 
     const btnSaveTeamPrefs = document.getElementById('btnSaveTeamPrefs');
     if (btnSaveTeamPrefs) {
@@ -1006,15 +1060,20 @@ window.V2Home = (function () {
         btnSaveTeamPrefs.disabled = true;
         btnSaveTeamPrefs.textContent = '保存中…';
         try {
-          await fetch('/api/asset-registry/preferences/team', {
+          const res = await fetch('/api/asset-registry/preferences/team', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
             body: JSON.stringify({ naming_convention: naming, default_review_visibility: visibility })
           });
-          btnSaveTeamPrefs.textContent = '已同步';
+          if (res.ok) {
+            btnSaveTeamPrefs.textContent = '已同步';
+          } else {
+            const failure = await classifyFetchFailure(res);
+            btnSaveTeamPrefs.textContent = failure.kind === 'not_integrated' ? '未接入' : '保存失败';
+          }
         } catch (e) {
-          btnSaveTeamPrefs.textContent = '同步完成';
+          btnSaveTeamPrefs.textContent = '服务不可用';
         }
         setTimeout(() => {
           btnSaveTeamPrefs.disabled = false;
@@ -1025,24 +1084,34 @@ window.V2Home = (function () {
 
     // 读取系统状态与系统信息
     Promise.all([
-      fetch('/api/app-info').then(r => r.ok ? r.json() : {}).catch(() => ({})),
-      fetch('/api/asset-registry/status').then(r => r.ok ? r.json() : {}).catch(() => ({}))
+      fetch('/api/app-info').then(async r => r.ok ? r.json() : { __degraded: await classifyFetchFailure(r) })
+        .catch(() => ({ __degraded: { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) } })),
+      fetch('/api/asset-registry/status').then(async r => r.ok ? r.json() : { __degraded: await classifyFetchFailure(r) })
+        .catch(() => ({ __degraded: { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) } }))
     ]).then(([app, status]) => {
+      // 显式降级：依赖未接入或不可用时，用中性文案替代「已就绪 / 通信正常」。
+      const degradedList = [app, status].map(x => x && x.__degraded).filter(Boolean);
+      const degradedKind = degradedList.length ? degradedList[0].kind : null;
+      const degradedText = degradedList.length ? degradedList[0].message : '';
+      const statusText = degradedKind === 'not_integrated' ? '未接入'
+        : (degradedKind ? '暂不可用' : (status.ready ? '已就绪 (Active)' : '通信正常'));
+      const statusClass = (degradedKind || !status.ready) ? 'text-slate-400 font-bold' : 'text-emerald-400 font-bold';
       const infoContainer = document.getElementById('systemInfo');
       if (infoContainer) {
         infoContainer.innerHTML = `
           <div class="flex justify-between py-1 border-b border-white/5">
             <span class="text-slate-400">工作台固件版本:</span>
-            <strong class="text-[#dfc384]">${esc(app.version || 'v2.0.0-PRO')}</strong>
+            <strong class="text-[#dfc384]">${esc(app.version || '—')}</strong>
           </div>
           <div class="flex justify-between py-1 border-b border-white/5">
             <span class="text-slate-400">数字资产后端引擎:</span>
-            <strong class="text-slate-200">${esc(status.backend || 'SQLite 3 / Local')}</strong>
+            <strong class="text-slate-200">${esc(status.backend || '—')}</strong>
           </div>
           <div class="flex justify-between py-1 border-b border-white/5">
             <span class="text-slate-400">硬件总线通信:</span>
-            <strong class="text-emerald-400 font-bold">${status.ready ? '已就绪 (Active)' : '通信正常'}</strong>
+            <strong class="${statusClass}">${esc(statusText)}</strong>
           </div>
+          ${degradedList.length ? `<div class="pt-1 text-[9px] font-mono text-slate-500" role="status" data-gw-degradation="${esc(degradedKind)}">${esc(degradedText)}</div>` : ''}
           <div class="pt-1 text-right">
             <button class="tactile-keycap px-2 py-1 rounded text-[10px] text-slate-300 hover:text-white" onclick="alert('当前固件已是最新正式版本')">检查更新</button>
           </div>
@@ -1091,10 +1160,12 @@ window.V2Home = (function () {
           `;
         }).join('');
       } catch (e) {
-        if (stateBadge) stateBadge.textContent = '本地脱机模式';
+        // 显式降级：读取失败不得自称已就绪或使用内置源。
+        if (stateBadge) stateBadge.textContent = '未接入';
         list.innerHTML = `
-          <div class="bay-inset p-3 rounded-xl text-xs font-mono text-slate-400 text-center">
-            本地提示词快照库已就绪（标准内置源）
+          <div class="bay-inset p-3 rounded-xl text-xs font-mono text-slate-400 text-center" role="status" data-gw-degradation="not_integrated">
+            本地提示词快照库未接入（未纳入当前切片）：未能读取 manifest.json。
+            <span class="block mt-1 text-[9px] text-slate-500">${esc(e && e.message ? e.message : '')}</span>
           </div>
         `;
       }
@@ -1142,27 +1213,44 @@ window.V2Home = (function () {
     };
 
     try {
-      // 1. 读取资产注册表状态
+      // 1. 读取资产注册表状态（显式降级：未接入 / 不可用时不得显示绿色就绪灯）。
       const statusRes = await fetch('/api/asset-registry/status', { credentials: 'same-origin' });
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         if (statusBadge) {
           statusBadge.innerHTML = `
             <span class="w-1.5 h-1.5 rounded-full ${statusData.ready ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse"></span>
-            <span>${statusData.ready ? '已就绪' : '通信正常'}</span>
+            <span>${statusData.ready ? '已就绪' : '服务未就绪'}</span>
           `;
         }
-        if (poolSize && statusData.pool_size) {
-          poolSize.textContent = `${statusData.pool_size} / 10 TB`;
+        // 真实字段只在存在时渲染；硬编码的「/ 10 TB」容量分母没有后端来源，
+        // 属伪读数，已移除（未接入时显示「—」而不是编造分母）。
+        if (poolSize) {
+          poolSize.textContent = statusData.pool_size ? String(statusData.pool_size) : '—';
+          poolSize.dataset.gwDegradation = statusData.pool_size ? '' : 'not_integrated';
         }
+      } else {
+        const failure = await classifyFetchFailure(statusRes);
+        state.assetOverviewDegradation = { kind: failure.kind, message: failure.message };
+        if (statusBadge) {
+          statusBadge.innerHTML = `
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+            <span>${failure.kind === 'not_integrated' ? '未接入' : '暂不可用'}</span>
+          `;
+        }
+        if (poolSize) poolSize.textContent = '—';
       }
 
       // 2. 读取最近真实资产列表
+      // 2. 读取最近真实资产列表（显式降级：未接入时不得用伪资产冒充真实数据）。
       const assetsRes = await fetch('/api/asset-registry/assets?limit=6', { credentials: 'same-origin' });
       let assets = [];
       if (assetsRes.ok) {
         const assetsData = await assetsRes.json();
         assets = assetsData.assets || (Array.isArray(assetsData) ? assetsData : []);
+      } else {
+        const failure = await classifyFetchFailure(assetsRes);
+        state.assetOverviewDegradation = state.assetOverviewDegradation || { kind: failure.kind, message: failure.message };
       }
 
       // 3. 统计或渲染真实资产条目
@@ -1208,40 +1296,31 @@ window.V2Home = (function () {
           }).join('');
         }
       } else {
-        // 本地优质缺省预置（保障在本地脱机或暂无资产时依然具有极佳的拟物质感和交互）
-        const fallbackAssets = [
-          { name: 'AURA_Protagonist_Ellen.safetensors', type: 'model', size: '240 MB', metaLabel: 'LoRA 角色模型', icon: 'box', color: 'text-cyan-300' },
-          { name: 'Cathedral_Titan_Core_3D.usd', type: 'model', size: '1.2 GB', metaLabel: 'USD 场景总线', icon: 'box', color: 'text-cyan-300' },
-          { name: 'Spaceship_Bridge_Concept_8K.exr', type: 'image', size: '86 MB', metaLabel: '4K ACEScg 原画', icon: 'image', color: 'text-emerald-400' },
-          { name: 'Cyberpunk_Atmosphere_Drone.wav', type: 'audio', size: '48 MB', metaLabel: '96kHz WAV 音频', icon: 'volume-2', color: 'text-purple-300' }
-        ];
-
+        // 显式降级：没有真实资产时绝不展示伪造的示例资产。
+        const degradation = state.assetOverviewDegradation || {
+          kind: 'not_integrated',
+          message: degradationMessage('not_integrated', 0)
+        };
         if (listContainer) {
-          listContainer.innerHTML = fallbackAssets.map(a => `
-            <div class="bay-inset p-2 rounded-lg flex items-center justify-between hover:border-[#dfc384]/40 transition group cursor-pointer" onclick="location.href='assets.html'" title="单击前往资产金库">
-              <div class="flex items-center space-x-2 min-w-0">
-                <div class="w-6 h-6 rounded bg-[#10131b] border border-white/10 flex items-center justify-center shrink-0 group-hover:border-[#dfc384]/50">
-                  <i data-lucide="${a.icon}" class="w-3.5 h-3.5 ${a.color}"></i>
-                </div>
-                <div class="min-w-0">
-                  <div class="text-[11px] font-bold text-slate-200 truncate group-hover:text-[#eddab3] transition">${esc(a.name)}</div>
-                  <div class="text-[8px] font-mono text-slate-500">${a.metaLabel} · ${a.size}</div>
-                </div>
-              </div>
-              <div class="flex items-center space-x-1 shrink-0 text-[8px] font-mono text-slate-400">
-                <span class="px-1.5 py-0.2 rounded bg-black/50 border border-white/5 text-[#dfc384] group-hover:bg-[#dfc384]/20 transition">就绪</span>
-              </div>
-            </div>
-          `).join('');
+          listContainer.innerHTML = degradationNoticeHtml(degradation, '未取到真实资产；本页不会展示任何伪造的示例资产。');
         }
+        [statImages, statModels, statVideos, statAudios].forEach(el => { if (el) el.textContent = '—'; });
+        if (poolSize) poolSize.textContent = '—';
       }
     } catch (e) {
-      console.warn('获取资产概览数据失败，使用本地兜底:', e);
+      // 网络异常：显式降级为「服务暂时不可用」，不得声称已挂载或已就绪。
+      console.warn('资产概览读取失败（网络异常）:', e);
+      state.assetOverviewDegradation = { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
       if (statusBadge) {
         statusBadge.innerHTML = `
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-          <span>本地挂载</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+          <span>未接入</span>
         `;
+      }
+      [statImages, statModels, statVideos, statAudios].forEach(el => { if (el) el.textContent = '—'; });
+      if (poolSize) poolSize.textContent = '—';
+      if (listContainer) {
+        listContainer.innerHTML = degradationNoticeHtml(state.assetOverviewDegradation, '资产概览暂不可用；不会展示伪造数据。');
       }
     }
 
@@ -1300,12 +1379,24 @@ window.V2Home = (function () {
     btn.textContent = '备份中…';
     btn.className = 'pill-capsule-active px-2 py-0.5 text-[8.5px] font-mono text-cyan-200 border-cyan-400';
 
+    // 显式降级：只有后端真的接受任务才谈「已就绪」；未接入 / 失败一律如实告知。
+    let resultText = '已就绪';
     try {
-      await fetch('/api/asset-registry/index/sync', { method: 'POST', credentials: 'same-origin' });
-    } catch (e) {}
+      const res = await fetch('/api/asset-registry/index/sync', {
+        method: 'POST',
+        credentials: 'same-origin'
+      });
+      if (!res.ok) {
+        const failure = await classifyFetchFailure(res);
+        resultText = failure.kind === 'not_integrated' ? '未接入' : '启动失败';
+      }
+    } catch (e) {
+      console.warn('索引备份请求异常（网络异常）:', e);
+      resultText = '服务不可用';
+    }
 
     setTimeout(() => {
-      btn.textContent = '已就绪';
+      btn.textContent = resultText;
       setTimeout(() => {
         btn.disabled = false;
         btn.textContent = origText;

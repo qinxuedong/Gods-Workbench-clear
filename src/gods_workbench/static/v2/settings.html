@@ -174,11 +174,10 @@
           <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 border border-[#dfc384]/30 text-[#eddab3]">SYS.02 PRO</span>
         </div>
         <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-slate-300 font-semibold">Online</span>
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-[0_0_6px_#34d399]"></span>
-          </span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+            <span class="relative flex h-2 w-2">
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
+            </span>
         </div>
 
         <!-- CPU 模拟电平表 -->
@@ -193,7 +192,7 @@
             <polygon id="svgNeedleCPU" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #fae2c8)" transform="rotate(-11.5 74 48)" />
           </svg>
           <div class="uv-bottom-hub">
-            <span class="uv-hub-percent text-[#fae2c8]" id="cpuValText">38%</span>
+            <span class="uv-hub-percent text-[#fae2c8]" id="cpuValText">未接入</span>
           </div>
         </div>
       </div>
@@ -204,7 +203,7 @@
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
           <div class="flex items-center space-x-2 px-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-[#dfc384] shadow-[0_0_6px_#dfc384] animate-pulse"></span>
-            <span class="text-[10px] font-mono font-bold text-[#eddab3] tracking-wider">SYSTEM CONFIGURATION & HARDWARE DECK · 0ms</span>
+        <span class="text-[10px] font-mono font-bold text-[#eddab3] tracking-wider" data-gw-degradation="not_integrated">SYSTEM CONFIGURATION &amp; HARDWARE DECK · 遥测未接入</span>
           </div>
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
         </div>
@@ -224,7 +223,7 @@
             <polygon id="svgNeedleRAM" points="73.3,48 74.7,48 74.3,19 73.7,19" fill="#ffffff" filter="drop-shadow(0 0 2.5px #38bdf8)" transform="rotate(22.4 74 48)" />
           </svg>
           <div class="uv-bottom-hub">
-            <span class="uv-hub-percent text-cyan-300" id="ramValText">64%</span>
+            <span class="uv-hub-percent text-cyan-300" id="ramValText">未接入</span>
           </div>
         </div>
 
@@ -298,7 +297,7 @@
           <span class="text-[#dfc384] font-bold" id="saveState">LOCAL SETTINGS</span>
         </div>
         <!-- 拟物头像键帽 (原智能体核心位置，替换左下角登录用户，无文字只显头像) -->
-        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="当前登录席位：admin (主创)">
+        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="认证状态未接入：点击打开认证中心查看真实登录状态" data-gw-identity="unverified">
           <div class="hw-avatar-keycap-inner">
             <i data-lucide="shield-check" class="w-4 h-4 text-[#eddab3]"></i>
           </div>
@@ -617,20 +616,20 @@
                 <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
                 <span>当前席位凭据与治理策略</span>
               </div>
-              <span class="text-[9px] font-mono text-emerald-400 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">ACTIVE SESSION</span>
+              <span class="text-[9px] font-mono text-amber-300 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20" data-gw-degradation="not_integrated">SESSION 未接入</span>
             </div>
             <div class="grid grid-cols-3 gap-2 text-xs">
               <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                 <div class="text-[9px] text-slate-400 font-mono">席位角色</div>
-                <div class="font-bold text-[#eddab3] mt-0.5">超级管理员 (Admin)</div>
+                <div class="font-bold text-slate-400 mt-0.5" data-gw-degradation="not_integrated">未接入（等待 /api/asset-auth/status）</div>
               </div>
               <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                 <div class="text-[9px] text-slate-400 font-mono">鉴权通道</div>
-                <div class="font-bold text-slate-200 mt-0.5">免密单机 / 本地凭据</div>
+                <div class="font-bold text-slate-400 mt-0.5" data-gw-degradation="not_integrated">未接入（无本地凭据回退）</div>
               </div>
               <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                 <div class="text-[9px] text-slate-400 font-mono">响应延时</div>
-                <div class="font-bold text-emerald-400 font-mono mt-0.5">&lt; 1ms (Localhost)</div>
+                <div class="font-bold text-slate-400 font-mono mt-0.5" data-gw-degradation="not_integrated">未测量</div>
               </div>
             </div>
           </div>
@@ -639,18 +638,18 @@
           <div class="space-y-2">
             <div class="flex items-center justify-between">
               <span class="text-[11px] font-bold text-[#dfc384] font-mono">团队空间与席位成员</span>
-              <span class="text-[9px] font-mono text-slate-500">自动同步底层鉴权总线</span>
+              <span class="text-[9px] font-mono text-slate-500">未接入时明说「未接入」，不伪造席位</span>
             </div>
             <div id="panelTeamList" class="space-y-2">
               <div class="bay-inset p-2.5 rounded-xl flex items-center justify-between border-l-2 border-[#dfc384]">
                 <div class="flex items-center space-x-2.5">
                   <div class="w-7 h-7 rounded-full bg-[#dfc384] text-black font-bold flex items-center justify-center text-[10px]">AD</div>
                   <div>
-                    <div class="font-bold text-slate-200 text-xs">admin (本机管理员席位)</div>
-                    <div class="text-[9px] font-mono text-slate-500">角色: Super Admin · 本地最高调度权限</div>
+                    <div class="font-bold text-slate-400 text-xs">席位列表待读取</div>
+                    <div class="text-[9px] font-mono text-slate-500">未接入时本行会明说「未接入」，不伪造管理员席位</div>
                   </div>
                 </div>
-                <span class="text-[9px] font-mono text-emerald-400">ONLINE</span>
+                <span class="text-[9px] font-mono text-amber-300" data-gw-degradation="not_integrated">未接入</span>
               </div>
             </div>
           </div>
@@ -669,6 +668,7 @@
   <script src="/static/js/workspace-common.js?v=v0.0.1-alpha-2026"></script>
   <script src="/static/js/floating-dismissal.js?v=v0.0.1-alpha-2026&m3=floating-dismissal"></script>
   <script src="/static/js/directory-settings-nav.js?v=20260917"></script>
+  <script src="/static/js/degradation.js?v=v0.0.1-alpha-2026"></script>
   <script src="/static/js/settings.js?v=v0.0.1-alpha-2026&m3=directories-20260916"></script>
   <script src="/static/js/hardware-telemetry.js"></script>
 
@@ -691,26 +691,30 @@
       setInterval(updateClock, 1000);
       updateClock();
 
-      // CPU/RAM 模拟小幅度呼吸摆动
-      setInterval(() => {
-        const cpuNeedle = document.getElementById('svgNeedleCPU');
-        const ramNeedle = document.getElementById('svgNeedleRAM');
-        const cpuText = document.getElementById('cpuValText');
-        const ramText = document.getElementById('ramValText');
-
-        if (cpuNeedle && cpuText) {
-          const cpuVal = Math.floor(35 + Math.random() * 8);
-          cpuText.textContent = cpuVal + '%';
-          const cpuAngle = -20 + (cpuVal / 100) * 40;
-          cpuNeedle.setAttribute('transform', `rotate(${cpuAngle} 74 48)`);
-        }
-        if (ramNeedle && ramText) {
-          const ramVal = Math.floor(62 + Math.random() * 5);
-          ramText.textContent = ramVal + '%';
-          const ramAngle = -20 + (ramVal / 100) * 70;
-          ramNeedle.setAttribute('transform', `rotate(${ramAngle} 74 48)`);
-        }
-      }, 3000);
+      // 本切片没有任何真实 CPU/RAM 遥测数据源。
+      // 历史缺陷：这里曾用 Math.random() 每 3 秒伪造一个漂亮的 CPU/RAM 百分比并驱动指针，
+      // 属伪遥测（用户裁决 #3：无后端时必须显式降级，不得静默伪造）。
+      // 现状：固定为未接入的静态展示，指针回到零位，不再读写任何数值。
+      const cpuNeedle = document.getElementById('svgNeedleCPU');
+      const ramNeedle = document.getElementById('svgNeedleRAM');
+      const cpuText = document.getElementById('cpuValText');
+      const ramText = document.getElementById('ramValText');
+      if (cpuNeedle) {
+        cpuNeedle.setAttribute('transform', 'rotate(-20 74 48)');
+        cpuNeedle.setAttribute('data-gw-degradation', 'not_integrated');
+      }
+      if (ramNeedle) {
+        ramNeedle.setAttribute('transform', 'rotate(-20 74 48)');
+        ramNeedle.setAttribute('data-gw-degradation', 'not_integrated');
+      }
+      if (cpuText) {
+        cpuText.textContent = '未接入';
+        cpuText.setAttribute('data-gw-degradation', 'not_integrated');
+      }
+      if (ramText) {
+        ramText.textContent = '未接入';
+        ramText.setAttribute('data-gw-degradation', 'not_integrated');
+      }
     });
   </script>
 <script src="/static/v2/js/v2-shell.js"></script>

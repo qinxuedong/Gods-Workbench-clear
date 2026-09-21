@@ -1072,6 +1072,8 @@
       overflow: hidden;
       position: relative;
     }
+    /* 状态灯默认中性：data-gw-identity 缺省 / "unverified" 一律不显示绿色，
+       只有硬件遥测按真实 /api/asset-auth/status 判定为已认证时才点亮绿色。 */
     .hw-avatar-keycap-status {
       position: absolute;
       bottom: -1px;
@@ -1079,7 +1081,22 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #10b981;
+      background: #f59e0b;
       border: 1.5px solid #08090d;
+      box-shadow: 0 0 6px #f59e0b;
+      animation: hw-avatar-status-pulse 1.6s ease-in-out infinite;
+    }
+    [data-gw-identity="authenticated"] > .hw-avatar-keycap-status {
+      background: #10b981;
       box-shadow: 0 0 6px #10b981;
+      animation: none;
+    }
+    [data-gw-identity="unavailable"] > .hw-avatar-keycap-status {
+      background: #f43f5e;
+      box-shadow: 0 0 6px #f43f5e;
+      animation: none;
+    }
+    @keyframes hw-avatar-status-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
     }
