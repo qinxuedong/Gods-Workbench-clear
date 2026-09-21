@@ -509,3 +509,10 @@
   **O4 / O5 / O6 / D12 与 `static/js/canvas/http.js` 删除仍未处置，不得写 PASS**；
   根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立；真实用户登录未执行。
   仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+  远端 CI 读回（追加，2026-09-22）：提交 `70538707ec127b405fb8d8c107d081598d0d30e5`
+  -> `git push origin master`（`28e8004..7053870`）；`HEAD == origin/master == git ls-remote` 逐字一致；
+  `git status --porcelain -uall` = 0 条目；`gh run view 35666533094 --json conclusion,headSha`
+  -> `{"conclusion":"success","headSha":"70538707ec127b405fb8d8c107d081598d0d30e5"}`。
+  该 success **不等于**生产验收，**不构成**发布授权。

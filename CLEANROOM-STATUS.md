@@ -1290,3 +1290,12 @@ tracked 总数                                                       -> 289
   `_SESSIONS` / `_FLOW_STATES` 仍是单进程内存。
 - 本地实测 + 远端 CI 读回 **不等于** 生产验收，**不等于** 发布授权。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+### Phase 9O 远端 CI 读回（2026-09-22 追加）
+
+- 提交 `70538707ec127b405fb8d8c107d081598d0d30e5`（Phase 9O，6 文件）；推送 `28e8004..7053870`。
+- `HEAD == origin/master == git ls-remote origin refs/heads/master == 70538707ec127b405fb8d8c107d081598d0d30e5`；
+  `git status --porcelain -uall` = 0 条目。
+- `gh run view 35666533094 --json conclusion,headSha` -> `{"conclusion":"success","headSha":"70538707ec127b405fb8d8c107d081598d0d30e5"}`。
+- 该 success **不等于**生产验收，**不构成**发布授权；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

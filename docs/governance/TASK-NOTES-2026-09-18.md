@@ -2474,3 +2474,22 @@ tracked 总数                                                     -> 289
 - **D12（认证审计落点）未处置，不得写 PASS。**
 - 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立。
 - 真实用户登录（真实 `client_id` + 用户目录）未执行。
+
+
+### 21.22.7 本轮提交与远端 CI 读回（2026-09-22 追加）
+
+- 提交：`70538707ec127b405fb8d8c107d081598d0d30e5`（"Phase 9O：独立复核发现的真实缺陷修复 + 越权与独立性问题登记"，6 文件：`src/gods_workbench/core/oidc.py` + 5 份治理文档）。
+- 推送：`git push origin master` → `28e8004..7053870  master -> master`。
+- 读回（主代理亲跑）：
+
+```text
+git rev-parse HEAD          -> 70538707ec127b405fb8d8c107d081598d0d30e5
+git rev-parse origin/master -> 70538707ec127b405fb8d8c107d081598d0d30e5
+git ls-remote origin refs/heads/master -> 70538707ec127b405fb8d8c107d081598d0d30e5  （逐字一致）
+git status --porcelain -uall -> 0 条目
+gh run view 35666533094 --json conclusion,headSha,event,workflowName
+  -> {"conclusion":"success","headSha":"70538707ec127b405fb8d8c107d081598d0d30e5","event":"push","workflowName":"CI"}
+```
+
+远端 CI 只证明该 SHA 在 CI 环境（ubuntu-latest / Python 3.11）通过，
+**不等于**生产验收，**不构成**发布授权。
