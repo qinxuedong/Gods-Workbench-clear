@@ -38,7 +38,7 @@
   （点击后 localStorage 正确）、排期条 ID `""→prj-0001`（可跳转）、工坊标题恢复 `示例项目 A`、
   canvas-list 行 ID `"undefined"→prj-0001`、projects 新建卡片 `1→2`；后端实测 `GET /projects` 项**不含 `id`**、
   `POST /projects` 仅回传 `{project_id, version}`；回归守卫扩展至 **9 用例**，以 `git show HEAD:` 还原修复前文本
-  **7/7 确定失败**；门禁 `pytest` **74 passed**、`node --check` **56/0**、二进制红线 **0**、SBOM JSON 合法；
+  **8 条失败断言 / 共 10 个用例确定失败**（原写「7/7」已按实测口径更正）；门禁 `pytest` **74 passed**、`node --check` **56/0**、二进制红线 **0**、SBOM JSON 合法；
   **取证边界**：`asset-manager` 项目树需路由桩隔离既有 `/api/asset-registry/assets` 404，前端不发送认证头、
   写入类接口实测 401（新建 E2E 仅注入测试认证头下成立，未实现认证接线，不得外推生产可用）
   —— 详见 `docs/governance/agent-reports-2026-09-21/P7-A3-PROJECTS-ID-FIX.md` §8/§9、`HANDOFF-7.md` §12.6
@@ -52,3 +52,18 @@
   全站防漏网：静态扫描命中项经人工复核**均为误报**，真实浏览器 **16 个 HTML 页面 `pageerror` 全为 0**、`ReferenceError` 合计 **0**；
   门禁 `pytest` **75 passed**、`node --check` **56/0**、二进制红线 **0**
   —— 详见 `docs/governance/agent-reports-2026-09-21/P7-A3-PROJECTS-ID-FIX.md` §10、`HANDOFF-7.md` §12.7
+
+- [x] T24 Phase 7 第三批：推送与远端 CI 实测收口（2026-09-21）。提交 `3a67499c334e4e281ce0b0f38c0af4bd07602019`
+  推送成功（`3d426ba..3a67499`），`HEAD == origin/master` 逐字一致；远端 CI run **35555007799**
+  `conclusion=success`、`headSha=3a67499c334e4e281ce0b0f38c0af4bd07602019` 逐字一致。
+  **推送通道问题如实登记**：直连 `github.com:443` TCP 不可达（ICMP 可达、DNS 正常、无 git/环境代理配置），
+  经本机 7897 出口代理转发后成功；该代理**未写入仓库配置**，属本机网络环境问题而非仓库缺陷。
+  门禁基线：本地 `pytest` **75 passed**、`node --check` **56/0**、二进制红线 **0**、全站 16 页 `pageerror` **0**。
+  口径：本地通过 != 远端 CI != 生产验收。详见 `HANDOFF-7.md` §13、`CLEANROOM-STATUS.md`。
+
+- [ ] T25 Phase 8 启动：前后端接口缺口对账（P8-A1）与全站前端深度巡检（P8-A2）。
+  P7-A3 已取证前端存在大量调用后端**未实现**端点（至少 `GET /api/asset-registry/assets`、
+  `/api/asset-registry/governance/overview`、`/api/asset-auth/*`、`/api/providers*` 等，真实 HTTP 404）。
+  待交付：`docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md`、
+  `P8-A2-FRONTEND-DEEP-E2E.md` 及对应纯 Python 契约守卫。
+  处置口径：**只做对账与登记，不在本轮补写后端实现**；是否补实现、是否补契约需用户或产品裁决。

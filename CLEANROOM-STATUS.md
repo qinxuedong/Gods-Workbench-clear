@@ -203,7 +203,7 @@
   canvas-list 项目行由字符串 `"undefined"` 恢复为 `prj-0001`；projects 页新建后卡片 **1→2**。
 - **后端字段取证（真实 HTTP）**：`GET /projects` 项**不含 `id`**；`POST /projects` 仅回传 `{project_id, version, ...}`（**无 `id`、无 `name`**）。
 - **回归守卫**：`tests/contracts/test_phase7_projects_id_contract.py` → **9 用例**；以 `git show HEAD:` 还原修复前文本，
-  **7/7 确定失败**（`REPRO-PROOF-OK`）。
+  **8 条失败断言 / 共 10 个用例确定失败**（`REPRO-PROOF-OK`；原写「7/7」已按实测口径更正）。
 - **门禁（扩展后）**：`pytest` **74 passed**；`node --check` **56/0**；二进制红线 **0**；SBOM JSON 合法。
 - **取证边界**：`asset-manager.html` 项目树需以路由桩隔离既有 `GET /api/asset-registry/assets` **404**；
   前端不发送认证头，写入类接口实测 **401**，新建路径 E2E 仅在**注入测试认证头**下成立，
@@ -230,3 +230,14 @@
 
 **阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
 仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。
+
+### Phase 7 第三批：推送与远端 CI 实测（2026-09-21 追加）
+
+- 提交 `3a67499c334e4e281ce0b0f38c0af4bd07602019`（14 files, +1089/-20）；
+  推送 `3d426ba..3a67499`；`HEAD == origin/master == 3a67499...`（逐字一致）。
+- 远端 CI：run **35555007799**，`conclusion=success`，`headSha=3a67499c334e4e281ce0b0f38c0af4bd07602019`，与提交逐字一致。
+- **推送通道如实登记**：直连 `github.com:443` TCP 不可达（ICMP 可达 / DNS 正常 / 无 proxy 配置），
+  经本机 7897 出口代理转发后成功；代理**未写入仓库配置**。属本机网络环境问题，非仓库缺陷。
+- 门禁：本地 `pytest` **75 passed**、`node --check` **56/0**、二进制红线 **0**、全站 16 页 `pageerror` **0**。
+- 口径：**本地通过 != 远端 CI != 生产验收**。生产验收仍**未执行**，为独立决策。
+- 仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

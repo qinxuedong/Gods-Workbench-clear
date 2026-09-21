@@ -38,7 +38,7 @@
 - 归一化放在**摄取边界**（单一入口），渲染路径（约 30 处 `p.id`）**全部不改**，避免散点修改引入新风险。
 - `p.id || p.project_id` 保留对既有 `id` 字段的兼容，不破坏演示数据（`getDemoProjects` 内部仍用 `id`）。
 
-修复后文件 SHA-256：`EB659C992320E666CBD76B0470E16D3599809EF9593EBE72C9B7B1E65B173884`
+修复后文件 SHA-256：`DCD1116C6708CF51C45D7E26B078A4BC8D5C874FB2E997949AD2F99C4532892D`
 `node --check`：通过。
 
 ## 3. 真实浏览器对照实测
@@ -196,9 +196,16 @@ episode-pipeline.js        FAIL(expected)   PASS
 canvas-list.js             FAIL(expected)   PASS
 asset-manager.js           FAIL(expected)   PASS
 projects-controller.js     FAIL(expected)   PASS
-修复前确定失败: 7 / 7
+home-controller.js#2       FAIL(expected)   PASS   （§10 新增第 10 个用例：越界 helper 调用）
+修复前失败断言: 8 条失败 / 共 10 个用例（另 2 个为「契约与渲染前置事实」断言，修复前即应通过）
 REPRO-PROOF-OK
 ```
+
+> **更正（2026-09-21，独立审核代理发现，主代理复跑确认）**：本行原写「修复前确定失败: 7 / 7」，
+> 与实测口径不符。以 `git show HEAD:<path>` 还原 7 个文件修复前文本后运行本守卫，
+> 实测为 **8 failed / 2 passed（共 10 个用例）**；矩阵原表也漏列 `home-controller.js#2` 一行，已补齐。
+> 独立复核方式：`git archive 3d426ba | tar -x` 到 `%TEMP%` 隔离副本，覆盖 7 个源文件后运行
+> `python -m pytest -q tests/contracts/test_phase7_projects_id_contract.py` → `8 failed, 2 passed`。
 
 ### 8.5 门禁（扩展后复跑）
 
@@ -314,7 +321,7 @@ pageerrors: 0        console ReferenceError: 无
 - 断言 `home-controller.js` 中**不存在** `updateNavPillsProject(` 调用，且**不存在**其本地定义；
 - 正向断言新建路径改为调用本文件的 `updateNavPills(created.id)`。
 
-对 `git show HEAD:` 的修复前文本，该守卫**确定失败**（见 §8.4 的 8/8 矩阵中 `home-controller.js#2` 一行）。
+对 `git show HEAD:` 的修复前文本，该守卫**确定失败**（见 §8.4 矩阵中 `home-controller.js#2` 一行）。
 
 ### 10.6 全站同类缺陷扫描（防漏网）
 

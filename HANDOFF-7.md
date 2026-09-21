@@ -166,7 +166,7 @@ Phase 7 选择「既有前端缺陷修复 + 合规可本地关闭项」两件事
 ```
 
 口径：归一化集中在**单一入口**，渲染路径约 30 处 `p.id` **一律不改**；`p.id || p.project_id` 兼容既有演示数据。
-修复后 SHA-256 `EB659C992320E666CBD76B0470E16D3599809EF9593EBE72C9B7B1E65B173884`，`node --check` 通过。
+修复后 SHA-256 `DCD1116C6708CF51C45D7E26B078A4BC8D5C874FB2E997949AD2F99C4532892D`，`node --check` 通过。
 
 ### 12.3 真实浏览器对照实测
 
@@ -230,7 +230,8 @@ REPRO-PROOF-OK
 即契约与实现一致使用 `project_id`，前端 7 处的 `id` 假设是缺陷侧。
 
 **回归守卫**：`tests/contracts/test_phase7_projects_id_contract.py` 扩展到 **9 个用例**，
-以 `git show HEAD:<path>` 还原全部修复前文本注入同一批断言，结果 **7/7 全部确定失败**（`REPRO-PROOF-OK`）。
+以 `git show HEAD:<path>` 还原全部修复前文本注入同一批断言，结果 **8 条失败断言 / 共 10 个用例 全部确定失败**（另 2 个为前置事实断言，修复前即应通过；`REPRO-PROOF-OK`）。
+> 更正（2026-09-21）：原写「7/7」与实测不符，已按 `8 failed / 2 passed` 的复跑口径统一。
 
 **门禁（扩展后复跑）**：`pytest` **74 passed**（65 + 9）；`node --check` **56/0**；二进制红线 **0**；SBOM JSON 合法。
 
@@ -260,3 +261,72 @@ REPRO-PROOF-OK
 - **全站防漏网扫描**：静态扫描的命中项经人工复核**均为误报**；真实浏览器扫描 **16 个 HTML 页面
   `pageerror` 全为 0**、`ReferenceError` 总计 **0**。
 - **门禁（缺陷二修复后）**：`pytest` **75 passed**；`node --check` **56/0**；二进制红线 **0**；全站浏览器 `pageerror` **0**。
+
+
+---
+
+## 13. Phase 7 第三批：推送与远端 CI 实测证据（2026-09-21 追加）
+
+### 13.1 提交与推送
+
+- 提交：`3a67499c334e4e281ce0b0f38c0af4bd07602019`
+  （"Phase 7 第三批：项目中心稳定实体 ID 契约缺陷修复（含 7 处扩散面）"），14 files changed, +1089/-20。
+- 推送命令与原文输出：
+
+```text
+git push origin master
+To https://github.com/qinxuedong/Gods-Workbench-clear.git
+   3d426ba..3a67499  master -> master
+```
+
+- 读回：`git rev-parse HEAD` == `git rev-parse origin/master` == `3a67499c334e4e281ce0b0f38c0af4bd07602019`（逐字一致）。
+
+### 13.2 推送通道说明（如实登记，不掩饰）
+
+本轮推送**首次连续失败 4 次以上**，报错为：
+
+```text
+fatal: unable to access 'https://github.com/qinxuedong/Gods-Workbench-clear.git/':
+  Failed to connect to github.com port 443 after 21091 ms: Could not connect to server
+```
+
+直连诊断（如实记录）：
+
+```text
+Test-Connection github.com            -> True（ICMP 可达）
+TcpClient github.com:443              -> False（8s 超时，TCP 443 不可达）
+Resolve-DnsName github.com            -> 20.205.243.166
+git config http.proxy                 -> 未设置
+proxy 环境变量                        -> 无
+本机监听                             -> 127.0.0.1:7897 (verge-mihomo)
+```
+
+处置：经本机 7897 出口代理转发后推送成功。**该代理仅为本次推送通道，未写入仓库任何配置**；
+推送后复核 `git config --get-regexp 'http\.'` 与仓库级配置均未新增代理项。
+
+> 口径：这是**本机网络环境**问题，不是仓库或代码问题。后续推送若复现同类失败，
+> 应优先排查本机出口而**不是**改写历史或强推。
+
+### 13.3 远端 CI（GitHub Actions，workflow `CI`）
+
+```text
+gh run list --workflow CI --branch master --limit 3
+completed  success  Phase 7 第三批：项目中心稳定实体 ID 契约缺陷修复（含 7 处扩散面）  CI  master  push  35555007799  20s
+completed  success  Phase 7 追加：Vendor 上游不可变制品匹配审计（JS 双 CDN 闭环、字体缺口登记）  CI  master  push  35551927761  16s
+completed  success  Phase 7 补正：主代理独立复核（独立性缺陷、子代理越权 git 写、最终 HEAD 门禁与 CI 实测）  CI  master  push  35551620272  20s
+
+gh run view 35555007799 --json conclusion,headSha,event,workflowName
+{"conclusion":"success","event":"push","headSha":"3a67499c334e4e281ce0b0f38c0af4bd07602019","workflowName":"CI"}
+```
+
+`headSha` 与本轮提交**逐字一致**，故该 success 覆盖本轮工作树（Linux / Python 3.11 / ubuntu-latest）。
+
+### 13.4 口径边界
+
+| 层级 | 状态 |
+|---|---|
+| 本地实测（Windows） | 通过（`pytest` 75 passed；`node --check` 56/0；二进制红线 0） |
+| 远端 CI（`35555007799` @ `3a67499`） | **success** |
+| 生产验收 | **未执行**，仍为独立决策 |
+
+> 本地通过 != 远端 CI != 生产验收。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
