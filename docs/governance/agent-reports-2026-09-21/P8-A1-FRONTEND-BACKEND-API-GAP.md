@@ -788,3 +788,13 @@ gh run view 35564655226 --json conclusion,headSha,event,workflowName,status
 | 生产验收 | **未执行**，仍为独立决策 |
 
 > 本地通过 != 远端 CI != 生产验收。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+### 9.5 收口提交的远端 CI（2026-09-21 追加）
+
+- 收口提交：`da80cb46730a42d65bdc68a345dc40afa6e2b3dc`（“Phase 8 第三轮收口：远端 CI 读回、独立审核成立与文档口径更正”，5 files changed, +110/-9）。
+- 远端 CI run **`35566139523`** → `conclusion=success`，`headSha` 与 `da80cb4` **逐字一致**；关键步骤原文：
+  `依赖导入通过: 0.141.1 2.13.5 0.53.0`、`86 passed, 2 warnings in 3.50s`、二进制白名单扫描通过。
+- 读回：`git rev-parse HEAD` == `git rev-parse origin/master` == `da80cb46730a42d65bdc68a345dc40afa6e2b3dc`。
+
+> 仍为：本地通过 != 远端 CI != 生产验收；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

@@ -305,6 +305,8 @@
 - **远端 CI（第三轮）**：提交 `9808bab17b1bb069edfa2d1d6986ddc13fc98930` 对应 run `35564655226`
   → `conclusion=success`，`headSha` 逐字一致；关键步骤：依赖导入通过、**86 passed**、二进制白名单扫描通过
   （Ubuntu 24.04.5 / Python 3.11.16）。**不等同于生产验收或发布授权**。
+- **收口提交 CI**：`da80cb46730a42d65bdc68a345dc40afa6e2b3dc`（第三轮文档收口）对应 run `35566139523`
+  → `conclusion=success`，`headSha` 逐字一致；关键步骤：依赖导入通过、**86 passed**、二进制白名单扫描通过。
 
 **阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
 仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。

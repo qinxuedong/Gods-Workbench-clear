@@ -107,3 +107,5 @@
   §8.4 第 2 项「剩余偏差待立项」），已由主代理最小修正，见 P8-A2 §8.6。
   边界：该审核代理属**同一多代理框架内的独立执行主体**，**仍不等同于外部第三方机构审计**；
   生产验收与发布授权均未执行，仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+  收口提交 `da80cb46730a42d65bdc68a345dc40afa6e2b3dc`（文档口径更正 + CI/审核读回追加，5 files +110/-9）对应远端 CI run
+  **`35566139523`** → `conclusion=success`，`headSha` 逐字一致；`HEAD == origin/master == da80cb4`。

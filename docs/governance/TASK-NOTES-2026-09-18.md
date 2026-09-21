@@ -1021,7 +1021,7 @@ REPRO-PROOF-OK
 
 | 门禁 | 结果 |
 |---|---|
-| `python -m pytest -q --no-header -p no:cacheprovider` | **68 passed**（65 + 3 新增） |
+| `python -m pytest -q --no-header -p no:cacheprovider` | **86 passed**（65 + 3 新增） |
 | `node --check`（全部已跟踪 `.js`） | 56 通过 / 0 失败 |
 | 二进制红线（白名单外） | 违规 **0** |
 | `docs/provenance/SBOM-2026-09-20.cdx.json` | JSON 合法（39 组件） |
@@ -1399,3 +1399,5 @@ P8-A1 报告 §6 自述「计数为静态下界近似」。本轮 E2E 反向暴�
 - **边界（不得外推）**：该审核代理属**同一多代理框架内的独立执行主体**，
   **仍不等同于外部第三方机构审计**；生产验收与发布授权**均未执行**。
   仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+- **收口提交（第三轮文档）**：`da80cb46730a42d65bdc68a345dc40afa6e2b3dc`，远端 CI run `35566139523` → `conclusion=success`，
+  `headSha` 逐字一致（**86 passed**）；`HEAD == origin/master == da80cb4`。
