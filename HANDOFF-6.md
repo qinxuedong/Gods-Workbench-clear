@@ -109,3 +109,43 @@ node --check（全部已跟踪 .js）                        ->  56 files / 0 fa
 
 1. 逐文件 `git add`（**严禁 `git add -A`**）；中文提交信息；`git push`；`gh run list --workflow CI --branch master` 读回远端 CI 结果并追加至本文件。
 2. 生产验收仍为独立决策；**待用户确认项**集中于 §5，不在本轮代为决定。
+
+---
+
+## 8. 推送与远端 CI 实测结果（2026-09-21 追加）
+
+- 提交：`e6cef8707db971d634119806d8167855084f39bc`（"Phase 6：CDN 供应链钉版本、Lucide 本地化与浏览器端到端验证收口"）
+- 推送：`git push origin master` → `5b25bdf..e6cef87  master -> master`
+- 读回：`git rev-parse HEAD` == `git rev-parse origin/master` == `e6cef8707db971d634119806d8167855084f39bc`
+
+### 8.1 远端 CI（GitHub Actions，workflow `CI`）
+
+```text
+gh run list --workflow CI --branch master --limit 3
+completed  success  Phase 6：CDN 供应链钉版本、Lucide 本地化与浏览器端到端验证收口  CI  master  push  35549022913  17s
+
+gh run view 35549022913 --json conclusion,headSha,event,status
+{"conclusion":"success","event":"push","headSha":"e6cef8707db971d634119806d8167855084f39bc","status":"completed","workflowName":"CI"}
+```
+
+关键步骤原文（`gh run view 35549022913 --log`）：
+
+```text
+验证关键依赖可导入 : 依赖导入通过: 0.141.1 2.13.5 0.53.0
+运行全量测试       : 63 passed, 2 warnings in 0.74s
+扫描二进制白名单   : 二进制白名单扫描通过；允许项仅为 3 个 Source Han Sans CN 字体路径。
+```
+
+`headSha` 与本轮提交**逐字一致**，故该 success 覆盖本轮工作树（Linux / Python 3.11 / ubuntu-latest）。
+
+### 8.2 口径边界（务必区分）
+
+| 层级 | 状态 |
+|---|---|
+| 本地实测（Windows / Chrome 153.0.8010.48） | 通过（14/14 页 HTTP 200、脚本 0 失败、`63 passed`、`node --check` 56/56、二进制红线 PASS） |
+| 远端 CI（GitHub Actions，`e6cef87`） | **success**（Linux Python 3.11，`63 passed`，二进制白名单通过） |
+| 生产验收 | **未执行**，仍为独立决策 |
+
+> CI success **不等于**发布授权或生产就绪。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+> 已知 CI 注解（非失败）：`actions/checkout@v4` / `actions/setup-python@v5` 的 Node.js 20 弃用提示，
+> 以及 `ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26 的提示 —— 属上游公告，非本轮缺陷。
