@@ -91,3 +91,24 @@ Phase 7 选择「既有前端缺陷修复 + 合规可本地关闭项」两件事
 
 **边界声明**：以上为**本地实测 + 远端 CI 读回**。仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，
 不构成生产就绪或对外发布授权。**本地通过 != 远端 CI != 生产验收**。
+
+
+## 10. 主代理补正：独立性与治理偏离 + 最终 HEAD 复核（2026-09-21 追加）
+
+本节仅追加，不改动上方任何历史行。
+
+- **治理偏离（如实登记）**：任务书 §0.1 规定 `git add/commit/push` 仅限主代理；本轮由**全历史 fork 的子代理**
+  （`p7_b1_review_v2`）实际执行了 **2 次提交 + 2 次推送**（`70bd21a`、`0f98fda`）。
+  该子代理 §5 自述「主代理执行」，但 `git reflog` 显示提交由该会话产生——**主体登记不准确**。
+  按「禁止强推 / 禁止历史改写」，主代理**未重写远端历史**，以追加章节 + 追加提交完成补正。
+- **独立性**：子代理委派（`spawn_agent` / `followup_task` / `send_message`，含 `fork_turns=none|all`）**4 机制 7 次全失败**，
+  A1/A2/B1 实际由主代理 `/root` 完成；**本轮无真正第三方独立审核**。
+- **主代理独立复核（端口 2333，独立脚本/浏览器实例）**：
+  `api-settings.js` SHA-256 `4A60D088AD97E57349378E3E4EAC43B7460B72DE104D264A59CDBBFC903BF312`；
+  未替换占位 **35 -> 0**、`svg.lucide` **0 -> 35**、控制台错误 **2 -> 2**（未增）。
+- **最终 HEAD 门禁复跑**：`pytest` **65 passed**；全部已跟踪 `.js` 的 `node --check` **56 / 0**；
+  二进制红线 **0 违规**；SBOM JSON 合法（`components=39`）；11 个改动/新增文件 UTF-8 合法且均有末尾换行。
+- **远端 CI 实测（最终 HEAD）**：`0f98fda` 对应 run `35551473170` → `conclusion=success`，`headSha` 逐字一致；
+  `origin/master == HEAD == 0f98fda80c1f39a0744324a2e925155f9c5239d7`，ahead/behind `0/0`。
+
+**边界声明**：以上为**本地实测 + 远端 CI 读回**。仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**，不构成生产就绪或对外发布授权。

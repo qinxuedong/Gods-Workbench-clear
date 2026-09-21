@@ -942,3 +942,19 @@ Lucide 本地与上游 1.16.0 字节一致（`187a7566…2D040`），`@latest` �
 ### 17.6 证据边界
 
 **本地 / 远端 CI 通过 != 生产验收**。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+## 17. Phase 7（2026-09-21 追加，主代理）：既有前端缺陷修复 + 合规可本地关闭项
+
+本节仅追加，不改动上方任何历史行。
+
+- **P7-A1 既有缺陷**：`/static/api-settings.html` 首屏 35 个 `data-lucide` 占位不渲染（`svg.lucide=0`）。
+  根因：`api-settings.js:271` 的 `refreshIcons()` 未在 `:2079` 的 `window.onload` 引导块调用；`loadProviders()` 为异步。
+  修复：`window.onload` 末尾**纯追加** `refreshIcons();`（+2 行）；未删 class、未改数据/API 逻辑。
+  缺陷归属 `97b8b04`（非本轮引入）。新增回归守卫 `tests/contracts/test_phase7_frontend_icon_boot.py`（对修复前文件确定失败）。
+- **P7-A2 合规**：`colorama==0.4.6` 依 PyPI 真实响应 + sdist `LICENSE.txt`（3 条款 BSD）判定 **BSD-3-Clause**，
+  更正 `docs/provenance/SBOM-2026-09-20.cdx.json`（`components=39`，JSON 合法）并追加合规清单；
+  新增 `docs/provenance/PROMPT-REGISTRY-RIGHTS-AUDIT-2026-09-21.md`（6 源哈希/条目数全对、合计 1230，**不宣称闭环**）。
+- **度量口径**：Lucide 会把 `data-lucide` 复制到生成的 `<svg>`，故 `[data-lucide]` 渲染后仍 35；
+  正确指标为 `i[data-lucide]` 与 `svg.lucide`。
+- **独立性/治理（如实登记）**：子代理委派 4 机制 7 次全失败，A1/A2/B1 由主代理执行/复核，**无真正第三方独立审核**；
+  全历史 fork 子代理**越权 2 次提交 + 2 次推送**（`70bd21a`、`0f98fda`），按禁止改写历史原则未重写远端。
