@@ -36,8 +36,13 @@ export function createCanvasListApi(http) {
         listProjects(init) {
             return request('/api/asset-registry/projects?archived=false', init);
         },
-        listCanvases(init) {
-            return request('/api/canvases', init);
+        listCanvases(projectId, init) {
+            // 契约对齐：docs/contracts/CANVAS-INTERFACE-CATALOG.yaml 的 list_canvases
+            // 声明 request_query.project_id 为必填。缺少该参数时后端按契约返回
+            // 400 INVALID_REQUEST，画布列表会恒定加载失败（Phase 8 真实 HTTP 实测）。
+            const pid = String(projectId == null ? '' : projectId).trim();
+            if(!pid) return Promise.resolve({ok: false, status: 400, json: async () => ({canvases: []})});
+            return request(`/api/canvases?project_id=${encodeURIComponent(pid)}`, init);
         },
         createProject(payload, init = {}) {
             return request('/api/asset-registry/projects', jsonInit(payload, {...init, method: 'POST'}));

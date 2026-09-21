@@ -60,9 +60,38 @@
   门禁基线：本地 `pytest` **75 passed**、`node --check` **56/0**、二进制红线 **0**、全站 16 页 `pageerror` **0**。
   口径：本地通过 != 远端 CI != 生产验收。详见 `HANDOFF-7.md` §13、`CLEANROOM-STATUS.md`。
 
-- [ ] T25 Phase 8 启动：前后端接口缺口对账（P8-A1）与全站前端深度巡检（P8-A2）。
+- [x] T25 Phase 8 启动：前后端接口缺口对账（P8-A1）与全站前端深度巡检（P8-A2）。
   P7-A3 已取证前端存在大量调用后端**未实现**端点（至少 `GET /api/asset-registry/assets`、
   `/api/asset-registry/governance/overview`、`/api/asset-auth/*`、`/api/providers*` 等，真实 HTTP 404）。
   待交付：`docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md`、
   `P8-A2-FRONTEND-DEEP-E2E.md` 及对应纯 Python 契约守卫。
   处置口径：**只做对账与登记，不在本轮补写后端实现**；是否补实现、是否补契约需用户或产品裁决。
+
+  **P8-A1 已完成**：前端引用 **188** / 后端已实现 **14** / 契约声明 **14（14/14 有实现）** /
+  前端调用且已实现 **8** / **前端调用但未实现 180** / 契约无前端调用方 **3**；
+  真实 HTTP 实测（端口 2461）与 6 用例守卫（`tests/contracts/test_phase8_frontend_backend_api_gap.py`）
+  已落盘；报告见 `docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md`。
+
+  **P8-A2 已完成**：真实 Chromium + 真实 `uvicorn.Server` 逐页扫描 **16/16** 页，
+  `pageerror` **0**、`console.error` **63**、4xx **59**（400×1、404×58）、
+  非 4xx 失败 **2**（Unsplash ORB，既有项）；`data-lucide` 与 `svg.lucide` 逐页一致。
+  **新发现并修复 1 个真实缺陷簇**：`/static/canvas-list.html` 画布列表**恒定加载失败**
+  （后端 `GET /api/canvases` 已实现，前端缺契约必填 `project_id` → **400**，且并发调用逻辑上无法带参，
+  另加响应摄取未归一化 `canvas_id`/`project_id`/`mode`）；最小修复 3 处 + 5 用例守卫
+  （对修复前文件确定失败 `3 failed, 2 passed`）；修复后 **`ready` error→ready**、
+  **`canvasIds` `["undefined"]`→`["cv-0001"]`**。报告见
+  `docs/governance/agent-reports-2026-09-21/P8-A2-FRONTEND-DEEP-E2E.md`。
+
+  **P8-A1 扫描器缺陷（P8-A2 反向发现，已修复）**：修正前“177/169”为错误值。经缺陷 A/B 修至 **180 / 172**，再经缺陷 C（helper 拼接线漏扫）修至 **188 / 180**（与守卫基线逐字一致，详见 P8-A1 §8.3）：
+  ① **缺陷 A**：提取器未跳正则字面量 / 模板串内嵌套反引号 → 多文件 `/api` 完全漏扫（已修）；
+  ② **缺陷 B**：归一化把查询串拼接误算为路径段 → 12 条幽灵条目 + 漏算 3 条基路径（已修）；
+  ③ **已收录**（第二轮补修缺陷 C）：helper 拼接类调用 `${canvasUrl(id)}/meta|touch|purge`、`${shareUrl(token)}/access|comments|approvals`、`${teamUrl(teamId)}/members...` 等 **8 条**已入集；该项**关闭**。
+
+- [ ] T26 Phase 8 待裁决与后续（**未开工，需用户或产品裁决**）：
+  1. `asset-share.html` 无 token 直开是否给「明确缺参提示」而非 404；
+  2. P8-A1 扫描器**已修复缺陷 A/B/C**（基线重建为 **188/180**，含 helper 拼接线 8 条）；该项已闭环，不再待裁决；
+  3. 180 条未实现端点的优先级排序，及 `asset-manager`/`api-settings`/`task-center` 等
+     大功能面是否整体标记「未纳入当前切片」；
+  4. 前端是否统一改为「无后端时显式降级」而非直接 `fetch`（属行为变更）。
+  已知未改项（仅登记，不越权扩大范围）：`src/gods_workbench/static/js/asset-manager/api.js`
+  的 `getCanvases()` 同样缺 `project_id`，但本轮 16 页扫描**未触发**该路径。

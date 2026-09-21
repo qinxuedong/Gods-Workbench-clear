@@ -64,6 +64,18 @@ function normalizeProject(project){
     return {...value, id, order:projectSortOrder(value)};
 }
 
+function normalizeCanvas(canvas){
+    const value = canvas && typeof canvas === 'object' ? canvas : {};
+    // 契约对齐：docs/contracts/CANVAS-INTERFACE-CATALOG.yaml 的 list_canvases.response_200
+    // 稳定实体 ID 为 canvas_id、所属项目为 project_id、模式字段为 mode；
+    // docs/fixtures/canvas-workflow-minimal.json 同样只含 canvas_id。
+    // 不在摄取边界归一化时，卡片 data-canvas-id 会退化为字符串 "undefined"。
+    const id = value.id || value.canvas_id;
+    const project = value.project || value.project_id;
+    const kind = value.kind || value.mode;
+    return {...value, id, project, kind};
+}
+
 // Keep canvas tones aligned with the project-board type palette.  Scope and the
 // current project are the source of truth; a stale canvas color must not change
 // the visual identity of a project canvas.
@@ -341,18 +353,14 @@ async function loadAll(){
     document.documentElement.dataset.canvasListReady = 'loading';
     updateOverviewFooter('loading');
     try {
-        const [pRes, cRes] = await Promise.all([
-            canvasListApi().listProjects(),
-            canvasListApi().listCanvases()
-        ]);
+        // 契约要求先确定 project_id（list_canvases.request_query.project_id 为必填），
+        // 因此项目列表必须先行读取；此前两个请求并发发出，画布请求恒定缺参 400。
+        const pRes = await canvasListApi().listProjects();
         if(requestSequence !== canvasListLoadSequence) return false;
-        const loaded = pRes.ok && cRes.ok;
         const pData = pRes.ok ? await pRes.json() : { projects: [] };
-        const cData = cRes.ok ? await cRes.json() : { canvases: [] };
         if(requestSequence !== canvasListLoadSequence) return false;
         projects = (pData.projects || []).map(normalizeProject).sort((a, b) => projectSortOrder(a) - projectSortOrder(b));
         if(!projects.length) projects = [{ id: 'default', name: L('默认项目','Default'), order: 0, canvas_count: 0 }];
-        canvases = cData.canvases || [];
         // pick active project (prefer current or remembered)
         const targetPid = currentProjectId || rememberedProjectId();
         if(projects.find(p => p.id === targetPid)){
@@ -363,6 +371,12 @@ async function loadAll(){
             currentEntityId = '';
         }
         rememberProjectId(currentProjectId);
+        const cRes = await canvasListApi().listCanvases(currentProjectId);
+        if(requestSequence !== canvasListLoadSequence) return false;
+        const cData = cRes.ok ? await cRes.json() : { canvases: [] };
+        if(requestSequence !== canvasListLoadSequence) return false;
+        canvases = (cData.canvases || []).map(normalizeCanvas);
+        const loaded = pRes.ok && cRes.ok;
         syncCanvasListContext();
         renderProjects();
         renderBoard({

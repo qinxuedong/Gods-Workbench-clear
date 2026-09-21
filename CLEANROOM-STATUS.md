@@ -241,3 +241,62 @@
 - 门禁：本地 `pytest` **75 passed**、`node --check` **56/0**、二进制红线 **0**、全站 16 页 `pageerror` **0**。
 - 口径：**本地通过 != 远端 CI != 生产验收**。生产验收仍**未执行**，为独立决策。
 - 仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+### Phase 8 第一批：前后端接口缺口对账（P8-A1）与全站前端深度巡检（P8-A2）（2026-09-21 追加）
+
+- **P8-A1 前后端接口缺口对账**：前端引用去重归一化 `/api` 路径 **188**、后端已实现路由 **14**、
+  冻结契约声明 method+path **14**（**14/14 全部有实现，缺失 0**）、前端调用且后端有实现 **8**、
+  **前端调用但后端未实现 180**、契约声明但前端无调用方 **3**。
+  真实 HTTP 实测（`uvicorn.Server` + `httpx`，端口 2461）：14 条契约端点 GET→200、
+  POST/PATCH/DELETE 空 body→400 `INVALID_REQUEST`（恰证明路由已挂载）；20 条抽样未实现端点一律 404。
+  守卫 `tests/contracts/test_phase8_frontend_backend_api_gap.py`（6 用例，冻结 4 个基线集合）。
+  详见 `docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md`。
+
+- **P8-A2 全站前端深度巡检**：真实 Chromium + 真实 `uvicorn.Server` 逐页扫描 **16/16** 页，
+  `pageerror` 合计 **0**；`console.error` **63**、HTTP 4xx **59**（400×1、404×58）、
+  非 4xx 请求失败 **2**（Unsplash 外链被 ORB 拦截，既有登记项）。
+  `data-lucide` 与 `svg.lucide` **逐页数量完全一致**，无 Phase 7 类图标静默失败。
+  详见 `docs/governance/agent-reports-2026-09-21/P8-A2-FRONTEND-DEEP-E2E.md`。
+
+- **P8-A2 新发现并修复的真实前端缺陷（1 个功能簇）**：`/static/canvas-list.html` 画布列表
+  **恒定加载失败**（此前从未成功过）——后端 `GET /api/canvases` **早已实现**，是前端调用违反契约：
+  ① `canvas-list/api.js` 的 `listCanvases()` **未携带**契约必填的 `project_id` → 实测
+  **400 `INVALID_REQUEST`**；② `canvas-list.js` 的 `loadAll()` 把 `listProjects()` 与 `listCanvases()`
+  **并发**发出，`project_id` 逻辑上不可能带上；③ 响应摄取未按契约字段归一化
+  （契约/夹具为 `canvas_id`/`project_id`/`mode`，渲染路径读 `id`/`project`/`kind`）。
+  最小修复：先 `await listProjects()` → 确定 `currentProjectId` → `await listCanvases(currentProjectId)`
+  （携带 `?project_id=`）+ 新增 `normalizeCanvas()` 摄取归一化。
+  修复后真实浏览器实测：`ready` **error → ready**、`canvasIds` **["undefined"] → ["cv-0001"]**。
+
+- **回归守卫**：`tests/contracts/test_phase8_canvas_list_ingest_contract.py`（5 用例：契约前置事实 2 + 修复断言 3）；
+  以 `git show HEAD:` 还原修复前两文件到 `%TEMP%` 隔离副本后**确定失败**
+  （`3 failed, 2 passed`）。
+
+- **P8-A1 扫描器缺陷（本轮反向发现，已修复）**：三处缺陷导致原“177/169”为错误值，
+  现已修正为 **188 / 180**（缺陷 A/B 先修至 180/172；缺陷 C 补 8 条 helper 拼接路径）（与 `tests/contracts/test_phase8_frontend_backend_api_gap.py` 冻结基线逐字一致，详见 P8-A1 §8.3）：
+  ① **缺陷 A（提取器失明）**——`_extract_api_literals()` 未跳过 JS **正则字面量**（如 `/[&<>"']/g`，内含未转义引号）
+  与**模板串 `${}` 内嵌套反引号**，导致多个文件的 `/api` 引用**完全漏扫**
+  正确边界：`v2/index.html`(13)、`v2/settings.html`(7)、`api-settings.html`(2) 三处 `/api` 经逐处核实**全部位于 `<script>` 之外**（UI 文案 / 端点说明），属**合理排除**，不计入基线；真正因提取器失明整体漏扫的是 `js/asset-share/api.js`(1) 与 `v2/js/collab-controller.js`(4)，另 `asset-manager.js` 实测仅提取 1 条、实际 **23** 条。
+  修复：新增跳注释 / 跳正则字面量 / 递归模板串扫描（`_skip_line_comment`、`_skip_block_comment`、`_regex_can_start`、`_skip_regex_literal`、`_scan_plain_string`、`_scan_template_literal`）。
+  ② **缺陷 B（归一化虚增）**——`_collapse_template()` 对**任何** `${...}` 都整体折叠为 `{p}`，
+  把“查询串拼接”误算为“路径参数”，既**虚增** 12 条幽灵路径（如 `/api/asset-content/versions/{p}{p}`），
+  又**漏算** `/api/asset-content/versions`、`/api/asset-file-info`、`/api/audio-waveform-data` 三条真实基路径；
+  修复：仅当 `${` 紧接 `/` 之后才视为路径占位符。
+  **已收录**（第二轮缺陷 C）：helper 拼接类调用 `${canvasUrl(id)}/meta|touch|purge`、`${shareUrl(token)}/access|comments|approvals`、`${teamUrl(teamId)}/members...` 等 **8 条**已入集——该项**关闭**。
+
+- **门禁（P8-A2 修复后）**：本地 `pytest` **86 passed**、`node --check` **54/0**、二进制红线 **0**、
+  全站 16 页 `pageerror` **0**。
+
+- **并发代理越权推送（如实登记）**：本轮执行期间 `HEAD` 被另一并发子代理推进
+  `019083ce019f3361e3f211a353cd339589ace892`（仅改 `docs/governance/TASKS.md`，1 file +1/-2），
+  **未经主代理授权**（`git add/commit/push` 约定仅属主代理）。本轮修复在其之上进行，
+  **未改写历史、未强推**。与 Phase 7 已登记同类偏离一致。
+
+- **独立性边界**：子代理委派通道在本环境持续不可用（`spawn_agent`/`followup_task`/`send_message`
+  多次投递后子代理仅收到环境上下文，正文未送达），P8-A2 由**主代理自采**所有证据，
+  **独立第三方审计不成立**。本轮采用静态扫描 / 真实 HTTP / 真实浏览器 / 隔离副本注入
+  **四路交叉取证**，结论一致，但**不等同于独立审计**。
+
+**阻断发布的判定不变**：真实外部 IdP 未接入、许可证 / 第三方闭包未闭环、无生产容器部署证据、无发布授权。
+仓库继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。

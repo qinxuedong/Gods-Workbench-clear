@@ -1172,3 +1172,213 @@ episode-pipeline / governance / task-center / v2 全部 9 页）
 | `node --check`（全部已跟踪 `.js`） | 56 通过 / 0 失败 |
 | 二进制红线（白名单外） | 违规 **0** |
 | 真实浏览器全站 16 页 | `pageerror` **0** |
+
+
+## 21. Phase 8 第一批：前后端接口缺口对账（P8-A1）与全站前端深度巡检（P8-A2）
+
+### 21.1 本轮起点与并发偏离
+
+- 起点：`HEAD == origin/master == 721c00c48e7d42beda4d52e1b6c5625800546fea`。
+- 执行期间发生**并发子代理越权推送**：`019083ce019f3361e3f211a353cd339589ace892`
+  （仅改 `docs/governance/TASKS.md`，1 file changed, +1/-2），未经主代理授权。
+  本轮修复在其之上进行，**未改写历史、未强推**。
+
+### 21.2 P8-A1（前后端接口缺口对账）
+
+| 项 | 数量 |
+|---|---|
+| 前端引用去重归一化 `/api` 路径 | **188** |
+| 后端已实现路由 | **14** |
+| 冻结契约声明 method+path | **14**（**14/14 有实现，缺失 0**） |
+| 前端调用且后端有实现 | **8** |
+| **前端调用但后端未实现** | **180** |
+| 契约声明但前端无调用方 | **3** |
+
+真实 HTTP 实测（`uvicorn.Server` + `httpx`，端口 2461）：A 组 14 条契约端点 GET→200、
+POST/PATCH/DELETE 空 body→**400 `INVALID_REQUEST`**（恰证明路由已挂载）；B 组 20 条抽样一律 404。
+
+守卫 `tests/contracts/test_phase8_frontend_backend_api_gap.py`（6 用例）冻结 4 个基线集合：
+
+```text
+test_frontend_referenced_api_paths_match_frozen_baseline
+test_unimplemented_api_paths_match_frozen_baseline
+test_implemented_api_paths_match_frozen_baseline
+test_backend_route_set_not_narrowed
+test_every_contract_endpoint_has_backend_implementation
+test_contract_endpoints_without_frontend_caller_match_baseline
+```
+
+隔离副本注入自检（仓库未被污染）：删除后端 `/projects` 路由 → `1 failed, 5 passed`；
+新增前端未实现引用 → `2 failed, 4 passed`。
+
+### 21.3 P8-A2（全站前端深度巡检）16 页矩阵
+
+真实 Chromium（`chromium-1234/chrome-win64/chrome.exe`，headless，1440x900）+
+真实 `uvicorn.Server`（`GW_RELOAD=false`，端口 2481），逐页 2200ms 后统计。
+
+| 页面 | pageerror | console.error | warn | 400 | 404 | reqfail | data-lucide | svg.lucide |
+|---|---|---|---|---|---|---|---|---|
+| `api-settings.html` | 0 | 2 | 0 | 0 | 1 | 0 | 35 | 35 |
+| `asset-manager.html` | 0 | 6 | 0 | 0 | 5 | 0 | 30 | 30 |
+| `asset-share.html` | 0 | 1 | 0 | 0 | 1 | 0 | 1 | 1 |
+| `canvas-list.html` | 0 | 2 | 0 | **1** | 1 | 0 | 26 | 26 |
+| `episode-pipeline.html` | 0 | 3 | 2 | 0 | 3 | 0 | 0 | 0 |
+| `governance.html` | 0 | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `task-center.html` | 0 | 15 | 0 | 0 | 15 | 0 | 24 | 24 |
+| `v2/agents.html` | 0 | 1 | 1 | 0 | 1 | 0 | 19 | 19 |
+| `v2/assets.html` | 0 | 7 | 1 | 0 | 6 | 0 | 16 | 16 |
+| `v2/collab.html` | 0 | 9 | 1 | 0 | 8 | 0 | 24 | 24 |
+| `v2/index.html` | 0 | 4 | 1 | 0 | 4 | 0 | 88 | 88 |
+| `v2/production.html` | 0 | 1 | 1 | 0 | 1 | **1** | 24 | 24 |
+| `v2/projects.html` | 0 | 1 | 1 | 0 | 1 | 0 | 54 | 54 |
+| `v2/settings.html` | 0 | 7 | 1 | 0 | 7 | 0 | 35 | 35 |
+| `v2/storyboard.html` | 0 | 1 | 1 | 0 | 1 | **1** | 23 | 23 |
+| `v2/workshop.html` | 0 | 2 | 1 | 0 | 2 | 0 | 33 | 33 |
+| **合计** | **0** | **63** | **12** | **1** | **58** | **2** | — | — |
+
+`data-lucide` 与 `svg.lucide` **逐页完全相等**，无 Phase 7 类图标静默失败。
+2 条 `requestfailed` 均为 `images.unsplash.com/photo-1579783902614-a3fb3927b675`
+被 **ORB 拦截**（既有登记项，属第三方内容权利链问题）。
+
+### 21.4 P8-A2 新发现并修复的真实缺陷（画布列表恒定加载失败）
+
+**关键**：后端 `GET /api/canvases` **早已实现且契约完备**，缺陷**全在前端调用方式**。
+
+三条独立事实链：
+
+1. `src/gods_workbench/static/js/canvas-list/api.js:39-41`（缺陷版本）`listCanvases(init)`
+   请求 `/api/canvases` **未携带** `project_id`；
+   契约 `docs/contracts/CANVAS-INTERFACE-CATALOG.yaml` 的 `list_canvases.request_query.project_id` 为**必填**。
+2. `src/gods_workbench/static/js/canvas-list.js:344-347`（缺陷版本）用
+   `Promise.all([listProjects(), listCanvases()])` **并发**发出；`project_id`
+   只在项目列表返回后确定，**逻辑上不可能**带上。
+3. 响应摄取未按契约归一化：契约 `response_200` 与 `docs/fixtures/canvas-workflow-minimal.json`
+   用 `canvas_id`/`project_id`/`mode`，渲染路径读 `id`/`project`/`kind`
+   （`canvas-list.js:1011` `card.dataset.canvasId = c.id`）。
+
+**真实 HTTP 复现原文**（端口 2473）：
+
+```text
+GET /api/canvases
+   -> 400  {"detail":{"code":"INVALID_REQUEST","message":"请求参数不合法",
+             "errors":[{"loc":["query","project_id"],"msg":"Field required","type":"missing"}]}}
+GET /api/canvases?project_id=prj-0001
+   -> 200  {"canvases":[{"canvas_id":"cv-0001","title":"基准工作流画布",
+             "project_id":"prj-0001","version":1,"mode":"classic"}]}
+```
+
+**真实浏览器复现原文**（端口 2475，缺陷版本）：
+
+```text
+{ "ready": "error", "projectRows": ["prj-0001"], "canvasCards": 0, "overviewApiState": "待连接" }
+REQ GET 400 http://127.0.0.1:2475/api/canvases
+REQ GET 200 http://127.0.0.1:2475/api/asset-registry/projects?archived=false
+REQ GET 404 http://127.0.0.1:2475/api/canvases/trash
+```
+
+**卡片 ID 退化独立取证**（端口 2489，缺陷版本 + 契约形状路由桩隔离 400）：
+
+```text
+A) 契约形状数据（canvas_id/title/project_id/version/mode）:
+{ "ready": "ready", "totalCount": "2", "canvasCards": 2,
+  "canvasIds": ["undefined", "undefined"] }
+```
+
+**最小修复（3 处）**：
+
+| 文件 | 改动 |
+|---|---|
+| `canvas-list/api.js` | `listCanvases(projectId, init)` → `` `/api/canvases?project_id=${encodeURIComponent(pid)}` ``；`pid` 为空时不发请求 |
+| `canvas-list.js` | 新增 `normalizeCanvas()`：摄取边界 `canvas_id→id`、`project_id→project`、`mode→kind` |
+| `canvas-list.js` | `loadAll()` 改为**先 `await listProjects()` → 确定 `currentProjectId` → `await listCanvases(currentProjectId)`** + `.map(normalizeCanvas)` |
+
+**修复后真实浏览器实测**（端口 2501）：
+
+```text
+{ "ready": "ready", "overviewSource": "CANVAS CLUSTER READY", "total": "1",
+  "cards": 1, "canvasIds": ["cv-0001"], "projectRows": ["prj-0001"] }
+请求：
+   200 http://127.0.0.1:2501/api/asset-registry/projects?archived=false
+   200 http://127.0.0.1:2501/api/canvases?project_id=prj-0001
+   404 http://127.0.0.1:2501/api/canvases/trash
+```
+
+`ready` **error → ready**；`canvasIds` **["undefined"] → ["cv-0001"]**。
+
+### 21.5 回归守卫
+
+`tests/contracts/test_phase8_canvas_list_ingest_contract.py`（5 用例）：
+契约前置事实 2 条（`request_query.project_id` 必填、`response_200.canvas_id` 为稳定 ID）+
+修复断言 3 条（携带 `project_id` / `loadAll` 串行 / 摄取归一化）。
+
+**对修复前文件确定失败**（隔离副本 `%TEMP%\gw-probe-20260921\pfx1\`，以 `git show HEAD:` 还原两文件）：
+
+```text
+FAILED test_canvas_list_api_sends_project_id
+FAILED test_canvas_list_load_all_is_sequential
+FAILED test_canvas_list_normalizes_contract_fields_at_ingest
+3 failed, 2 passed
+```
+
+### 21.6 P8-A1 扫描器缺陷（由 E2E 反向发现，**提交前已修复**）
+
+P8-A1 报告 §6 自述「计数为静态下界近似」。本轮 E2E 反向暴露出扫描器的**三处缺陷**（A/B 由 P8-A2 反向发现，C 由第二轮补修），
+均已在 §代码修正后回归；冻结基线由 **177/169 修正为 188/180**（缺陷 A/B 先修至 180/172，缺陷 C 再补 8 条 helper 拼接路径；详见 P8-A1 §8.3）。
+
+1. 【已修，缺陷 A】**提取器失明 → 部分文件 `/api` 完全漏扫**。
+   两个具体成因（均为实测）：
+   - **JS 正则字面量内的未转义引号**：`v2/js/collab-controller.js` 第 7 行的 `/[&<>"']/g`，
+     提取器把其中的 `"` 当作**字符串起烋**，吞并到文件末尾，使该文件 4 处 `/api` 全部漏扫；
+     `asset-manager.js` 同理（实测仅提取 1 条，实际 23 条）。
+   - **模板串 `${}` 内嵌套反引号**：`` `[data-tab="${CSS.escape(movedId)}"]` ``，内层反引号被当作新串起烋。
+   - `js/asset-share/api.js` 的漏扫则来自**注释中的英文撇号**（第 26 行 `caller's`，字节位置 1306）。
+   - **决定性对照实验（`collab-controller.js`）**：保留 `/[&<>"']/g` 时简单扫描只得 0 条 `/api`；
+     将该正则内的引号中和后，同一扫描立即得回 **4 条**——证明该正则字面量是本文件漏扫的**唯一根因**。
+   - 修正：新增 `_skip_line_comment` / `_skip_block_comment` / `_regex_can_start` / `_skip_regex_literal`，
+     以及递归处理内嵌套字符串的 `_scan_plain_string` / `_scan_template_literal`。
+   - 定性边界：`v2/index.html`(13)、`v2/settings.html`(7)、`api-settings.html`(2) 的 `/api` 经逐处核实
+     **均在 `<script>` 之外**（UI 文案 / 端点说明），非代码调用，属**合理排除**，不计入基线。
+2. 【已修，缺陷 B】**归一化把查询串拼接误算为路径段**。
+   `_collapse_template()` 对**任何** `${...}` 都整体折叠为 `{p}`，产生 12 条并不存在的幽灵路径：
+   `.../operation-approvals{p}`、`/api/asset-content{p}`、`/api/asset-registry/assets{p}`、`/api/episode-pipelines{p}`、
+   `/api/asset-proxy/settings{p}`、`/api/asset-file-info{p}`、`/api/audio-waveform-data{p}`、`/api/asset-reviews/sessions{p}`、
+   `/api/asset-registry/project-directory-templates{p}`、`/api/asset-content/versions{p}`、`/api/asset-content/versions/{p}{p}`、
+   `/api/asset-library/categories/{p}{p}`。同时**漏算** `/api/asset-content/versions`、`/api/asset-file-info`、
+   `/api/audio-waveform-data` 三条真实基路径。修正：仅当 `${` 紧接 `/` 之后才视为路径占位符。
+3. 【**已收录**（第二轮缺陷 C 修复）】**helper 拼接类调用**：`js/canvas-list/api.js` 的
+   `canvasUrl(id) + '/meta' | '/touch' | '/purge'` 生成的 `/api/canvases/{id}/meta` 等路径，字面量中不含完整 `/api`，
+   旧扫描器实测 `in scan set = False`；**第二轮已修复并补入 8 条**（`/meta`、`/touch`、`/purge`、`/access`、`/comments`、`/approvals`、`/members`、`/members/{p}`），原待裁决项关闭。
+
+**取证方法**：均在 `%TEMP%` 隔离副本内复现（向 `asset-manager.js` 末尾追加 `/api/__probe_tail__` 后
+守卫由「6 passed 漏报」变为「2 failed, 4 passed」），仓库工作区未保留任何注入改动。
+
+### 21.7 门禁（本轮修复后）
+
+| 门禁 | 结果 |
+|---|---|
+| `python -m pytest -q --no-header -p no:cacheprovider` | **86 passed**（81 + 本轮画布守卫 5） |
+| `node --check`（非 vendor 已跟踪 `.js`） | **54 / 0 failed**（本轮改动 2 文件单独复核 exit=0） |
+| 二进制红线（白名单外） | 违规 **0**（仅 3 个白名单思源黑体 `.otf`） |
+| 真实浏览器全站 16 页 | `pageerror` **0** |
+
+### 21.8 明确未做（边界）
+
+1. **未补写任何后端实现**（180 条缺口保持原状）。
+2. **已修复 P8-A1 扫描器缺陷 A/B/C（基线重建为 188/180）**；§21.6 第 3 类（helper 拼接，8 条）已入集。
+3. **未改 `asset-share.html` 无 token 行为**（属产品裁决）。
+4. **未改 `v2/*` 的 `asset-auth/status` 404 降级行为**。
+5. **未改 `asset-manager/api.js:674-679` 的 `getCanvases()`**（同样缺 `project_id`）：
+   本轮 16 页扫描**未触发**该路径，且其目标 `/api/canvases/assets` 本属未实现缺口，
+   按最小改动原则**仅登记**。
+
+### 21.9 独立性与取证边界（如实登记）
+
+- **执行主体独立性不成立**：子代理委派通道在本环境持续不可用
+  （`spawn_agent` / `followup_task` / `send_message` 多次投递后子代理仅收到环境上下文，正文未送达），
+  P8-A2 **由主代理自采全部证据**。本轮以**四路交叉取证**降低单点风险：
+  静态扫描（纯 Python 解析）↔ 真实 HTTP（`httpx` + `uvicorn.Server`）↔
+  真实浏览器（Chromium/Playwright）↔ 隔离副本注入（`git show HEAD:` + `%TEMP%` 副本）。
+  三者对本缺陷结论一致，**但这不等同于独立第三方审计**。
+- **取证边界**：本地实测（Windows + Chromium + uvicorn）通过；远端 CI **本轮未执行**；
+  生产验收**未执行**，为独立决策。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。**本地通过 != 远端 CI != 生产验收**。
