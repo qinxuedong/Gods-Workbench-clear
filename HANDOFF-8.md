@@ -205,3 +205,12 @@ python run.py                                          # 本机端口 2077
 - 本地门禁：`pytest` **282 passed, 7 skipped**；`tests/hygiene` **16 passed**；tracked JS `node --check` **56 / 0 failed**。
 - 远端 CI：run `35694729525`，`headSha=cdf78a1748f3613e2276acd1054efcaeb315e14c`，`conclusion=success`。
 - 未完成且按用户要求暂跳过：第三方独立审计、真实外部 IdP 生产登录、发布授权及其他需外部/人工审核事项；T66 仍保持未收口。
+
+## 10. 素材库阶段准备状态（2026-09-22）
+
+- 已按 T26 进入“素材库”优先阶段盘点。
+- 发现当前没有素材库冻结契约或黄金夹具；依据洁净室规则，不能直接新增素材库后端路由。
+- 已登记准备报告：`docs/governance/ASSET-LIBRARY-READINESS-2026-09-22.md`。
+- 最小候选闭环为 `GET /api/asset-library`、`POST /api/asset-library/libraries`、`POST /api/asset-library/categories`，仅为候选，不是已批准实现。
+- 待人工/审核冻结契约与夹具后，才能继续素材库后端实现；本轮未伪造数据、未引入旧仓源码。
+

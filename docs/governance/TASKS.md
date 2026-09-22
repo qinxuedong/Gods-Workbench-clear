@@ -788,3 +788,9 @@
   - **许可证边界**：根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 按用户裁决不建立；第三方审计、真实 IdP、发布授权仍未完成。
   - **门禁**：本地 `pytest` 282 passed / 7 skipped，`tests/hygiene` 16 passed，tracked JS `node --check` 56 / 0 failed；Tailwind 快照哈希同时受测试常量与 `vendor/MANIFEST.md` 守卫。
   - **远端 CI**：run `35694729525`，head SHA `cdf78a1748f3613e2276acd1054efcaeb315e14c`，conclusion `success`。
+
+- [x] T72 Phase 9U 素材库阶段开工前准备（2026-09-22）。
+  - 按 T26 顺序进入素材库阶段盘点；确认当前没有素材库冻结契约或黄金夹具。
+  - 新增 `docs/governance/ASSET-LIBRARY-READINESS-2026-09-22.md`，登记最小候选闭环（GET 素材库、创建素材库、创建分类）及开工前必须冻结的请求/响应、CAS、错误包、文件安全边界与夹具要求。
+  - **边界**：未擅自新增 `/api/asset-library` 或 `/api/asset-registry/assets` 路由，未伪造空库数据，未引入旧仓源码；待契约/夹具冻结后再实施。
+
