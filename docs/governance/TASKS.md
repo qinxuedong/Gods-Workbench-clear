@@ -872,5 +872,9 @@
   引入提交 `8c225fc5e71046e0164a41b8e4935c0a8b49b478`（1 文件 / +183 行）；
   远端 CI run `35736938358` conclusion=success、headSha 逐字一致。
   本文件再由 T80 追加 §9（提交与 CI 读回证据）。
+  后续文档追加提交 `bd44f88dad22e2882c0544abbd4a6cacb1adcf58`（§9 口径澄清 + 本条 T80），
+  远端 CI run `35737776281` conclusion=success、headSha 逐字一致。
+  本条目之后若有新的文档追加提交，其 SHA / CI 以 `git log --oneline -1 -- HANDOFF-9.md`
+  与 `gh run list --limit 3 --json databaseId,headSha,status,conclusion` 现场读回为准。
   **边界**：HANDOFF-9 §4.1 登记的「本轮未建立外部独立复核」缺陷不因 CI 变绿而消失；
   仓库仍为 NOT AUTHORIZED FOR PUBLIC DISTRIBUTION；未闭环项以 HANDOFF-9 §6 为准。

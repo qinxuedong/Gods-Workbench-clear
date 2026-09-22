@@ -189,6 +189,9 @@ python run.py                                            # 本机端口 2077
 本节记录**引入本文件的那一次提交**；本节自身若后续追加修订，其 SHA 以
 `git log --oneline -1 -- HANDOFF-9.md` 与 `docs/governance/TASKS.md` T80 登记为准。
 
+> 说明：头部 §0 的基线 `8e39237` 是**代码基线**（本文件引入前的最后一个代码提交），
+> 不随本文档自身的追加提交变动。
+
 - 提交：`8c225fc5e71046e0164a41b8e4935c0a8b49b478`（「HANDOFF-9：T26 五段切片交接文档（已完成 / 卡点 / 下一步 / 未闭环清单）」），改动 1 文件 / +183 行。
 - 推送：`git push origin master` → `8e39237..8c225fc  master -> master`。
 - 推送后读回：`git rev-parse HEAD` = `git rev-parse origin/master` = `8c225fc...`；`git rev-list --left-right --count origin/master...HEAD` = `0` 与 `0`（0/0）。
