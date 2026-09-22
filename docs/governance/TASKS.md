@@ -788,4 +788,3 @@
   - **许可证边界**：根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 按用户裁决不建立；第三方审计、真实 IdP、发布授权仍未完成。
   - **门禁**：本地 `pytest` 282 passed / 7 skipped，`tests/hygiene` 16 passed，tracked JS `node --check` 56 / 0 failed；Tailwind 快照哈希同时受测试常量与 `vendor/MANIFEST.md` 守卫。
   - **远端 CI**：run `35694729525`，head SHA `cdf78a1748f3613e2276acd1054efcaeb315e14c`，conclusion `success`。
-

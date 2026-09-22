@@ -205,4 +205,3 @@ python run.py                                          # 本机端口 2077
 - 本地门禁：`pytest` **282 passed, 7 skipped**；`tests/hygiene` **16 passed**；tracked JS `node --check` **56 / 0 failed**。
 - 远端 CI：run `35694729525`，`headSha=cdf78a1748f3613e2276acd1054efcaeb315e14c`，`conclusion=success`。
 - 未完成且按用户要求暂跳过：第三方独立审计、真实外部 IdP 生产登录、发布授权及其他需外部/人工审核事项；T66 仍保持未收口。
-
