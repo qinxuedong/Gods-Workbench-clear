@@ -653,3 +653,66 @@ def test_repository_has_no_observability_fake_telemetry_payloads():
         payload = json.dumps(data, ensure_ascii=False)
         assert "cpu_percent" not in payload, f"{path.name} 不得包含伪造 CPU 数据"
         assert "ram_usage" not in payload, f"{path.name} 不得包含伪造内存数据"
+
+
+# ---------------------------------------------------------------------------
+# R3 独立复核发现的「静默失败」诚实性缺口（Phase 10B 修复回归）
+# ---------------------------------------------------------------------------
+
+def _broken_audit_service(monkeypatch):
+    """构造审计源不可读的观测服务（其余依赖为真实空服务）。"""
+    audit_log.reset_audit_log()
+    service = ObservabilityService(
+        projects_service=ProjectsService(seed_golden_fixture=False),
+        canvas_service=GodCanvasService(seed_golden_fixture=False),
+        asset_library_service=AssetLibraryService(seed_golden_fixture=False),
+    )
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("audit source unavailable (injected)")
+
+    monkeypatch.setattr(audit_log, "list_auth_events", boom)
+    return service
+
+
+def test_events_degrades_when_audit_source_is_unreadable(monkeypatch):
+    """审计源不可读时，events 必须如实降级，绝不能伪装成空事件 + ok。"""
+    service = _broken_audit_service(monkeypatch)
+    monkeypatch.setattr(obs_routes, "default_observability_service", service)
+    with TestClient(create_app()) as client:
+        body = client.get("/api/observability/events", headers=AUTH).json()
+    assert body["data_status"] == "degraded", "源不可用不得报告为 ok"
+    assert body["items"] == []
+    assert body["data_gaps"], "降级必须携带可见的 data_gaps"
+    audit_log.reset_audit_log()
+
+
+def test_health_reports_audit_buffer_failure_not_ok(monkeypatch):
+    """审计缓冲不可读时，health 的 audit_buffer 检查必须为 failed，且整体降级。"""
+    service = _broken_audit_service(monkeypatch)
+    monkeypatch.setattr(obs_routes, "default_observability_service", service)
+    with TestClient(create_app()) as client:
+        body = client.get("/api/observability/health", headers=AUTH).json()
+    statuses = {check["name"]: check["status"] for check in body["checks"]}
+    assert statuses["audit_buffer"] == "failed", statuses
+    assert body["status"] == "degraded"
+    assert body["data_status"] == "degraded"
+    audit_log.reset_audit_log()
+
+
+def test_read_audit_records_distinguishes_failure_from_empty(monkeypatch):
+    """核心区分：读取失败 -> None；成功但为空 -> []。"""
+    service = ObservabilityService(
+        projects_service=ProjectsService(seed_golden_fixture=False),
+        canvas_service=GodCanvasService(seed_golden_fixture=False),
+        asset_library_service=AssetLibraryService(seed_golden_fixture=False),
+    )
+    audit_log.reset_audit_log()
+    assert service._read_audit_records() == [], "成功但为空必须是空列表"
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("injected")
+
+    monkeypatch.setattr(audit_log, "list_auth_events", boom)
+    assert service._read_audit_records() is None, "读取失败必须是 None，不能退化为 []"
+    audit_log.reset_audit_log()

@@ -126,3 +126,44 @@ python -P -m pytest tests/hygiene -q
   （已按上述口径披露，而非补齐字段）。
 - 前端真实浏览器 E2E（渲染与降级路径）在本阶段**未执行**。
 - `docs/governance/TASKS.md` 的阶段状态位**未改动**（阶段状态变更需人工明确确认）。
+
+## 8. R3 独立复核发现的静默失败缺口与修复（2026-09-22）
+
+独立复核 R3（dispatch `ctx_1dec280ac298`）在复跑门禁与文档一致后，指出 3 项**诚实性**缺口。
+主代理已独立确证并修复，三项均属「把不可用伪装成正常」的反洁净室红线：
+
+| 编号 | 缺口 | 修复 |
+|---|---|---|
+| R3-1 | `_read_audit_records()` 异常时返回 `[]`，`events` 在源不可用时仍报 `data_status=ok` + `data_gaps=[]` | 返回类型改为 `Optional[List[...]]`：成功但为空 → `[]`；读取失败 → `None`。`events()` 遇 `None` 立即返回 `degraded` + `data_gaps=[GAP_AUDIT_UNAVAILABLE]` |
+| R3-2 | `health()` 的 `audit_buffer` 检查无失败分支，恒为 `ok` | 增加 `records is None` 分支：`status="failed"` + `gaps.append(...)`，整体自动降级为 `degraded` |
+| R3-3 | 夹具 `observability-empty-not-integrated.json` 的 `asset_volumes.limit=40` 与服务默认 `DEFAULT_LIMIT=50` 不一致 | 夹具改为 50，与 events/tasks/sources 口径统一 |
+
+### 8.1 新增回归测试（3 条）
+
+- `test_events_degrades_when_audit_source_is_unreadable`
+- `test_health_reports_audit_buffer_failure_not_ok`
+- `test_read_audit_records_distinguishes_failure_from_empty`
+
+### 8.2 变异复验（证明新守卫非恒真）
+
+| 变异 | 注入点 | 结果 |
+|---|---|---|
+| M-R3-1 | `_read_audit_records()` 的 `return None` 还原为 `return []` | **3 failed**（三条回归测试全部捕获） |
+| M-R3-2 | `health()` 的 `audit_buffer.status` 由 `failed` 改回 `ok` | **1 failed**（`failure_not_ok` 捕获） |
+| 还原 | — | 53 passed |
+
+### 8.3 修复后门禁（本地实测）
+
+```text
+python -P -m pytest tests/contracts/test_phase10b_observability.py -q
+53 passed
+
+python -P -m pytest -q
+356 passed, 7 skipped
+
+python -P -m pytest tests/hygiene -q
+16 passed
+```
+
+> 注：`_read_audit_records()` 是 Phase 10A/10B 内部私有读取口径，本修复未新增任何契约端点，
+> 未扩大对外接口面，仅在既有 8 个观测端点内把「静默失败」改为「如实降级」。

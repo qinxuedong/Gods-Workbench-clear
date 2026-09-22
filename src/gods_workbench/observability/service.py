@@ -84,6 +84,7 @@ GAP_HARDWARE = "未接入宿主机硬件遥测数据源，不提供 CPU/内存/�
 GAP_SERIES = "未接入指标时间序列存储，禁止伪造波形，故返回空序列"
 GAP_SOURCES = "未接入可观测性数据源注册表，故返回空数组"
 GAP_ASSET_VOLUMES = "未接入素材体积统计索引，故返回空数组"
+GAP_AUDIT_UNAVAILABLE = "审计缓冲不可读，认证事件不可观测（如实降级，不伪装为空）"
 GAP_LATENCY = "未接入延迟直方图数据源，p95 延迟不可计算，故为 null"
 
 _ID_SCOPE_LABELS = (
@@ -402,6 +403,19 @@ class ObservabilityService:
             )
 
         records = self._read_audit_records()
+        if records is None:
+            return ObservabilityListResponse(
+                data_status=DataStatus.DEGRADED,
+                items=[],
+                total=0,
+                limit=filters.limit,
+                has_more=False,
+                next_cursor=None,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                data_gaps=[GAP_AUDIT_UNAVAILABLE],
+                applied_filters=filters,
+            )
         projected = [self._project_event(index, record) for index, record in enumerate(records)]
 
         selected: List[ObservabilityEvent] = []
@@ -434,12 +448,17 @@ class ObservabilityService:
             applied_filters=filters,
         )
 
-    def _read_audit_records(self) -> List[Dict[str, Any]]:
-        """读取脱敏审计缓冲；失败时返回空（绝不编造事件）。"""
+    def _read_audit_records(self) -> Optional[List[Dict[str, Any]]]:
+        """读取审计缓冲。
+
+        返回 ``None`` 表示**读取失败**，与「读取成功但确实为空」严格区分：
+        调用方必须把 ``None`` 映射为 degraded + data_gap，绝不静默当作 ok 返回空列表，
+        否则会把「源不可用」伪造成「确实没有事件」。
+        """
         try:
             return list(audit_log.list_auth_events())
         except Exception:
-            return []
+            return None
 
     def _project_event(self, index: int, record: Mapping[str, Any]) -> ObservabilityEvent:
         """把白名单审计记录投影为对外事件；事件标识为内容派生的稳定哈希。"""
@@ -605,13 +624,23 @@ class ObservabilityService:
             gaps.append(message)
 
         records = self._read_audit_records()
-        checks.append(
-            HealthCheck(
-                name="audit_buffer",
-                status="ok",
-                message_safe=f"审计环形缓冲可读，当前保留 {len(records)} 条已脱敏认证事件",
+        if records is None:
+            checks.append(
+                HealthCheck(
+                    name="audit_buffer",
+                    status="failed",
+                    message_safe="审计缓冲不可读，认证事件不可观测",
+                )
             )
-        )
+            gaps.append(GAP_AUDIT_UNAVAILABLE)
+        else:
+            checks.append(
+                HealthCheck(
+                    name="audit_buffer",
+                    status="ok",
+                    message_safe=f"审计缓冲可读，当前缓存 {len(records)} 条已脱敏认证事件",
+                )
+            )
 
         if getattr(self._canvas, "_jobs", None) is None:
             checks.append(
@@ -636,7 +665,7 @@ class ObservabilityService:
             status=overall,
             data_status=data_status,
             checks=checks,
-            buffered_audit_events=len(records),
+            buffered_audit_events=0 if records is None else len(records),
             checked_at=_now_iso(),
             data_gaps=gaps,
             applied_filters=filters,
