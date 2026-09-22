@@ -794,3 +794,8 @@
   - 新增 `docs/governance/ASSET-LIBRARY-READINESS-2026-09-22.md`，登记最小候选闭环（GET 素材库、创建素材库、创建分类）及开工前必须冻结的请求/响应、CAS、错误包、文件安全边界与夹具要求。
   - **边界**：未擅自新增 `/api/asset-library` 或 `/api/asset-registry/assets` 路由，未伪造空库数据，未引入旧仓源码；待契约/夹具冻结后再实施。
 
+- [x] T73 素材库非冻结契约/夹具草案（2026-09-22）。
+  - 新增 `docs/governance/asset-library-draft-2026-09-22/`，包含候选三端点的请求/响应草案及空库、非空库、创建成功、409 冲突示例夹具。
+  - 全部文件明确标记 `DRAFT / NOT FROZEN`，不得替代 `docs/contracts/`、`docs/fixtures/`，不得作为后端实现授权。
+  - 待用户/架构审核确认字段、状态码、CAS 粒度、命名和错误语义后，才能正式冻结并实现。
+

@@ -214,3 +214,10 @@ python run.py                                          # 本机端口 2077
 - 最小候选闭环为 `GET /api/asset-library`、`POST /api/asset-library/libraries`、`POST /api/asset-library/categories`，仅为候选，不是已批准实现。
 - 待人工/审核冻结契约与夹具后，才能继续素材库后端实现；本轮未伪造数据、未引入旧仓源码。
 
+## 11. 素材库非冻结草案（2026-09-22）
+
+- 已新增 `docs/governance/asset-library-draft-2026-09-22/`。
+- 草案覆盖 `GET /api/asset-library`、`POST /api/asset-library/libraries`、`POST /api/asset-library/categories`，并提供成功、空库和 409 冲突示例。
+- 所有内容明确标记 **DRAFT / NOT FROZEN**，不替代正式契约/夹具，也不授权新增后端路由。
+- 待人工/架构审核冻结后，再按素材库阶段继续实现。
+
