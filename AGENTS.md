@@ -29,7 +29,7 @@
 1. **前端技术栈（极简、原生、高质感）**：
    - **核心哲学**：恪守 KISS 原则，杜绝过度工程化。
    - **架构方案**：原生 HTML5 + 现代化原生 JavaScript + CSS。
-   - **视觉系统**：统一沿用“黑金拟物科技硬件设计系统”（Hardware Design System）与 Tailwind CSS CDN。
+   - **视觉系统**：统一沿用“黑金拟物科技硬件设计系统”（Hardware Design System）与本地自托管 Tailwind 快照。
    - **严禁事项**：不引入 React、Vue、Webpack、Vite 等沉重构建链或前端框架，保持随时可在浏览器直接打开运行的高效性。
 2. **后端技术栈**：
    - Python 3.11 + FastAPI + Pydantic v2，目录位于 `src/gods_workbench/`。

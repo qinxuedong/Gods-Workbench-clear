@@ -73,6 +73,8 @@ class OidcConfig:
 
     issuer: str = ""
     audience: str = ""
+    # 授权方（azp）必须绑定到当前 OIDC 客户端，而不是复用 audience 配置。
+    client_id: str = ""
     enabled: bool = False
     allowed_algorithms: frozenset = ALLOWED_ALGORITHMS
     leeway_seconds: int = 60
@@ -397,11 +399,12 @@ def verify_authorized_party(claims: Mapping[str, Any], config: OidcConfig) -> No
     规则：
     - ``aud`` 为**多个**取值时，必须存在 ``azp``；缺失即拒绝
       （否则令牌可能被签发给另一个客户端却在本客户端被接受）。
-    - ``azp`` 存在时必须与配置的 ``audience``（即本客户端 ``client_id``）完全一致。
+    - ``azp`` 存在时必须与配置的 ``client_id``（``GW_OIDC_CLIENT_ID``）完全一致。
     - ``aud`` 为单值时 ``azp`` 可省略；若存在则同样必须与本客户端一致。
 
-    本仓为**公共客户端**（无 client [FUNC]），``audience`` 即 ``GW_OIDC_AUDIENCE``，
-    与 ``GW_OIDC_CLIENT_ID`` 在部署时保持一致，因此这里以 ``audience`` 作为比对基准。
+    ``aud`` 与 ``azp`` 是不同语义：前者是令牌受众，后者是授权客户端。
+    即使部署上两者通常相同，也必须使用独立的 ``GW_OIDC_CLIENT_ID`` 配置，
+    避免因两项配置漂移而错误接受跨客户端令牌。
     """
     audience = claims.get("aud")
     multi_audience = isinstance(audience, (list, tuple)) and len(audience) > 1
@@ -414,7 +417,7 @@ def verify_authorized_party(claims: Mapping[str, Any], config: OidcConfig) -> No
     azp = claims["azp"]
     if not isinstance(azp, str) or not azp.strip():
         raise UnauthorizedException(message="azp 声明类型无效，已拒绝")
-    if not config.audience or azp.strip() != config.audience:
+    if not config.client_id or azp.strip() != config.client_id:
         raise UnauthorizedException(message="azp 校验失败，已拒绝令牌")
 
 

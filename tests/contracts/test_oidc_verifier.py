@@ -81,6 +81,7 @@ def make_config(jwks: dict, **overrides) -> oidc.OidcConfig:
     params = dict(
         issuer=ISSUER,
         audience=AUDIENCE,
+        client_id=AUDIENCE,
         enabled=True,
         jwks=jwks,
         leeway_seconds=0,

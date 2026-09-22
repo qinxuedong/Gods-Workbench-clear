@@ -1009,59 +1009,45 @@ def test_episode_pipeline_degradation_banner_has_style():
 
 
 # ---------------------------------------------------------------------------
-# Phase 9T：Tailwind Play CDN 插件版本必须钉死（用户 2026-09-21 裁决第 4 项
-# 「Phase 7 滚动的合规/供应链项：按建议执行」的本地可闭环部分）
+# Phase 9T：Tailwind 自托管快照守卫（用户 2026-09-22 裁决 O4）
 #
-# 实测（主代理 2026-09-22，真实网络）：
-#   https://cdn.tailwindcss.com/3.4.17?plugins=forms,container-queries
-#     -> HTTP 302，Location: /3.4.17?plugins=forms@0.5.10,container-queries@0.1.1
-#   https://cdn.tailwindcss.com/3.4.17?plugins=forms@0.5.10,container-queries@0.1.1
-#     -> HTTP 200，418,973 B，SHA-256 A789CE5A...C50D60A（钉死版）
-# 未钉死插件版本 = 依赖上游重定向的浮动解析（上游一旦改指向即静默漂移），
-# 且 302 使「实际加载制品」无法做单跳哈希核对。
-#
-# 证据边界：本节为静态源码守卫，**不能**替代真实网络探测；
-# 状态码/字节数/SHA-256 真值记录在 docs/provenance/CDN-SUPPLY-CHAIN-2026-09-21.md。
+# HTML 不得继续加载外部 Tailwind CDN；本地快照必须存在并与 MANIFEST 记录一致。
+# 该快照保留 Tailwind Play CDN 3.4.17 及已钉死插件版本，运行时不再发起 CDN 请求。
 # ---------------------------------------------------------------------------
 
-PINNED_TAILWIND_PLUGIN_URL = (
-    "https://cdn.tailwindcss.com/3.4.17?plugins=forms@0.5.10,container-queries@0.1.1"
-)
-FLOATING_TAILWIND_PLUGIN_URL = (
-    "https://cdn.tailwindcss.com/3.4.17?plugins=forms,container-queries"
-)
+LOCAL_TAILWIND_SCRIPT = STATIC_DIR / "vendor" / "js" / "tailwindcss-cdn.js"
+TAILWIND_MANIFEST = STATIC_DIR / "vendor" / "MANIFEST.md"
+LOCAL_TAILWIND_SHA256 = "A789CE5A73191759006B64A0C05F63AFBF9AA43A86511BF798D688737429E60A"
 
 
-def _all_occurrences(text, needle):
-    start = 0
-    while True:
-        idx = text.find(needle, start)
-        if idx == -1:
-            return
-        yield idx
-        start = idx + len(needle)
-
-
-def test_tailwind_plugin_versions_are_pinned():
-    """Tailwind CDN 的传递插件版本必须显式钉死，不得依赖上游 302 解析。"""
+def test_tailwind_is_self_hosted():
+    """所有 HTML 页面必须引用本地 Tailwind 快照，不得引用外部 CDN。"""
+    assert LOCAL_TAILWIND_SCRIPT.is_file(), "缺少本地 Tailwind 自托管快照"
     offenders = []
     for path in STATIC_DIR.rglob("*.html"):
         text = _read(path)
-        if FLOATING_TAILWIND_PLUGIN_URL in text:
+        if "https://cdn.tailwindcss.com" in text:
             offenders.append(path.relative_to(REPO_ROOT).as_posix())
-    assert not offenders, "存在未钉死插件版本的 Tailwind CDN 引用: " + str(offenders)
+    assert not offenders, "HTML 仍包含外部 Tailwind CDN 引用: " + str(offenders)
+    refs = [
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in STATIC_DIR.rglob("*.html")
+        if "/static/vendor/js/tailwindcss-cdn.js" in _read(path)
+    ]
+    assert refs, "没有 HTML 页面引用本地 Tailwind 快照"
 
-    episode = _read(STATIC_DIR / "episode-pipeline.html")
-    assert PINNED_TAILWIND_PLUGIN_URL in episode, "episode-pipeline.html 必须使用钉死版 URL"
 
+def test_tailwind_self_hosted_snapshot_hash_is_pinned():
+    """本地 Tailwind 快照哈希必须与供应链清单保持一致。"""
+    import hashlib
 
-def test_tailwind_base_version_is_still_pinned():
-    """所有 Tailwind CDN 引用都必须带不可变版本号（不得出现无版本 URL）。"""
-    offenders = []
-    for path in STATIC_DIR.rglob("*.html"):
-        text = _read(path)
-        for pos in _all_occurrences(text, "https://cdn.tailwindcss.com"):
-            tail = text[pos + len("https://cdn.tailwindcss.com"): pos + len("https://cdn.tailwindcss.com") + 40]
-            if not tail.startswith("/3.4.17"):
-                offenders.append(path.relative_to(REPO_ROOT).as_posix() + " -> " + tail[:32])
-    assert not offenders, "存在未钉死版本的 Tailwind CDN 引用: " + str(offenders)
+    digest = hashlib.sha256(LOCAL_TAILWIND_SCRIPT.read_bytes()).hexdigest().upper()
+    assert digest == LOCAL_TAILWIND_SHA256
+    manifest = _read(TAILWIND_MANIFEST)
+    row = next(
+        (line for line in manifest.splitlines() if "`js/tailwindcss-cdn.js`" in line),
+        "",
+    )
+    manifest_hashes = re.findall(r"\b[A-Fa-f0-9]{64}\b", row)
+    assert manifest_hashes, "MANIFEST.md 缺少 Tailwind 快照 SHA-256"
+    assert digest == manifest_hashes[0].upper()

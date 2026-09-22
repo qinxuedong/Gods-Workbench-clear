@@ -74,6 +74,7 @@ def make_config(jwk: dict, **overrides) -> oidc.OidcConfig:
     params = dict(
         issuer=ISSUER,
         audience=AUDIENCE,
+        client_id=AUDIENCE,
         enabled=True,
         jwks={"keys": [jwk]},
         leeway_seconds=0,
@@ -131,6 +132,27 @@ def test_mismatched_azp_is_rejected(rsa_keypair):
     token = make_token(private_key, claims(azp=OTHER_CLIENT))
     with pytest.raises(UnauthorizedException):
         oidc.verify_jwt(token, make_config(_jwk(public_key)), now=NOW)
+
+
+def test_azp_uses_client_id_not_audience(rsa_keypair):
+    """aud 与 client_id 不同时，azp 必须按 client_id 校验而非按 audience 放行。"""
+    private_key, public_key = rsa_keypair
+    client_id = "actual-client-id"
+    token = make_token(private_key, claims(azp=client_id))
+    identity = oidc.verify_jwt(
+        token,
+        make_config(_jwk(public_key), client_id=client_id),
+        now=NOW,
+    )
+    assert identity.subject == "user-001"
+
+    audience_matching_token = make_token(private_key, claims(azp=AUDIENCE))
+    with pytest.raises(UnauthorizedException, match="azp"):
+        oidc.verify_jwt(
+            audience_matching_token,
+            make_config(_jwk(public_key), client_id=client_id),
+            now=NOW,
+        )
 
 
 def test_multi_audience_without_azp_is_rejected(rsa_keypair):

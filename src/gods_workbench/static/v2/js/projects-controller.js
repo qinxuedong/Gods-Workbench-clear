@@ -348,13 +348,13 @@ window.V2Projects = (function () {
     const thumbnailHtml = coverUrl
       ? `<div class="w-[64px] h-[64px] rounded-lg overflow-hidden bg-black/80 border border-white/10 shrink-0 relative shadow-inner">
            <img src="${esc(coverUrl)}" alt="${esc(p.name)}" class="w-full h-full object-cover" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center bg-black/60\\'><i data-lucide=\\'${typeMeta.iconName}\\' class=\\'w-5 h-5 ${typeMeta.colorClass}\\'></i></div>'; window.lucide?.createIcons();">
-           <div class="absolute top-0.5 left-0.5 bg-black/75 backdrop-blur-xs p-0.5 rounded border border-white/10">
+           <div class="absolute top-0.5 left-0.5 bg-black/75 backdrop-blur-[2px] p-0.5 rounded border border-white/10">
              <i data-lucide="${typeMeta.iconName}" class="w-2.5 h-2.5 ${typeMeta.colorClass}"></i>
            </div>
          </div>`
       : `<div class="w-[64px] h-[64px] rounded-lg bg-[#07090e] border border-white/10 shrink-0 relative flex items-center justify-center shadow-inner">
            <i data-lucide="${typeMeta.iconName}" class="w-5 h-5 ${typeMeta.colorClass}"></i>
-           <div class="absolute top-0.5 left-0.5 bg-black/75 backdrop-blur-xs p-0.5 rounded border border-white/10">
+           <div class="absolute top-0.5 left-0.5 bg-black/75 backdrop-blur-[2px] p-0.5 rounded border border-white/10">
              <i data-lucide="${typeMeta.iconName}" class="w-2.5 h-2.5 ${typeMeta.colorClass}"></i>
            </div>
          </div>`;
@@ -434,7 +434,7 @@ window.V2Projects = (function () {
         <div class="hw-mini-knob-box shrink-0 pl-1 flex flex-col items-center justify-center">
           <div class="hw-mini-knob w-6 h-6">
             <div class="hw-mini-knob-arc" style="transform: rotate(${Math.min(180, Math.round(progress * 1.8))}deg);"></div>
-            <div class="hw-mini-knob-inner w-4.5 h-4.5 text-[7px]">S${(p.id.slice(-1) || '1')}</div>
+            <div class="hw-mini-knob-inner w-[1.125rem] h-[1.125rem] text-[7px]">S${(p.id.slice(-1) || '1')}</div>
           </div>
           <span class="text-[6.5px] font-mono text-[#dfc384] font-bold mt-0.5">PRIORITY</span>
         </div>

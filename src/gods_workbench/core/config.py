@@ -15,6 +15,8 @@
 - ``GW_AUTH_MODE``：``local``（默认）或 ``oidc``；未识别取值按 ``oidc`` 处理并失败关闭；
 - ``GW_OIDC_ISSUER``：issuer 完整 URL（同时用于 iss 校验与 discovery）；
 - ``GW_OIDC_AUDIENCE``：预期 audience；
+- ``GW_OIDC_CLIENT_ID``：当前 OIDC 公共客户端标识；当令牌含 ``azp`` 时，
+  必须与 ``azp`` 完全一致（不得使用 ``GW_OIDC_AUDIENCE`` 代替）；
 - ``GW_OIDC_JWKS_URL``：可选。缺省时自动走 ``issuer + /.well-known/openid-configuration``
   的 ``jwks_uri``（真实 IdP 接线的默认路径）；
 - ``GW_OIDC_GROUPS_CLAIM``：组声明名，默认 ``groups``；
@@ -414,6 +416,7 @@ def _build_runtime_auth_config(fingerprint: Tuple[str, ...]) -> RuntimeAuthConfi
     oidc_config = OidcConfig(
         issuer=issuer,
         audience=audience,
+        client_id=client_id,
         enabled=True,
         leeway_seconds=max(0, leeway),
         groups_claim=groups_claim,

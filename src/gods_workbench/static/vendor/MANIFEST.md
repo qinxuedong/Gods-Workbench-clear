@@ -8,7 +8,7 @@
 
 | 本地文件 | 固定版本 | 上游来源 | 许可证 | SHA256 | 发布动作 |
 | --- | --- | --- | --- | --- | --- |
-| `js/tailwindcss-cdn.js` | Tailwind CSS `3.4.17`；部分嵌入组件版本不可恢复 | [官方 CDN 制品](https://cdn.tailwindcss.com/3.4.17) · [Tailwind LICENSE](https://github.com/tailwindlabs/tailwindcss/blob/v3.4.17/LICENSE) | MIT + Apache-2.0（didyoumean）+ CC-BY-4.0（caniuse-lite） | `176E894661AA9CDC9A5CBA6C720044CBBF7B8BD80D1C9A142A7C24B1B6C50D15` | 当前通知已补；取得构建 metafile/lockfile/SBOM 前正式分发 `BLOCKED` 〔2026-09-18 核验：本地文件已不存在，条目作废〕 |
+| `js/tailwindcss-cdn.js` | Tailwind Play CDN `3.4.17`（forms `0.5.10`、container-queries `0.1.1`）本地自托管快照 | [官方固定 URL](https://cdn.tailwindcss.com/3.4.17?plugins=forms@0.5.10,container-queries@0.1.1) · [Tailwind LICENSE](https://github.com/tailwindlabs/tailwindcss/blob/v3.4.17/LICENSE) | MIT + Apache-2.0（didyoumean）+ CC-BY-4.0（caniuse-lite） | `A789CE5A73191759006B64A0C05F63AFBF9AA43A86511BF798D688737429E60A` | 本地运行不再请求 CDN；正式分发仍受第三方通知/SBOM 门禁约束 |
 | `js/lucide.js` | Lucide `1.16.0` | [Lucide 1.16.0](https://github.com/lucide-icons/lucide/releases/tag/1.16.0) | ISC；Feather 派生图标另含 MIT | `187A756625C5CE7499C207D1B0D1CF4E1AB95E3F666C7E0CD0FAFC3E6842D040` | 同时附 Lucide ISC 与 Feather MIT 全文/版权声明 |
 | `js/three-0.160.0.module.js` | Three.js `0.160.0` | [npm 不可变制品](https://unpkg.com/three@0.160.0/build/three.module.js) | MIT | `76DEA8151BC9352AEF3528B4262E249B2604F62543828328DB978D060D61A495` | 保留文件头并附 MIT 全文与版权声明 |
 
