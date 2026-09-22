@@ -17,6 +17,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from gods_workbench.core import audit as audit_log
 from gods_workbench.core.config import AUTH_MODE_LOCAL, AUTH_MODE_OIDC, load_runtime_auth_config
 from gods_workbench.core.errors import ForbiddenException, UnauthorizedException
 
@@ -68,6 +69,14 @@ def require_authenticated(
         if principal:
             role = str(principal.get("role") or "").strip().lower()
             if role not in KNOWN_ROLES:
+                audit_log.record_auth_event(
+                    audit_log.EVENT_ROLE_REJECTED,
+                    outcome=audit_log.OUTCOME_DENIED,
+                    reason="session_role_unknown",
+                    subject=str(principal.get("username") or "") or None,
+                    role=role,
+                    auth_mode=AUTH_MODE_OIDC,
+                )
                 raise ForbiddenException(message="会话角色不合法，已拒绝请求")
             return AuthContext(
                 role=role,
@@ -80,18 +89,45 @@ def require_authenticated(
     if runtime.mode == AUTH_MODE_OIDC:
         if not runtime.ready:
             # 配置缺失或非法：失败关闭，绝不回落到本地信任。
+            audit_log.record_auth_event(
+                audit_log.EVENT_TOKEN_REJECTED,
+                outcome=audit_log.OUTCOME_DENIED,
+                reason="oidc_not_ready",
+                auth_mode=AUTH_MODE_OIDC,
+            )
             raise UnauthorizedException(message="外部 IdP 未正确配置，已拒绝请求")
         from gods_workbench.core.oidc import verify_jwt  # 延迟导入
 
         try:
             identity = verify_jwt(token, runtime.oidc)
         except UnauthorizedException:
+            # 审计只记「拒签」这一事实，绝不记录令牌原文或 claims。
+            audit_log.record_auth_event(
+                audit_log.EVENT_TOKEN_REJECTED,
+                outcome=audit_log.OUTCOME_REJECTED,
+                reason="token_verification_failed",
+                auth_mode=AUTH_MODE_OIDC,
+            )
             raise
         except Exception:
             # 校验器任何非预期异常都转为 401，避免泄漏内部细节。
+            audit_log.record_auth_event(
+                audit_log.EVENT_TOKEN_REJECTED,
+                outcome=audit_log.OUTCOME_REJECTED,
+                reason="token_verification_error",
+                auth_mode=AUTH_MODE_OIDC,
+            )
             raise UnauthorizedException(message="令牌校验失败，已拒绝请求")
         role = identity.role
         if role not in KNOWN_ROLES:
+            audit_log.record_auth_event(
+                audit_log.EVENT_ROLE_REJECTED,
+                outcome=audit_log.OUTCOME_DENIED,
+                reason="idp_role_not_authorized",
+                subject=identity.subject,
+                role=role,
+                auth_mode=AUTH_MODE_OIDC,
+            )
             raise ForbiddenException(message="IdP 角色映射未授权，已拒绝请求")
         return AuthContext(role=role, subject=identity.subject, mode=AUTH_MODE_OIDC)
 

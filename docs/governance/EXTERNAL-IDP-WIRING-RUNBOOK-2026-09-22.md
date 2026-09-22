@@ -118,7 +118,7 @@ ValueError: discovery 文档 issuer 与配置 issuer 不一致，已拒绝
 
 ## 6. 回滚
 
-1. 立即停用灰度，**保留**审计日志与失败样本。
+1. 立即停用灰度，**保留**审计日志与失败样本。本仓自 Phase 9Q 起会产生认证事件审计（logger `gods_workbench.audit`，见 §10）；**持久化留存由部署方负责**，部署前必须已接入日志管道，否则回滚时无账可查。
 2. 通过部署配置切回最近一次已验证的认证适配器；回退必须由管理员审批、限时、可观测。
 3. 清理失效会话 Cookie，撤销受影响 refresh token，重新验证 `/healthz`、匿名只读与编辑/治理边界。
 4. **不得**用伪造 `X-User-Role` 或 `GW_AUTH_MODE=local` 绕过权限来「恢复可用」。
@@ -129,7 +129,7 @@ ValueError: discovery 文档 issuer 与配置 issuer 不一致，已拒绝
 - 令牌撤销、密钥轮换并发窗口、多实例会话一致性**未压测**。
 - `core/session.py` 的会话绝对过期上限（R6-7）已在**本地**闭环：`SESSION_ABSOLUTE_MAX_SECONDS`（24h）+ `_Session.absolute_expires_at`，滑动续期被封顶；但**未在真实多实例/生产环境验收**，且仍为单进程内存存储。
 - Microsoft 多租户（`common` / `organizations`）**当前不可接线**。
-- 时钟偏差、反向代理、TLS、CSRF/CORS、审计字段与保留策略**未实测**。
+- 时钟偏差、反向代理、TLS、CSRF/CORS **未实测**；审计**落点已交付**（§10），但审计**存储**、保留策略与时间同步**未实测**。
 - 生产部署与发布授权：**另行安排**；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
 
 
@@ -158,3 +158,51 @@ python -m pytest -q tests/contracts/test_phase9i_real_idp_wiring.py
 该 SHA 在 GitHub Actions workflow `CI`（run `35665256938`，push, master）读回
 `conclusion = success`，且 `headSha` 与本地 `git rev-parse HEAD` **逐字一致**。
 远端 CI 只证明该 SHA 在 CI 环境通过，**不等于**生产验收，**不构成**发布授权。
+
+
+## 10. 认证事件审计落点（2026-09-22 追加，Phase 9Q）
+
+本轮补上认证路径的审计落点，闭环独立复核发现的 D12（原先 `src/` 内
+`logging` / `audit` 命中数为 0）。
+
+- 模块：`src/gods_workbench/core/audit.py`；logger 名 `gods_workbench.audit`（INFO）。
+- 覆盖事件：`auth.login.started` / `auth.login.denied` /
+  `auth.login.already_authenticated` / `auth.callback.rejected` /
+  `auth.session.established` / `auth.token.rejected` / `auth.role.rejected` / `auth.logout`。
+- 记录字段（**白名单**）：`event` / `outcome` / `reason` / `subject` / `role` /
+  `auth_mode` / `at`；另提供 `GET` 无关的进程内读取函数 `list_auth_events()`（仅供核验）。
+- **绝不记录**：令牌原文、授权码、`code_verifier`、`state` / `nonce`、Cookie 值。
+
+**部署方前置条件（未闭环，不得写 PASS）**
+
+- 落点当前为**进程内环形缓冲（2048 条）+ 标准库日志**：进程重启即丢失，
+  多实例 / 多 worker **不共享**。生产必须把 `gods_workbench.audit` 接入
+  持久化日志管道 / SIEM，并自行定义保留期与时间同步。
+- 审计**存储与保留策略未实测**；有落点**不等于**通过第三方独立审计，
+  也**不构成**发布授权。
+
+
+## 11. 令牌绑定加固（2026-09-22 追加，Phase 9R）
+
+本轮对「真实外部 IdP 接线」补两条 **OIDC 规范强制** 的令牌绑定校验，
+来源是本手册 §3 / §8 只读实测暴露的规范级缺口。
+
+| 编号 | 规范依据 | 加固前 | 加固后 |
+|---|---|---|---|
+| R9-1 | OIDC Core 1.0 §3.1.3.7 规则 4 / 5 | 未校验 `azp` | `aud` 多值缺 `azp` -> 拒绝；`azp` 与本客户端 `audience` 不一致 -> 拒绝；单值无 `azp` -> 放行 |
+| R9-2 | RFC 7517 §4.2 / §4.3 | JWK `use` / `alg` 未约束 | 显式 `use != sig` 或显式 `alg != RS256` -> 拒绝；**未声明 -> 仍按 RS256 使用** |
+
+**为什么不能一刀切拒绝未声明的 `alg`**：本轮只读实测显示
+Microsoft MSA 的 JWKS（8 keys）**不返回 `alg`**，而 Google（2 keys）与 Duende（1 key）
+均返回 `use=sig alg=RS256`。若对未声明 `alg` 一律拒绝，Microsoft 系 IdP 将**完全无法接线**。
+
+**部署方核对项（仍属部署方职责）**：
+
+- `azp` 与 `aud` 的比对基准是 `GW_OIDC_AUDIENCE`；本仓为公共客户端，
+  部署时应保持 `GW_OIDC_AUDIENCE == GW_OIDC_CLIENT_ID`，否则需自行确认语义。
+- 若 IdP 的 JWKS 用同一 `kid` 同时发布签名密钥与加密密钥，本仓会拒绝非签名用途的那把；
+  请确认 IdP 的 `kid` 唯一性（主流 IdP 均满足）。
+
+**边界**：本项为静态规范遵从 + 本地契约测试（`tests/contracts/test_phase9r_oidc_token_binding.py`，10 条；
+对修复前版本 6 条可复现失败）。**未**执行真实用户登录，**不**证明生产登录可用，
+**不**构成生产就绪或发布授权。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

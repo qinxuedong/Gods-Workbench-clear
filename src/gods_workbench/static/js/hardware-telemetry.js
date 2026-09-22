@@ -587,18 +587,6 @@
       this.renderAccountModalContent();
     },
 
-    handleLogout: async function() {
-      try {
-        await fetch('/api/asset-auth/logout', {
-          method: 'POST',
-          credentials: 'same-origin'
-        });
-      } catch (e) {}
-      this.authState.principal = null;
-      this.updateAuthDOM();
-      this.renderAccountModalContent();
-    },
-
     // 6. Real Team & Member Management (/api/asset-auth/teams & /static/asset-manager.html & /static/v2/collab.html)
     openTeamModal: async function() {
       let modal = document.getElementById('teamModal');

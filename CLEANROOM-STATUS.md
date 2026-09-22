@@ -1299,3 +1299,204 @@ tracked 总数                                                       -> 289
   `git status --porcelain -uall` = 0 条目。
 - `gh run view 35666533094 --json conclusion,headSha` -> `{"conclusion":"success","headSha":"70538707ec127b405fb8d8c107d081598d0d30e5"}`。
 - 该 success **不等于**生产验收，**不构成**发布授权；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## Phase 9Q 状态更新（2026-09-22 追加，主代理实测）
+
+本节仅追加，不改写上方任何历史行。上方 Phase 9O 记录的 **D12（认证路径无审计落点）**
+在本轮**已处置**；历史结论保留原样以备追溯。
+
+### 已闭环：D12 认证路径审计落点
+
+新增 `src/gods_workbench/core/audit.py`，并在 `api/routes_auth.py`（9 处）与
+`core/auth.py`（4 处）接入落点，覆盖：登录发起 / 登录被拒 / 重复登录 / 回调被拒
+（state 失配、id_token 被拒等）/ 会话建立 / 登出 / 令牌被拒 / 角色未授权。
+
+安全口径：**白名单字段**（`event` / `outcome` / `reason` / `subject` / `role` /
+`auth_mode` / `at`）；**绝不记录**令牌原文、授权码、`code_verifier`、`state` / `nonce`、
+Cookie 值；字段截断 256 字符；有界环形缓冲 2048 条；事件名 / 结果落在封闭集合内。
+
+### 变异测试（证明守卫非恒真，本轮亲跑）
+
+```text
+记录函数入口插入 `return {}`            -> test_phase9q_auth_audit_landing.py：13 failed
+仅改「登出」落点事件名（单点写错）        -> 仅 test_logout_is_audited：1 failed / 12 passed
+已还原；还原后 13 passed。
+```
+
+### 门禁（本轮亲跑，全部本地）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider            -> 253 passed, 7 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene -> 16 passed
+node --check（git ls-files "*.js" 全量）                        -> 57 / 0 failed
+tests/contracts/test_phase9q_auth_audit_landing.py              -> 13 passed
+真实上游只读：Google 5 passed / Duende demo 5 passed / oidc-provider@9.12.2 端到端 3 passed
+```
+
+### 仍未闭环（**不得写 PASS**）
+
+- 审计落点为**进程内内存 + 标准库日志**：进程重启即丢失，多实例 / 多 worker
+  **不共享**；持久化审计库、外部 SIEM、保留策略、时间同步属**部署方职责**。
+- 未做**真实用户登录**（无真实 `client_id` / 用户目录授权）。
+- **O4 / O5 / O6 与 `static/js/canvas/http.js` 删除仍未处置。**
+- 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立；`_SESSIONS` / `_FLOW_STATES`
+  仍是单进程内存。
+- 真正的第三方独立审计**仍未安排**；发布授权**待审计完成**。
+- 本地实测 **不等于** 远端 CI，更**不等于**生产验收。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## Phase 9R 状态更新（2026-09-22 追加，主代理实测）
+
+本节仅追加，不改写上方任何历史行。
+
+### 背景（来源：本轮真实上游只读实测）
+
+用户裁决第 6 项「真实外部 IdP 接线」在 §9I 只读实测中暴露两条**规范级**缺口。
+两条均为 OIDC 规范强制要求，本仓此前**未实现**：
+
+| 编号 | 规范依据 | 缺口 | 影响 |
+|---|---|---|---|
+| R9-1 | OIDC Core 1.0 §3.1.3.7 规则 4/5 | 未校验 `azp` | `aud` 多值或缺 `azp` 时，**签发给另一客户端的 id_token 可在本客户端被接受**（跨客户端令牌复用） |
+| R9-2 | RFC 7517 §4.2/§4.3 | 未约束 JWK `use` / `alg` | JWKS 中 `use=enc` 或非 RS256 的密钥可参与验签判定 |
+
+实测佐证（2026-09-22，只读拉取真实上游 JWKS）：
+
+```text
+www.googleapis.com/oauth2/v3/certs          -> 2 keys，use=sig alg=RS256
+login.microsoftonline.com/<租户>/discovery/v2.0/keys -> 8 keys，use=sig alg=（未声明）
+demo.duendesoftware.com/.well-known/openid-configuration/jwks -> 1 key，use=sig alg=RS256
+```
+
+即：**未声明 `alg` 是真实 IdP 的常见形态**（Microsoft MSA），
+因此修复口径必须是「显式声明且冲突才拒绝，未声明按 RS256 使用」，不能一刀切。
+
+### 处置（最小改动，未改任何既有校验语义）
+
+`src/gods_workbench/core/oidc.py`（归一化 SHA-256 `fb878937…` -> `91054ea7…`，+40 / −1）：
+
+1. 新增 `verify_authorized_party(claims, config)` 并在 `verify_jwt` 中接线：
+   - `aud` 为多值且缺 `azp` -> 拒绝；
+   - `azp` 存在且与本客户端 `audience` 不一致（或非字符串 / 空白）-> 拒绝；
+   - `aud` 单值且无 `azp` -> 放行（正常形态）。
+2. `_jwk_to_public_key` 增加 `use` / `alg` 约束：
+   - `use` 显式非 `sig` -> 拒绝；
+   - `alg` 显式不在 `ALLOWED_ALGORITHMS`（仅 RS256）-> 拒绝；
+   - `use` / `alg` **未声明** -> 仍按 RS256 使用（兼容 Microsoft MSA 形态）。
+3. **未改动**签名/iss/aud/时间/nonce 既有语义，也未放宽任何既有拒绝分支。
+
+### 变异测试（证明守卫非恒真，本轮亲跑）
+
+在 `%TEMP%` 独立副本中，把 `oidc.py` 换回 `HEAD`（修复前）版本后再跑同一份用例：
+
+```text
+修复前（HEAD 版 oidc.py）-> 6 failed, 4 passed
+  FAILED test_mismatched_azp_is_rejected
+  FAILED test_multi_audience_without_azp_is_rejected
+  FAILED test_multi_audience_with_mismatched_azp_is_rejected
+  FAILED test_empty_azp_is_rejected
+  FAILED test_encryption_key_is_rejected
+  FAILED test_non_rs256_alg_key_is_rejected
+修复后（当前工作树）    -> 10 passed
+```
+
+即 10 条用例中 6 条对「修复前」**可复现失败**，非恒真断言。
+
+### 门禁（亲跑，本地 Windows）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                    -> 263 passed, 7 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene       -> 16 passed
+node --check（git ls-files "*.js" 全量）                                 -> 57 / 0 failed
+tracked 禁用扩展名命中（除 3 个思源黑体白名单）                          -> 0
+tracked 总数                                                            -> 289
+真实上游只读（加固后复跑）：Google 5 passed / Duende demo 5 passed / MSA 单租户 2/3 次 5 passed
+  （1 次因 `ssl: handshake operation timed out` 失败，属**上游网络抖动**，非本仓缺陷）
+第三方 OP（oidc-provider@9.12.2）端到端                                  -> 3 passed（全量含之：266 passed, 4 skipped）
+Microsoft 多租户 common/organizations                                   -> 仍被 R6-14 mix-up 防护正确拒绝（预期）
+```
+
+### 仍未闭环（**不得写 PASS**）
+
+- 本项加固为**静态规范遵从 + 本地契约测试**；**未**执行真实用户登录（**无真实 `client_id` 与用户目录授权**），
+  故**不能**据此声称生产登录可用。
+- `azp` 比对基准取 `GW_OIDC_AUDIENCE`；若部署方令 `audience != client_id`，需自行确认语义一致（当前视两者同为公共客户端标识）。
+- 令牌撤销、密钥轮换并发窗口、多实例会话一致性**未**压测。
+- **O4 / O5 / O6 与 `static/js/canvas/http.js` 删除仍未处置，不得写 PASS。**
+- 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立。
+- **真正的第三方独立审计仍未安排**；发布授权待审计完成。
+- 本地实测 **不等于** 远端 CI，**不等于** 生产验收，**不构成**发布授权。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## Phase 9R 独立复核发现（2026-09-22 追加，主代理实测）
+
+本轮对 Phase 9Q 的审计落点做**证伪式抽查**（不采信实现方自述），发现 1 处真实缺陷。
+
+### R9-3（低，已修复）：回调 `?error=` 可污染审计 `reason`
+
+**复现（修复前，实测）**：
+
+```text
+GET /api/asset-auth/callback?error=password_reset_completed_by_admin
+-> 审计记录: event='auth.callback.rejected'
+             reason='password_reset_completed_by_admin'   # 请求方控制的文本原样入账
+```
+
+**性质**：`fail()` 直接把 `?error=` 取值写入 `reason`。该字段虽受 256 字符截断，
+但**不受封闭集合约束**，与 `core/audit.py` 自己声明的
+「事件名 / 结果落在封闭集合内」「白名单字段」口径冲突 ——
+外部可借此在审计记录里伪造事件语义（例如伪装成「管理员已完成口令重置」），
+属**审计完整性**问题，而非机密性泄漏（不涉及令牌/口令）。
+
+**修复（最小改动，`api/routes_auth.py`）**：
+
+- 新增 `_CALLBACK_FAILURE_REASONS` 封闭集合：RFC 6749 §4.1.2.1 标准错误码
+  （`invalid_request` / `unauthorized_client` / `access_denied` / `unsupported_response_type` /
+  `invalid_scope` / `server_error` / `temporarily_unavailable` / `interaction_required` /
+  `login_required` / `consent_required`）+ 本仓自有标记
+  （`invalid_callback` / `state_mismatch` / `state_expired` / `oidc_unavailable` /
+  `token_exchange_failed` / `missing_id_token` / `id_token_rejected`）。
+- 未命中集合的取值统一记为 `unrecognized_failure`（**不丢弃失败事实**，但拒绝外部文本）。
+- 标准错误码与本仓自有标记**原样保留**（不牺牲可追溯性）。
+
+**修复后实测**：
+
+```text
+?error=password_reset_completed_by_admin  -> reason='unrecognized_failure'
+?error=access_denied                      -> reason='access_denied'          # 标准码保留
+?code=x&state=y（无流程 Cookie）           -> reason='state_mismatch'          # 自有标记保留
+```
+
+**回归守卫**：`tests/contracts/test_phase9q_auth_audit_landing.py` 追加 3 条
+（`test_callback_error_query_is_confined_to_closed_vocabulary` /
+`test_callback_standard_error_code_is_preserved` /
+`test_callback_internal_failure_marker_is_preserved`），总数 13 -> 16。
+
+**变异测试（亲跑）**：在 `%TEMP%` 副本中把 `fail()` 还原成 `audit_reason = reason_code`
+（即修复前语义），再跑新用例：
+
+```text
+修复前语义 -> 1 failed, 1 passed（14 deselected）
+  断言失败: 实际 'password_reset_completed_by_admin' != 'unrecognized_failure'
+修复后语义 -> 16 passed
+```
+
+即新守卫对「修复前」**可复现失败**，非恒真断言。
+
+### 同期复核确认（未发现新缺陷）
+
+- `src/gods_workbench/static/js/hardware-telemetry.js` 删除的 `handleLogout`
+  是**同名覆盖的后一份残缺实现**（HEAD 版 574 / 590 两处定义，后者覆盖前者），
+  删除后保留语义完整的一份（含 `authenticated=false` / `logout_available=false` / `syncAuth()`）；
+  调用点 `onclick="HardwareDeck.handleLogout()"` 仍有效。
+- `git diff --check` 干净；`hardware-telemetry.js` 工作区 CRLF 属该文件既有检出形态，
+  **暂存内容不得含 CR**（提交时以 `git diff --cached --check` 复核）。
+- Phase 9Q 的 `core/audit.py` 白名单 / 有界缓冲 / 封闭事件集设计经复核**成立**。
+
+### 边界（不得外推）
+
+- 本发现为**同框架内复核**（与实现同仓、同 cwd、不同代理），**不等于**外部第三方独立审计。
+- 本地实测 **不等于** 远端 CI，更**不等于**生产验收。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

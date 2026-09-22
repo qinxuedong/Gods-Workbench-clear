@@ -516,3 +516,47 @@
   `git status --porcelain -uall` = 0 条目；`gh run view 35666533094 --json conclusion,headSha`
   -> `{"conclusion":"success","headSha":"70538707ec127b405fb8d8c107d081598d0d30e5"}`。
   该 success **不等于**生产验收，**不构成**发布授权。
+
+- [x] T56 Phase 9Q：D12 认证路径审计落点闭环（2026-09-22，用户裁决第 5 项「身份、审计与发布授权」的审计部分，**本切片内闭环**）。
+  交付：新增 `src/gods_workbench/core/audit.py`（白名单字段 + 封闭事件集 + 有界环形缓冲 + 标准库 `logging`）；
+  `api/routes_auth.py` 9 处 + `core/auth.py` 4 处落点；新增 `tests/contracts/test_phase9q_auth_audit_landing.py`（13 条）。
+  安全口径：绝不记录令牌原文 / 授权码 / `code_verifier` / `state` / `nonce` / Cookie 值；字段截断 256 字符；缓冲上限 2048 条。
+  变异测试（亲跑）：记录函数入口插 `return {}` -> 13 failed；仅改「登出」事件名 -> 仅 1 failed（逐点可检）；均已还原。
+  门禁（亲跑，本地）：全量 `253 passed, 7 skipped`；`tests/hygiene` `16 passed`；`node --check` tracked `*.js` `57 / 0 failed`；
+  真实上游只读：Google 5 passed / Duende demo 5 passed / 第三方 OP `oidc-provider@9.12.2` 端到端 3 passed。
+  **仍不闭环（不得写 PASS）**：审计为进程内内存 + 标准库日志，进程重启即丢失、多实例不共享；
+  持久化审计库 / 外部 SIEM / 保留策略 / 时间同步属**部署方职责**；未做真实用户登录；
+  O4 / O5 / O6 与 `static/js/canvas/http.js` 删除仍未处置；真正的第三方独立审计仍未安排，发布授权待审计完成。
+  仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+- [x] T57 Phase 9R：真实外部 IdP 令牌绑定加固（2026-09-22，用户裁决第 6 项「真实外部 IdP 接线」的规范遵从补强）。
+  来源：本轮 §9I 真实上游只读实测暴露两条规范级缺口 —— R9-1 未校验 `azp`（OIDC Core 1.0 §3.1.3.7 规则 4/5，
+  导致**签发给另一客户端的 id_token 可在本客户端被接受**）；R9-2 未约束 JWK `use` / `alg`（RFC 7517 §4.2/§4.3）。
+  交付：`src/gods_workbench/core/oidc.py` 新增 `verify_authorized_party(...)` 并接线 `verify_jwt`；
+  `_jwk_to_public_key` 增加 `use` / `alg` 约束（显式冲突才拒绝，未声明仍按 RS256 —— 兼容 Microsoft MSA 实际 JWKS 形态）；
+  新增 `tests/contracts/test_phase9r_oidc_token_binding.py`（10 条）。
+  变异测试（亲跑，`%TEMP%` 副本）：换回 `HEAD` 版 `oidc.py` -> **6 failed / 4 passed**；当前工作树 -> **10 passed**。
+  门禁（亲跑，本地）：全量 `263 passed, 7 skipped`；`tests/hygiene` `16 passed`；`node --check` tracked `*.js` `57 / 0 failed`；
+  tracked 禁用扩展名命中 0；tracked 289；真实上游只读（加固后）Google 5 / Duende 5 / MSA 单租户 5 passed；
+  第三方 OP `oidc-provider@9.12.2` 端到端 3 passed（全量含之 266 passed, 4 skipped）。
+  **仍不闭环（不得写 PASS）**：未执行真实用户登录（无真实 `client_id` 与用户目录授权）；
+  `azp` 比对基准取 `GW_OIDC_AUDIENCE`，部署方若令 `audience != client_id` 需自行确认语义；
+  令牌撤销 / 密钥轮换并发窗口 / 多实例会话一致性未压测；
+  O4 / O5 / O6 与 `static/js/canvas/http.js` 删除仍未处置；根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立；
+  真正的第三方独立审计仍未安排，发布授权待审计完成。
+  仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+- [x] T58 Phase 9R 独立复核发现：回调 `?error=` 审计污染（2026-09-22，证伪式抽查产出）。
+  复现（修复前实测）：`GET /api/asset-auth/callback?error=<任意文本>` 把该文本**原样**写入
+  `auth.callback.rejected` 的 `reason`，与 `core/audit.py` 自述的「封闭事件集 / 白名单字段」口径冲突，
+  外部可借此伪造审计事件语义（审计完整性问题，非机密性泄漏）。
+  处置：`api/routes_auth.py` 新增 `_CALLBACK_FAILURE_REASONS` 封闭集合
+  （RFC 6749 §4.1.2.1 标准错误码 + 本仓自有标记），未命中统一记为 `unrecognized_failure`；
+  标准码与自有标记原样保留。
+  回归守卫：`tests/contracts/test_phase9q_auth_audit_landing.py` 由 13 条增至 16 条。
+  变异测试（亲跑）：还原 `audit_reason = reason_code` -> 1 failed / 1 passed；修复后 -> 16 passed。
+  同期复核确认（未发现新缺陷）：`hardware-telemetry.js` 删除的是同名覆盖的残缺 `handleLogout`（保留完整版）；
+  `git diff --check` 干净。
+  **仍不闭环**：同框架内复核 ≠ 外部第三方独立审计；本地 ≠ 远端 CI ≠ 生产验收；
+  审计存储 / 保留策略 / 多实例一致仍属部署方职责；O4 / O5 / O6 与 `static/js/canvas/http.js` 删除仍未处置。
+  仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

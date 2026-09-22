@@ -268,11 +268,24 @@ def _jwk_base64url_to_int(value: Any) -> int:
 
 
 def _jwk_to_public_key(jwk: Mapping[str, Any]) -> Any:
-    """把 RSA JWK 转换为公钥对象；拒绝非 RSA 与携带私钥材料的 JWK。"""
+    """把 RSA JWK 转换为公钥对象；拒绝非 RSA 与携带私钥材料的 JWK。
+
+    同时强制 JWK 的 ``use`` / ``alg`` 约束（RFC 7517 §4.2/§4.3）：
+    真实 IdP 常在 JWKS 中混放加密密钥（``use=enc``）或非 RS256 密钥，
+    若只按 ``kid`` 取钥，攻击者可用同一 ``kid`` 的加密密钥或其它算法密钥
+    诱使本仓以错误用途验签。显式声明且与本仓口径冲突的密钥一律拒绝；
+    **未声明**（如 Microsoft MSA 的 JWKS 不返回 ``alg``）仍按 RS256 使用。
+    """
     if not isinstance(jwk, Mapping) or jwk.get("kty") != "RSA":
         raise UnauthorizedException(message="JWKS 密钥类型不受支持，已拒绝")
     if "d" in jwk:
         raise UnauthorizedException(message="JWKS 携带私钥材料，已拒绝")
+    key_use = jwk.get("use")
+    if isinstance(key_use, str) and key_use.strip() and key_use.strip() != "sig":
+        raise UnauthorizedException(message="JWKS 密钥用途不是签名，已拒绝")
+    key_alg = jwk.get("alg")
+    if isinstance(key_alg, str) and key_alg.strip() and key_alg.strip() not in ALLOWED_ALGORITHMS:
+        raise UnauthorizedException(message="JWKS 密钥算法不在允许列表，已拒绝")
     modulus = _jwk_base64url_to_int(jwk.get("n"))
     exponent = _jwk_base64url_to_int(jwk.get("e"))
     try:
@@ -375,6 +388,31 @@ def verify_audience(claims: Mapping[str, Any], config: OidcConfig) -> None:
         raise UnauthorizedException(message="aud 校验失败，已拒绝令牌")
 
 
+def verify_authorized_party(claims: Mapping[str, Any], config: OidcConfig) -> None:
+    """校验授权方 ``azp``（OIDC Core 1.0 §3.1.3.7 规则 4 与 5）。
+
+    规则：
+    - ``aud`` 为**多个**取值时，必须存在 ``azp``；缺失即拒绝
+      （否则令牌可能被签发给另一个客户端却在本客户端被接受）。
+    - ``azp`` 存在时必须与配置的 ``audience``（即本客户端 ``client_id``）完全一致。
+    - ``aud`` 为单值时 ``azp`` 可省略；若存在则同样必须与本客户端一致。
+
+    本仓为**公共客户端**（无 client [FUNC]），``audience`` 即 ``GW_OIDC_AUDIENCE``，
+    与 ``GW_OIDC_CLIENT_ID`` 在部署时保持一致，因此这里以 ``audience`` 作为比对基准。
+    """
+    audience = claims.get("aud")
+    multi_audience = isinstance(audience, (list, tuple)) and len(audience) > 1
+    azp = claims.get("azp")
+    if azp is None:
+        if multi_audience:
+            raise UnauthorizedException(message="多 audience 令牌缺少 azp，已拒绝")
+        return
+    if not isinstance(azp, str) or not azp.strip():
+        raise UnauthorizedException(message="azp 声明类型无效，已拒绝")
+    if not config.audience or azp.strip() != config.audience:
+        raise UnauthorizedException(message="azp 校验失败，已拒绝令牌")
+
+
 def _verify_signature(signing_input: bytes, signature: bytes, public_key: Any) -> None:
     """使用 RS256（RSASSA-PKCS1-v1_5 + SHA-256）校验签名。"""
     try:
@@ -432,6 +470,7 @@ def verify_jwt(
 
     verify_issuer(claims, config)
     verify_audience(claims, config)
+    verify_authorized_party(claims, config)
     verify_time_claims(claims, now=now if now is not None else time.time(), leeway_seconds=config.leeway_seconds)
     if expected_nonce is not None:
         verify_nonce(expected_nonce, claims)

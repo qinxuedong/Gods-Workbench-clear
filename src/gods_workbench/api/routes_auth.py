@@ -34,6 +34,7 @@ from gods_workbench.core.config import (
     load_runtime_auth_config,
     resolve_endpoint,
 )
+from gods_workbench.core import audit as audit_log
 from gods_workbench.core.errors import CleanroomException
 from gods_workbench.core.oidc import (
     UnauthorizedException as _OidcUnauthorized,
@@ -50,6 +51,35 @@ router = APIRouter(prefix="/api/asset-auth", tags=["asset-auth"])
 DEFAULT_POST_LOGIN_REDIRECT = "/static/v2/index.html"
 _FLOW_COOKIE_MAX_AGE = 600
 _SESSION_COOKIE_MAX_AGE = 8 * 60 * 60
+
+# 回调失败原因必须落在**封闭集合**内再入账：``?error=`` 由请求方控制，
+# 若原样写入审计 ``reason``，任何外部文本都能污染审计记录（伪造事件语义）。
+# 集合取自 RFC 6749 §4.1.2.1 的标准错误码 + 本仓自有的流程失败标记。
+_CALLBACK_FAILURE_REASONS = frozenset(
+    {
+        # RFC 6749 §4.1.2.1 标准授权错误
+        "invalid_request",
+        "unauthorized_client",
+        "access_denied",
+        "unsupported_response_type",
+        "invalid_scope",
+        "server_error",
+        "temporarily_unavailable",
+        "interaction_required",
+        "login_required",
+        "consent_required",
+        # 本仓自有流程失败标记
+        "invalid_callback",
+        "state_mismatch",
+        "state_expired",
+        "oidc_unavailable",
+        "token_exchange_failed",
+        "missing_id_token",
+        "id_token_rejected",
+    }
+)
+# 未命中封闭集合时的统一入账标记（不丢弃事实，但拒绝外部文本）。
+_CALLBACK_FAILURE_FALLBACK = "unrecognized_failure"
 
 
 class OidcNotConfiguredException(CleanroomException):
@@ -156,15 +186,39 @@ def auth_login(gw_session: Optional[str] = Cookie(None)):
     """
     runtime = load_runtime_auth_config()
     if runtime.mode != AUTH_MODE_OIDC or not runtime.ready:
+        audit_log.record_auth_event(
+            audit_log.EVENT_LOGIN_DENIED,
+            outcome=audit_log.OUTCOME_DENIED,
+            reason="oidc_not_ready",
+            auth_mode=runtime.mode,
+        )
         raise OidcNotConfiguredException(runtime.reason or "外部 IdP 未配置，已拒绝登录")
     if not runtime.login_ready:
+        audit_log.record_auth_event(
+            audit_log.EVENT_LOGIN_DENIED,
+            outcome=audit_log.OUTCOME_DENIED,
+            reason="client_config_missing",
+            auth_mode=runtime.mode,
+        )
         raise OidcNotConfiguredException("授权码流程配置缺失（client_id / redirect_uri）")
     if session_store.get_session(gw_session) is not None:
+        audit_log.record_auth_event(
+            audit_log.EVENT_LOGIN_ALREADY_AUTHENTICATED,
+            outcome=audit_log.OUTCOME_DENIED,
+            reason="session_already_authenticated",
+            auth_mode=runtime.mode,
+        )
         raise OidcAlreadyAuthenticatedException()
 
     try:
         authorization_endpoint = resolve_endpoint(runtime.oidc.issuer, "authorization_endpoint")
     except Exception:
+        audit_log.record_auth_event(
+            audit_log.EVENT_LOGIN_DENIED,
+            outcome=audit_log.OUTCOME_DENIED,
+            reason="authorization_endpoint_unavailable",
+            auth_mode=runtime.mode,
+        )
         raise OidcNotConfiguredException("IdP authorization_endpoint 不可用，已拒绝登录")
 
     state = generate_state()
@@ -181,6 +235,12 @@ def auth_login(gw_session: Optional[str] = Cookie(None)):
             scope=runtime.scopes,
         )
     except _OidcUnauthorized as exc:
+        audit_log.record_auth_event(
+            audit_log.EVENT_LOGIN_DENIED,
+            outcome=audit_log.OUTCOME_DENIED,
+            reason="authorization_url_invalid",
+            auth_mode=runtime.mode,
+        )
         raise OidcNotConfiguredException(str(exc.message))
 
     session_store.create_flow_state(
@@ -190,6 +250,12 @@ def auth_login(gw_session: Optional[str] = Cookie(None)):
         redirect_uri=runtime.redirect_uri,
     )
 
+    audit_log.record_auth_event(
+        audit_log.EVENT_LOGIN_STARTED,
+        outcome=audit_log.OUTCOME_STARTED,
+        reason="authorization_redirect_issued",
+        auth_mode=runtime.mode,
+    )
     response = JSONResponse({"authorization_url": authorization_url, "state": state})
     _set_cookie(response, session_store.FLOW_COOKIE_NAME, state, _FLOW_COOKIE_MAX_AGE)
     return response
@@ -215,6 +281,17 @@ def auth_callback(
     app_target = DEFAULT_POST_LOGIN_REDIRECT
 
     def fail(reason_code: str) -> RedirectResponse:
+        # 审计只记「失败类别」，绝不记录授权码、state、nonce 或令牌原文。
+        # 且类别必须先收敛到封闭集合：``?error=`` 由请求方控制，原样入账会污染审计记录。
+        audit_reason = (
+            reason_code if reason_code in _CALLBACK_FAILURE_REASONS else _CALLBACK_FAILURE_FALLBACK
+        )
+        audit_log.record_auth_event(
+            audit_log.EVENT_CALLBACK_REJECTED,
+            outcome=audit_log.OUTCOME_REJECTED,
+            reason=audit_reason,
+            auth_mode=runtime.mode,
+        )
         target = f"{app_target}?{urlencode({'auth_error': reason_code})}"
         response = RedirectResponse(url=target, status_code=status.HTTP_302_FOUND)
         _clear_cookie(response, session_store.FLOW_COOKIE_NAME)
@@ -254,6 +331,14 @@ def auth_callback(
         return fail("id_token_rejected")
 
     session_id = session_store.create_session(_principal_from_identity(identity))
+    audit_log.record_auth_event(
+        audit_log.EVENT_SESSION_ESTABLISHED,
+        outcome=audit_log.OUTCOME_SUCCEEDED,
+        reason="authorization_code_exchanged",
+        subject=identity.subject,
+        role=identity.role,
+        auth_mode=runtime.mode,
+    )
     response = RedirectResponse(url=app_target, status_code=status.HTTP_302_FOUND)
     _set_cookie(response, session_store.SESSION_COOKIE_NAME, session_id, _SESSION_COOKIE_MAX_AGE)
     _clear_cookie(response, session_store.FLOW_COOKIE_NAME)
@@ -267,7 +352,13 @@ def auth_callback(
 @router.post("/logout", summary="登出并清除会话", status_code=status.HTTP_204_NO_CONTENT)
 def auth_logout(gw_session: Optional[str] = Cookie(None)):
     """删除服务端会话并清除 Cookie；未登录时同样幂等返回 204。"""
-    session_store.delete_session(gw_session)
+    deleted = session_store.delete_session(gw_session)
+    audit_log.record_auth_event(
+        audit_log.EVENT_LOGOUT,
+        outcome=audit_log.OUTCOME_SUCCEEDED,
+        reason="session_deleted" if deleted else "no_active_session",
+        auth_mode=load_runtime_auth_config().mode,
+    )
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_cookie(response, session_store.SESSION_COOKIE_NAME)
     _clear_cookie(response, session_store.FLOW_COOKIE_NAME)
