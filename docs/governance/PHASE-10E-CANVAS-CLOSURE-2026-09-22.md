@@ -111,6 +111,33 @@ python -P -m pytest tests/hygiene -q
 的快照，用于验证“无来源时不伪造条目”，
 **不代表默认进程启动即返回空集**。中标套件与入口文档不得将两者混淆。
 
+## 5.3 独立复核与自证边界（重要）
+
+本轮**未能建立独立第三方复核通道**：多个子代理（Codex 子任务与 Orca worker）
+均因 `429 Too Many Requests` / 传输失败而未接收任务与回报；
+已事实清点为“本轮无独立复核”，不得当作已完成审计。
+
+**代以本机对抗式重算作为下级陈述**（不等于独立第三方审计）：
+
+| 项 | 方法 | 结果 |
+|---|---|---|
+| 契约完整性 | `yaml.safe_load` + `app.openapi()["paths"]` 交集比对 | 20 个方法条目 / 15 条路径，**无缺失注册** |
+| fail-closed | TestClient 实测 4 个 503 端点 | 均 503，响应体无 `task_id`/`progress`/`eta`/`url` |
+| 空集合 | `seed_golden_fixture=False` 服务实测 | trash / reference / shared-folders / video-tasks 均空 |
+| CAS | PATCH/POST `/meta` 、DELETE 原生与未入回收站 purge | 409 `CANVAS_VERSION_CONFLICT` / 409 `CANVAS_NOT_IN_TRASH` |
+| 别名等价 | meta PATCH/POST、purge POST/DELETE 各组 | 同实现同守卫，200/404/401 行为一致 |
+| 认证权限 | 未认证 / readonly | 401 / 403，符合契约 |
+| 洁净室 | 文件扫描 | 无 `random`/`uuid` 生成业务数据 |
+
+**同时复算 Phase 10D**（历史提交 `151669d`，CI run 35720901338 = success）：
+契约 13 个方法 / 8 条路径；`GET /api/storage-settings` 为 `configured:false`、
+`GET /api/providers` 为 `providers:[]`；三条探测端点均 503 `PROVIDER_PROBE_NOT_INTEGRATED`；
+存储设置 409 `VERSION_CONFLICT`；结构体 409 `STRUCTURE_VERSION_CONFLICT`；
+provider 的 `[FUNC]`/`token`/`password` 不回显；隔储邻域端点 404。
+
+**结论口径**：上述为**本机对抗式自证**，
+不能替代 T36/T40 的真实第三方独立审计与发布授权。
+
 ## 6. 洁净室边界声明
 
 - 未引入旧仓源码；实现依据冻结契约与前端调用面重新编写。
