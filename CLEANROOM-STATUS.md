@@ -1628,3 +1628,21 @@ dict/list/bool、`aud` 为 None/dict/空数组/嵌套数组/含非字符串、`u
   `status = completed`，`conclusion = success`；作业 `Python 3.11 tests and hygiene` = completed / success。
 - 本地门禁（同一提交前）：`pytest` 268 passed / 7 skipped；`tests/hygiene` 16 passed；`node --check` 57 文件 / 0 失败。
 - 边界不变：远端 CI success **不等于** 生产验收，**不等于**第三方独立审计，**不等于**发布授权。
+
+### 六、独立审核代理复核结论（2026-09-22 追加）
+
+独立审核代理（r1c_review，只读、禁 git 写）对 Phase 9S 出结论并给出 4 项发现；主代理逐条亲自复核后处置如下：
+
+- **发现 1（已修）**：`src/gods_workbench/core/oidc.py::_numeric_date` 用 `value = claims.get(name); if value is None` 判缺失，
+  导致 `nbf: null`（键存在、值非法）在可选声明路径被静默放行，与 azp 反模式同源。
+  已改为 `if name not in claims:` + `value = claims[name]`，并新增 2 个回归用例。
+  变异测试：副本 `%TEMP%\gw-p9s-root\mut_nbf\` 还原旧实现后，`test_null_nbf_is_rejected` 报
+  `DID NOT RAISE UnauthorizedException`（1 failed, 13 passed）；仓库修复后同用例 passed。
+  直接探针复核：旧实现 `nbf: null` 放行、修复后抛 `UnauthorizedException`。
+- **发现 2（已修）**：两个 `azp: null` 用例原先只断言异常类型，已收紧为 `match="azp"`，锁定拒绝路径。
+- **发现 3（未处置，待用户裁决）**：`azp` 比对基准用 `GW_OIDC_AUDIENCE` 而非 `client_id`，依赖「公共客户端下两者一致」的
+  **部署约定**（docstring 已声明，但未被代码强制）。方向为 fail-closed，非漏洞；建议在配置装载处加一致性断言，需用户确认口径。
+- **发现 4（已解决）**：审核指出首份 CI 读回（`35674340969` / `c347e97`）覆盖的是「源码 + 旧版文档」，
+  当时的收口文档尚未提交，属「结论先行于证据」；已由 `3086dfd` 提交并独立读回 CI 解决。
+
+门禁（本轮修复后）：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。

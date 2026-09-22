@@ -343,11 +343,14 @@ def _resolve_public_key(kid: str, config: OidcConfig) -> Any:
 
 def _numeric_date(claims: Mapping[str, Any], name: str, *, required: bool) -> Optional[float]:
     """读取 NumericDate 声明并校验类型。"""
-    value = claims.get(name)
-    if value is None:
+    # 判定「键存在性」而非「取值是否为 None」：
+    # `nbf: null` 之类「键存在但值非法」的形态必须落到类型检查分支显式拒绝，
+    # 若用 `claims.get(name) is None` 会被误当作「声明缺失」而在可选声明上放行。
+    if name not in claims:
         if required:
             raise UnauthorizedException(message=f"令牌缺少 {name} 声明，已拒绝")
         return None
+    value = claims[name]
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise UnauthorizedException(message=f"令牌 {name} 声明类型无效，已拒绝")
     return float(value)

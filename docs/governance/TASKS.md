@@ -607,3 +607,21 @@
   - 远端 CI run `35674340969`：`headSha = c347e97a501b9d9a2722e89d019ee384acc249a6`、
     `status = completed`、`conclusion = success`，作业 `Python 3.11 tests and hygiene` = completed / success。
   - 边界：CI success **不等于** 生产验收，**不等于** 第三方独立审计，**不等于** 发布授权。
+
+- [x] T63 Phase 9S 独立审核代理复核（r1c_review）：发现 4 项，已处置 2 项（2026-09-22）。
+  - **发现 1（已处置，同类反模式）**：`src/gods_workbench/core/oidc.py::_numeric_date` 用
+    `value = claims.get(name); if value is None` 判缺失，故 `nbf: null`（键存在、值非法）在可选声明路径被静默放行。
+    与 T60 的 azp 反模式同源。已按同一口径改为 `if name not in claims:` + `value = claims[name]`。
+  - **回归用例**：`tests/contracts/test_phase9r_oidc_token_binding.py` 新增
+    `test_null_nbf_is_rejected`（`nbf: null` 必须拒绝）、`test_missing_optional_nbf_is_accepted`（键真缺失仍须放行）。
+  - **变异测试**：副本 `%TEMP%\gw-p9s-root\mut_nbf\` 还原旧实现后 ->
+    `test_null_nbf_is_rejected ... DID NOT RAISE UnauthorizedException`（1 failed, 13 passed）；修复后仓库内同一用例 passed。
+    另以直接探针确认：副本（旧实现）`nbf: null` 放行；仓库（修复后）`nbf: null` 抛 UnauthorizedException。
+  - **发现 2（已处置，断言精度）**：`test_null_azp_is_rejected` 与 `test_multi_audience_with_null_azp_is_rejected`
+    原先只断言异常类型，未锁定拒绝路径；已收紧为 `pytest.raises(UnauthorizedException, match="azp")`。
+  - **发现 3（未处置，待裁决）**：`verify_authorized_party` 的 `azp` 比对基准用 `GW_OIDC_AUDIENCE`（docstring 已声明公共客户端下
+    `audience`≡`client_id` 的部署约定），但该约定未被代码强制；若真实环境 `aud` 为资源标识而非 client_id，可能误拒合法令牌。
+    属 fail-closed 方向，非漏洞；建议在配置装载处加一致性断言，**需用户确认口径后实施**。
+  - **发现 4（已处置，证据口径）**：审核指出本轮首份 CI 读回证据（`35674340969` / `c347e97`）
+    对应的是「源码 + 旧版文档」，此时收口文档尚未提交；该问题已由 `3086dfd` 提交 + 独立 CI 读回解决。
+  - 门禁：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。

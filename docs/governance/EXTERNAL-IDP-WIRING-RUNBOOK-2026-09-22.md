@@ -310,3 +310,18 @@ job        = 'Python 3.11 tests and hygiene' -> completed / success
 ```
 
 边界：远端 CI 通过 **不等于** 生产 IdP 真机验收，**不等于** 第三方独立审计，**不等于** 发布授权。
+
+### 13.8 独立审核发现与处置（2026-09-22 追加）
+
+独立审核代理（只读、禁 git 写）对本轮令牌绑定加固提出 4 项发现，主代理逐条复核后处置：
+
+| 发现 | 位置 | 处置 |
+| --- | --- | --- |
+| 1. `nbf: null` 在可选声明路径被静默放行（与 azp 同源反模式） | `core/oidc.py::_numeric_date` | **已修**：改为 `name not in claims` 判存在性；新增 2 回归用例；变异测试证明非恒真 |
+| 2. `azp: null` 用例只断言异常类型 | `tests/contracts/test_phase9r_oidc_token_binding.py` | **已修**：收紧为 `match="azp"` |
+| 3. `azp` 比对基准为 `GW_OIDC_AUDIENCE` 而非 `client_id`，依赖部署约定 | `core/oidc.py::verify_authorized_party` | **待用户裁决**：fail-closed 方向、非漏洞；建议配置装载处加一致性断言 |
+| 4. 首份 CI 读回覆盖范围与文档提交时序不一致 | 治理文档 | **已解决**：由 `3086dfd` 提交 + 独立 CI 读回 |
+
+修复后门禁：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。
+
+边界不变：以上均为**同仓库本地实测 + 同仓库独立审核代理复核**，**不构成**第三方独立审计，**不构成**发布授权。

@@ -176,7 +176,7 @@ def test_null_azp_is_rejected(rsa_keypair):
     payload = claims(azp=None)
     assert "azp" in payload, "用例前提：azp 键必须存在于载荷中（值为 null）"
     token = make_token(private_key, payload)
-    with pytest.raises(UnauthorizedException):
+    with pytest.raises(UnauthorizedException, match="azp"):
         oidc.verify_jwt(token, make_config(_jwk(public_key)), now=NOW)
 
 
@@ -184,7 +184,7 @@ def test_multi_audience_with_null_azp_is_rejected(rsa_keypair):
     """多 ``aud`` 且 ``azp: null`` 同样必须拒绝（不得因类型异常绕过）。"""
     private_key, public_key = rsa_keypair
     token = make_token(private_key, claims(aud=[AUDIENCE, OTHER_CLIENT], azp=None))
-    with pytest.raises(UnauthorizedException):
+    with pytest.raises(UnauthorizedException, match="azp"):
         oidc.verify_jwt(token, make_config(_jwk(public_key)), now=NOW)
 
 
@@ -216,4 +216,28 @@ def test_key_without_use_or_alg_still_works(rsa_keypair):
     jwk.pop("alg")
     token = make_token(private_key, claims())
     identity = oidc.verify_jwt(token, make_config(jwk), now=NOW)
+    assert identity.subject == "user-001"
+# ---------------------------------------------------------------------------
+# NumericDate 可选声明（nbf）：键存在性 vs 取值 None
+# ---------------------------------------------------------------------------
+
+def test_null_nbf_is_rejected(rsa_keypair):
+    """nbf 键存在但值为 null 属非法形态，必须显式拒绝。
+
+    回归 _numeric_date 的 ``claims.get(name) is None`` fail-open 反模式：
+    nbf 为可选声明，旧实现把 nbf: null 误当作「未声明」而静默放行。
+    """
+    private_key, public_key = rsa_keypair
+    token = make_token(private_key, claims(nbf=None))
+    with pytest.raises(UnauthorizedException, match="nbf"):
+        oidc.verify_jwt(token, make_config(_jwk(public_key)), now=NOW)
+
+
+def test_missing_optional_nbf_is_accepted(rsa_keypair):
+    """真正缺失（键不存在）的 nbf 仍属合法可选形态，必须放行。"""
+    private_key, public_key = rsa_keypair
+    payload = claims()
+    payload.pop("nbf")
+    token = make_token(private_key, payload)
+    identity = oidc.verify_jwt(token, make_config(_jwk(public_key)), now=NOW)
     assert identity.subject == "user-001"
