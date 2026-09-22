@@ -624,7 +624,10 @@ def test_other_api_endpoints_remain_unimplemented(empty_client: TestClient):
         ("post", "/api/observability"),
         ("get", "/api/asset-library/items/batch"),
         ("get", "/api/asset-library/libraries/library_default"),
-        ("get", "/api/prompt-libraries"),
+        # 2026-09-22 Phase 10C：提示词库读取端点已由本阶段授权实现（p10c-frozen-1），
+        # 故从观测阶段的「仍不可用」探针中移除；其范围守卫由
+        # tests/contracts/test_phase10c_prompt_library.py 接管。
+        ("get", "/api/prompt-libraries/items"),
     ):
         res = getattr(empty_client, method)(path, headers=AUTH)
         assert res.status_code in {404, 405}, f"{method.upper()} {path} 不应可用，实际 {res.status_code}"

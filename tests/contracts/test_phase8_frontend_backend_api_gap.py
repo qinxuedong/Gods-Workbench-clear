@@ -39,6 +39,7 @@ CONTRACTS = [
     REPO_ROOT / "docs" / "contracts" / "CANVAS-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "ASSET-LIBRARY-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "OBSERVABILITY-INTERFACE-CATALOG.yaml",
+    REPO_ROOT / "docs" / "contracts" / "PROMPT-LIBRARY-INTERFACE-CATALOG.yaml",
 ]
 
 # ---------------------------------------------------------------------------
@@ -75,6 +76,11 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/observability/health',
     '/api/observability/sources',
     '/api/observability/asset-volumes',
+    # 2026-09-22 Phase 10C：提示词库阶段新增 4 条路由（集合 GET/POST 与单对象 PATCH/DELETE）。
+    '/api/prompt-libraries',
+    '/api/prompt-libraries/categories',
+    '/api/prompt-libraries/categories/{p}',
+    '/api/prompt-libraries/{p}',
 ])
 
 #: 前端引用但后端**未实现**的端点（归一化路径）—— 本守卫的核心防漂移清单
@@ -215,13 +221,9 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/online-image',
     '/api/projects',
     '/api/projects/{p}',
-    '/api/prompt-libraries',
-    '/api/prompt-libraries/categories',
-    '/api/prompt-libraries/categories/{p}',
     '/api/prompt-libraries/items',
     '/api/prompt-libraries/items/delete',
     '/api/prompt-libraries/items/{p}',
-    '/api/prompt-libraries/{p}',
     '/api/providers',
     '/api/providers/fetch-models',
     '/api/providers/probe-async',
@@ -287,6 +289,11 @@ KNOWN_BACKEND_PATHS = frozenset([
     '/api/observability/health',
     '/api/observability/sources',
     '/api/observability/asset-volumes',
+    # 2026-09-22 Phase 10C：提示词库阶段新增 4 条路由（集合 GET/POST 与单对象 PATCH/DELETE）。
+    '/api/prompt-libraries',
+    '/api/prompt-libraries/categories',
+    '/api/prompt-libraries/categories/{p}',
+    '/api/prompt-libraries/{p}',
     '/healthz',
 ])
 

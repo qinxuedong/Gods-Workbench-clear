@@ -24,6 +24,10 @@ from gods_workbench.asset_library.models import (
     CategoryCreateRequest,
     CategoryType,
 )
+from gods_workbench.prompt_library.models import (
+    PromptLibraryCreateRequest,
+    PromptLibrarySnapshot,
+)
 from gods_workbench.core.errors import CleanroomException
 from gods_workbench.projects_hub.models import (
     ProjectCreateRequest,
@@ -41,7 +45,8 @@ def test_manifest_integrity(fixtures_dir: Path):
     assert data["meta"]["distribution"] == "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
     # 2026-09-22 Phase 10A：素材库阶段新增 6 个黄金夹具（9 -> 15）。
     # 2026-09-22 Phase 10B：观测阶段新增 2 个黄金夹具（15 -> 17）。
-    assert len(data["fixtures"]) == 17
+    # 2026-09-22 Phase 10C：提示词库阶段新增 5 个黄金夹具（17 -> 22）。
+    assert len(data["fixtures"]) == 22
     for item in data["fixtures"]:
         file_path = fixtures_dir / item["file"]
         assert file_path.exists(), f"夹具文件不存在: {item['file']}"
@@ -299,3 +304,78 @@ def test_fixture_observability_health_truthful(fixtures_dir: Path):
     assert content["status"] != "ok", "存在未接入组件时整体状态不得为 ok"
     assert content["data_status"] == "degraded"
     assert content["data_gaps"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 10C：提示词库黄金夹具（docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml）
+# ---------------------------------------------------------------------------
+
+
+def test_fixture_prompt_library_empty(fixtures_dir: Path):
+    """验证提示词库空库夹具：libraries 必须为空数组，禁止伪造提示词内容。"""
+    content = json.loads(
+        (fixtures_dir / "prompt-library-empty.json").read_text(encoding="utf-8")
+    )
+    snapshot = PromptLibrarySnapshot.model_validate(content["library"])
+    assert snapshot.version == 1
+    assert snapshot.active_library_id is None
+    assert snapshot.libraries == []
+
+
+def test_fixture_prompt_library_with_empty_category(fixtures_dir: Path):
+    """验证非空提示词库夹具的库-分类两层稳定 ID 结构；分类仅为空结构，不含提示词文本。"""
+    raw = (fixtures_dir / "prompt-library-with-empty-category.json").read_text(encoding="utf-8")
+    content = json.loads(raw)
+    snapshot = PromptLibrarySnapshot.model_validate(content["library"])
+    assert snapshot.active_library_id == "plib_default"
+    library = snapshot.libraries[0]
+    assert library.library_id == "plib_default"
+    assert library.version == 2
+    category = library.categories[0]
+    assert category.category_id == "pcat_default"
+    assert category.library_id == "plib_default"
+    # 零伪造：夹具不得出现任何提示词文本字段或条目集合
+    for marker in ("items", "positive", "negative", "scene"):
+        assert marker not in raw, f"提示词库夹具不得包含 {marker} 字段"
+
+
+def test_fixture_prompt_library_create_request(fixtures_dir: Path):
+    """验证创建提示词库请求夹具可被契约模型接受。"""
+    payload = json.loads(
+        (fixtures_dir / "prompt-library-create-request.json").read_text(encoding="utf-8")
+    )
+    req = PromptLibraryCreateRequest.model_validate(payload)
+    assert req.name == "角色提示词库"
+    assert req.expected_version is None
+
+
+def test_fixture_prompt_library_conflict_409(fixtures_dir: Path):
+    """验证提示词库 CAS 冲突夹具与异常构造逐字一致。"""
+    content = json.loads(
+        (fixtures_dir / "prompt-library-conflict-409.json").read_text(encoding="utf-8")
+    )
+    envelope = ErrorEnvelope.model_validate(content)
+    assert envelope.detail.code == "VERSION_CONFLICT"
+    assert envelope.detail.expected_version == 1
+    assert envelope.detail.current_version == 2
+
+    exc = VersionConflictException(
+        expected_version=1,
+        current_version=2,
+        message="提示词库 plib_default 版本冲突，请重新读取后重试",
+    )
+    assert exc.to_envelope().detail.code == envelope.detail.code
+
+
+def test_fixture_prompt_library_not_empty_409(fixtures_dir: Path):
+    """验证非空库删除冲突夹具的错误码；该码由 CleanroomException 生成。"""
+    content = json.loads(
+        (fixtures_dir / "prompt-library-not-empty-409.json").read_text(encoding="utf-8")
+    )
+    assert content["detail"]["code"] == "LIBRARY_NOT_EMPTY"
+    exc = CleanroomException(
+        status_code=409,
+        code="LIBRARY_NOT_EMPTY",
+        message="提示词库 plib_default 仍包含 1 个分类，请先清空后再删除",
+    )
+    assert exc.to_envelope().detail.code == content["detail"]["code"]
