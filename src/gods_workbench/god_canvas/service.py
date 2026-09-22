@@ -6,6 +6,7 @@
 
 import copy
 import json
+import time
 import threading
 from typing import Any, Dict, List, Optional
 
@@ -45,6 +46,7 @@ class GodCanvasService:
         self._canvases: Dict[str, CanvasItem] = {}
         self._topologies: Dict[str, CanvasTopology] = {}
         self._jobs: Dict[str, SmartCanvasTaskResponse] = {}
+        self._lifecycle: Dict[str, Dict[str, Any]] = {}
         self._seq = 1 if seed_golden_fixture else 0
         self._job_seq = 1 if seed_golden_fixture else 0
 
@@ -90,6 +92,18 @@ class GodCanvasService:
                 state="accepted",
                 poll_hint="/api/jobs/job-0001",
             )
+            now = int(time.time())
+            self._lifecycle[cid] = {
+                "kind": "classic",
+                "entity_id": None,
+                "icon": None,
+                "board_x": None,
+                "board_y": None,
+                "created_at": now,
+                "updated_at": now,
+                "deleted_at": None,
+                "archived_at": None,
+            }
 
     # ------------------------------------------------------------------
     # 1. 普通画布拓扑管理能力 (Classic Topology Management)
@@ -98,11 +112,324 @@ class GodCanvasService:
     def list_canvases(self, project_id: str) -> List[CanvasItem]:
         """返回指定项目可见的画布集合。"""
         with self._lock:
+            # 已入回收站或已归档的画布不在活跃列表；两者各有独立视图端点。
             return [
                 copy.deepcopy(item)
-                for item in self._canvases.values()
+                for canvas_id, item in self._canvases.items()
                 if item.project_id == project_id
+                and not (self._lifecycle.get(canvas_id) or {}).get("deleted_at")
+                and not (self._lifecycle.get(canvas_id) or {}).get("archived_at")
             ]
+
+    # ------------------------------------------------------------------
+    # 生命周期投影（归档 / 回收站 / 元信息）
+    #
+    # 设计取舍：生命周期字段集中放在 ``_lifecycle`` 侧表，不写进 ``CanvasItem``，
+    # 以免改变既有 /api/canvases 契约模型与历史夹具的序列化面。
+    # 侧表键必须与 ``canvas_id`` 一致，禁止另起别名。
+    # ------------------------------------------------------------------
+
+    def ensure_lifecycle(self, canvas_id: str) -> Dict[str, Any]:
+        """返回目标画布的生命周期记录；不存在时按活跃画布惰性建立。"""
+        with self._lock:
+            if canvas_id not in self._canvases:
+                raise CleanroomException(
+                    status_code=404,
+                    code="CANVAS_NOT_FOUND",
+                    message=f"画布 {canvas_id} 不存在",
+                )
+            record = self._lifecycle.get(canvas_id)
+            if record is None:
+                record = {
+                    "kind": "classic",
+                    "entity_id": None,
+                    "icon": None,
+                    "board_x": None,
+                    "board_y": None,
+                    "created_at": int(time.time()),
+                    "updated_at": int(time.time()),
+                    "deleted_at": None,
+                    "archived_at": None,
+                }
+                self._lifecycle[canvas_id] = record
+            return copy.deepcopy(record)
+
+    def list_lifecycle(self) -> List[Dict[str, Any]]:
+        """返回全部画布的生命周期投影（含 canvas_id，供观测 / 画布资产索引读取）。"""
+        with self._lock:
+            out = []
+            for canvas_id, item in self._canvases.items():
+                record = self._lifecycle.get(canvas_id) or {}
+                out.append(
+                    {
+                        "canvas_id": canvas_id,
+                        "title": item.title,
+                        "project_id": item.project_id,
+                        "version": item.version,
+                        "mode": item.mode.value,
+                        "kind": record.get("kind") or "classic",
+                        "entity_id": record.get("entity_id"),
+                        "icon": record.get("icon"),
+                        "board_x": record.get("board_x"),
+                        "board_y": record.get("board_y"),
+                        "created_at": record.get("created_at"),
+                        "updated_at": record.get("updated_at"),
+                        "deleted_at": record.get("deleted_at"),
+                        "archived_at": record.get("archived_at"),
+                    }
+                )
+            return out
+
+    def list_trash(self, view: str = "deleted") -> List[Dict[str, Any]]:
+        """返回回收站（已删除）或归档列表；无内容时必须是空数组。"""
+        if view not in {"deleted", "archived"}:
+            raise CleanroomException(
+                status_code=400,
+                code="INVALID_REQUEST",
+                message="view 仅支持 deleted 或 archived",
+            )
+        field = "deleted_at" if view == "deleted" else "archived_at"
+        out = []
+        for entry in self.list_lifecycle():
+            if not entry[field]:
+                continue
+            # 归档视图只取已归档；回收站视图只取已入回收站，两者互不冒充。
+            if view == "deleted" and entry["archived_at"]:
+                continue
+            out.append(entry)
+        return out
+
+    def set_canvas_kind(self, canvas_id: str, kind: str) -> Dict[str, Any]:
+        """设置画布类型（classic / smart / reference）；仅接受白名单取值。"""
+        if kind not in {"classic", "smart", "reference"}:
+            raise CleanroomException(
+                status_code=400,
+                code="INVALID_REQUEST",
+                message="kind 仅支持 classic / smart / reference",
+            )
+        with self._lock:
+            record = self._lifecycle.get(canvas_id)
+            if record is None:
+                raise CleanroomException(
+                    status_code=404,
+                    code="CANVAS_NOT_FOUND",
+                    message=f"画布 {canvas_id} 不存在",
+                )
+            record["kind"] = kind
+            record["updated_at"] = int(time.time())
+            return copy.deepcopy(record)
+
+    def update_canvas_meta(
+        self,
+        canvas_id: str,
+        patch: Dict[str, Any],
+        expected_version: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """更新画布元信息；CAS 不一致严格返回 409 CANVAS_VERSION_CONFLICT。"""
+        with self._lock:
+            item = self._canvases.get(canvas_id)
+            if item is None:
+                raise CleanroomException(
+                    status_code=404,
+                    code="CANVAS_NOT_FOUND",
+                    message=f"画布 {canvas_id} 不存在",
+                )
+            if expected_version is not None and item.version != expected_version:
+                raise CanvasVersionConflictException(
+                    expected_version=expected_version,
+                    current_version=item.version,
+                    canvas_id=canvas_id,
+                )
+            record = self._lifecycle.setdefault(
+                canvas_id,
+                {
+                    "kind": "classic",
+                    "entity_id": None,
+                    "icon": None,
+                    "board_x": None,
+                    "board_y": None,
+                    "created_at": int(time.time()),
+                    "updated_at": int(time.time()),
+                    "deleted_at": None,
+                    "archived_at": None,
+                },
+            )
+            if patch.get("title"):
+                item.title = patch["title"]
+            if patch.get("project_id"):
+                item.project_id = patch["project_id"]
+            for field in ("entity_id", "icon", "board_x", "board_y", "kind"):
+                if field in patch and patch[field] is not None:
+                    record[field] = patch[field]
+            item.version += 1
+            top = self._topologies.get(canvas_id)
+            if top is not None:
+                top.version = item.version
+                if patch.get("reference_payload") is not None:
+                    references = dict(top.references or {})
+                    references["reference_canvas"] = copy.deepcopy(patch["reference_payload"])
+                    top.references = references
+            record["updated_at"] = int(time.time())
+            return self._project_canvas(canvas_id)
+
+    def touch_canvas(
+        self,
+        canvas_id: str,
+        operation: str,
+        expected_version: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """归档 / 解归档画布；只做状态翻转，不改内容，且必须递增 version。"""
+        if operation not in ("archive", "unarchive"):
+            raise CleanroomException(
+                status_code=400,
+                code="INVALID_CANVAS_OPERATION",
+                message="operation 仅支持 archive 或 unarchive",
+            )
+        with self._lock:
+            item = self._canvases.get(canvas_id)
+            if item is None:
+                raise CleanroomException(
+                    status_code=404,
+                    code="CANVAS_NOT_FOUND",
+                    message=f"画布 {canvas_id} 不存在",
+                )
+            if expected_version is not None and item.version != expected_version:
+                raise CanvasVersionConflictException(
+                    expected_version=expected_version,
+                    current_version=item.version,
+                    canvas_id=canvas_id,
+                )
+            record = self._lifecycle.setdefault(
+                canvas_id,
+                {
+                    "kind": "classic",
+                    "entity_id": None,
+                    "icon": None,
+                    "board_x": None,
+                    "board_y": None,
+                    "created_at": int(time.time()),
+                    "updated_at": int(time.time()),
+                    "deleted_at": None,
+                    "archived_at": None,
+                },
+            )
+            record["archived_at"] = int(time.time()) if operation == "archive" else None
+            record["updated_at"] = int(time.time())
+            item.version += 1
+            top = self._topologies.get(canvas_id)
+            if top is not None:
+                top.version = item.version
+            return self._project_canvas(canvas_id)
+
+    def move_to_trash(self, canvas_id: str, expected_version: Optional[int] = None) -> Dict[str, Any]:
+        """把画布移入回收站（软删除）；不删除拓扑，可 restore。"""
+        return self._set_deleted(canvas_id, deleted=True, expected_version=expected_version)
+
+    def restore_from_trash(self, canvas_id: str, expected_version: Optional[int] = None) -> Dict[str, Any]:
+        """从回收站恢复画布；与既有的 ``restore_canvas`` 语义一致。"""
+        return self._set_deleted(canvas_id, deleted=False, expected_version=expected_version)
+
+    def _set_deleted(
+        self,
+        canvas_id: str,
+        deleted: bool,
+        expected_version: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            item = self._canvases.get(canvas_id)
+            if item is None:
+                raise CleanroomException(
+                    status_code=404,
+                    code="CANVAS_NOT_FOUND",
+                    message=f"画布 {canvas_id} 不存在",
+                )
+            if expected_version is not None and item.version != expected_version:
+                raise CanvasVersionConflictException(
+                    expected_version=expected_version,
+                    current_version=item.version,
+                    canvas_id=canvas_id,
+                )
+            record = self._lifecycle.setdefault(
+                canvas_id,
+                {
+                    "kind": "classic",
+                    "entity_id": None,
+                    "icon": None,
+                    "board_x": None,
+                    "board_y": None,
+                    "created_at": int(time.time()),
+                    "updated_at": int(time.time()),
+                    "deleted_at": None,
+                    "archived_at": None,
+                },
+            )
+            record["deleted_at"] = int(time.time()) if deleted else None
+            record["updated_at"] = int(time.time())
+            item.version += 1
+            top = self._topologies.get(canvas_id)
+            if top is not None:
+                top.version = item.version
+            return self._project_canvas(canvas_id)
+
+    def purge_canvas(self, canvas_id: str) -> Dict[str, Any]:
+        """彻底删除回收站中的画布；未入回收站一律拒绝，禁止越权直删。"""
+        with self._lock:
+            item = self._canvases.get(canvas_id)
+            if item is None:
+                raise CleanroomException(
+                    status_code=404,
+                    code="CANVAS_NOT_FOUND",
+                    message=f"画布 {canvas_id} 不存在",
+                )
+            record = self._lifecycle.get(canvas_id) or {}
+            if not record.get("deleted_at"):
+                raise CleanroomException(
+                    status_code=409,
+                    code="CANVAS_NOT_IN_TRASH",
+                    message="仅回收站中的画布可以彻底删除",
+                )
+            version = item.version
+            del self._canvases[canvas_id]
+            self._topologies.pop(canvas_id, None)
+            self._lifecycle.pop(canvas_id, None)
+            return {"canvas_id": canvas_id, "version": version, "purged": True}
+
+    def get_reference_payload(self, canvas_id: str) -> Optional[Dict[str, Any]]:
+        """读取参考画布载荷（存放于拓扑 references.reference_canvas）。"""
+        with self._lock:
+            top = self._topologies.get(canvas_id)
+            if top is None or not top.references:
+                return None
+            payload = top.references.get("reference_canvas")
+            return copy.deepcopy(payload) if isinstance(payload, dict) else None
+
+    def _project_canvas(self, canvas_id: str) -> Dict[str, Any]:
+        """生成画布生命周期投影。
+
+        ``id`` / ``project`` 是前端既有读取面的兼容别名，服务端另有
+        ``canvas_id`` / ``project_id`` 权威字段（见契约 decisions.frontend_compat）。
+        """
+        item = self._canvases[canvas_id]
+        record = self._lifecycle.get(canvas_id) or {}
+        return {
+            "canvas_id": canvas_id,
+            "id": canvas_id,
+            "title": item.title,
+            "project_id": item.project_id,
+            "project": item.project_id,
+            "version": item.version,
+            "governance_version": item.version,
+            "mode": item.mode.value,
+            "kind": record.get("kind") or "classic",
+            "entity_id": record.get("entity_id"),
+            "icon": record.get("icon"),
+            "board_x": record.get("board_x"),
+            "board_y": record.get("board_y"),
+            "created_at": record.get("created_at"),
+            "updated_at": record.get("updated_at"),
+            "deleted_at": record.get("deleted_at"),
+            "archived_at": record.get("archived_at"),
+        }
 
     def get_canvas(self, canvas_id: str) -> CanvasItem:
         """获取指定画布元信息。"""
@@ -133,6 +460,18 @@ class GodCanvasService:
                 mode=payload.mode,
             )
             self._canvases[cid] = item
+            now = int(time.time())
+            self._lifecycle[cid] = {
+                "kind": payload.mode.value,
+                "entity_id": None,
+                "icon": None,
+                "board_x": None,
+                "board_y": None,
+                "created_at": now,
+                "updated_at": now,
+                "deleted_at": None,
+                "archived_at": None,
+            }
 
             nodes = []
             connections = []
@@ -205,6 +544,12 @@ class GodCanvasService:
 
             top.version += 1
             item.version = top.version
+            # 恢复必须同时清掉生命周期标记，否则画布仍会被列表当作用户已删除而隐藏。
+            record = self._lifecycle.get(canvas_id)
+            if record is not None:
+                record["deleted_at"] = None
+                record["archived_at"] = None
+                record["updated_at"] = int(time.time())
             return CanvasMutationResult(canvas_id=canvas_id, version=top.version)
 
     def import_workflow(

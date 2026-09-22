@@ -855,3 +855,12 @@
   本地门禁：`pytest` **438 passed / 7 skipped**；`tests/hygiene` **16 passed**；
   设置页契约测试 29 passed；变异 3/3 被捕获并还原。
   边界：内存存储；真实外网探测未接入；前端 E2E 未执行；发布授权未闭环。
+
+- [x] T79 Phase 10E 画布闭环最小闭环（2026-09-22，申接 T26 顺序第 5 阶段）。
+  17 条路径 / 20 个方法条目（含 meta、purge 方法别名并存，decisions.method_aliases 显式声明）。
+  契约 `p10e-frozen-1`；黄金夹具 27 -> 33；契约测试 43 passed。
+  零伪造 + fail-closed：视频渲染 / 素材打包下载 / 素材挂接 / 共享文件夹导入与目录扫描均 503 且不携带 task_id/progress/eta/url。
+  生命周期采用 `_lifecycle` 侧表，未改 `CanvasItem`，既有 `/api/canvases` 契约模型不变。
+  本地门禁：`pytest` **487 passed / 7 skipped**；`tests/hygiene` **16 passed**；
+  Phase 10E 契约测试 43 passed；变异 3/3 捕获并还原。
+  边界：仍为进程内内存存储；真实渲染 / 目录扫描未接入；前端 E2E 未执行；发布授权未闭环。

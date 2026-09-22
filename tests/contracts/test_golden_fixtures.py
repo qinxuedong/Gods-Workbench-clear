@@ -33,6 +33,12 @@ from gods_workbench.settings.models import (
     StorageSettingsSnapshot,
 )
 from gods_workbench.core.errors import CleanroomException
+from gods_workbench.canvas_closure.models import (
+    CanvasAssetIndexResponse,
+    CanvasTrashResponse,
+    SharedFolderListResponse,
+    VideoTaskListResponse,
+)
 from gods_workbench.projects_hub.models import (
     ProjectCreateRequest,
     ProjectListResponse,
@@ -51,7 +57,8 @@ def test_manifest_integrity(fixtures_dir: Path):
     # 2026-09-22 Phase 10B：观测阶段新增 2 个黄金夹具（15 -> 17）。
     # 2026-09-22 Phase 10C：提示词库阶段新增 5 个黄金夹具（17 -> 22）。
     # 2026-09-22 Phase 10D：设置页阶段新增 5 个黄金夹具（22 -> 27）。
-    assert len(data["fixtures"]) == 27
+    # 2026-09-22 Phase 10E：画布闭环阶段新增 6 个黄金夹具（27 -> 33）。
+    assert len(data["fixtures"]) == 33
     for item in data["fixtures"]:
         file_path = fixtures_dir / item["file"]
         assert file_path.exists(), f"夹具文件不存在: {item['file']}"
@@ -440,3 +447,81 @@ def test_fixture_settings_structure_conflict_409(fixtures_dir: Path):
     assert envelope.detail.expected_version == 1
     assert envelope.detail.current_version == 2
 
+
+# ---------------------------------------------------------------------------
+# Phase 10E：画布闭环夹具（docs/contracts/CANVAS-CLOSURE-INTERFACE-CATALOG.yaml）
+# ---------------------------------------------------------------------------
+
+
+def test_fixture_canvas_closure_trash_empty(fixtures_dir: Path):
+    """验证回收站空列表夹具：空集合必须为空，禁止伪造演示条目。"""
+    content = json.loads(
+        (fixtures_dir / "canvas-closure-trash-empty.json").read_text(encoding="utf-8")
+    )
+    snapshot = CanvasTrashResponse.model_validate(content)
+    assert snapshot.canvases == []
+    assert snapshot.data_status == "ok"
+    assert snapshot.data_gaps == []
+
+
+def test_fixture_canvas_closure_cas_conflict_409(fixtures_dir: Path):
+    """验证画布闭环 CAS 冲突夹具：画布版本冲突错误包。"""
+    content = json.loads(
+        (fixtures_dir / "canvas-closure-cas-conflict-409.json").read_text(encoding="utf-8")
+    )
+    envelope = ErrorEnvelope.model_validate(content)
+    assert envelope.detail.code == "CANVAS_VERSION_CONFLICT"
+    assert envelope.detail.expected_version == 1
+    assert envelope.detail.current_version == 2
+
+
+def test_fixture_canvas_closure_asset_index_empty(fixtures_dir: Path):
+    """验证素材索引空快照夹具：五类计数为 0，禁止伪造素材条目。"""
+    content = json.loads(
+        (fixtures_dir / "canvas-closure-asset-index-empty.json").read_text(encoding="utf-8")
+    )
+    snapshot = CanvasAssetIndexResponse.model_validate(content)
+    assert snapshot.canvases == []
+    assert snapshot.items == []
+    assert snapshot.data_status == "not_integrated"
+    assert "canvas_asset_index_source_not_integrated" in snapshot.data_gaps
+    assert all(category["count"] == 0 for category in snapshot.categories)
+
+
+def test_fixture_canvas_closure_shared_folders_empty(fixtures_dir: Path):
+    """验证共享文件夹空列表夹具：folders 为空、revision 稳定。"""
+    content = json.loads(
+        (fixtures_dir / "canvas-closure-shared-folders-empty.json").read_text(encoding="utf-8")
+    )
+    snapshot = SharedFolderListResponse.model_validate(content)
+    assert snapshot.folders == []
+    assert snapshot.revision >= 1
+    assert snapshot.data_status == "ok"
+
+
+def test_fixture_canvas_closure_video_tasks_empty(fixtures_dir: Path):
+    """验证视频任务空列表夹具：video_tasks 为空，禁止伪造任务与进度。"""
+    content = json.loads(
+        (fixtures_dir / "canvas-closure-video-tasks-empty.json").read_text(encoding="utf-8")
+    )
+    snapshot = VideoTaskListResponse.model_validate(content)
+    assert snapshot.video_tasks == []
+    assert snapshot.data_status == "not_integrated"
+    assert "video_renderer_source_not_integrated" in snapshot.data_gaps
+
+
+def test_fixture_canvas_closure_video_task_not_integrated(fixtures_dir: Path):
+    """验证视频任务创建 fail-closed 夹具：503 且不携带任何伪造任务字段。"""
+    content = json.loads(
+        (fixtures_dir / "canvas-closure-video-task-not-integrated.json").read_text(encoding="utf-8")
+    )
+    assert content["detail"]["code"] == "VIDEO_RENDERER_NOT_INTEGRATED"
+    assert set(content["detail"].keys()) == {"code", "message"}
+    for forbidden in ("task_id", "progress", "eta", "url"):
+        assert forbidden not in content["detail"]
+    exc = CleanroomException(
+        status_code=503,
+        code="VIDEO_RENDERER_NOT_INTEGRATED",
+        message=content["detail"]["message"],
+    )
+    assert exc.to_envelope().detail.code == content["detail"]["code"]

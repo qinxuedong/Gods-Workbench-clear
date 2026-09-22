@@ -167,6 +167,42 @@
       "file": "settings-structure-conflict-409.json",
       "kind": "api-response",
       "purpose": "设置页素材结构 CAS 冲突错误样本"
+    },
+    {
+      "id": "canvas-closure-trash-empty-v1",
+      "file": "canvas-closure-trash-empty.json",
+      "kind": "api-response",
+      "purpose": "画布闭环回收站空列表响应（空集合必须为空，禁止伪造演示条目）"
+    },
+    {
+      "id": "canvas-closure-cas-conflict-409-v1",
+      "file": "canvas-closure-cas-conflict-409.json",
+      "kind": "api-response",
+      "purpose": "画布闭环画布元信息 CAS 版本冲突响应（CANVAS_VERSION_CONFLICT）"
+    },
+    {
+      "id": "canvas-closure-asset-index-empty-v1",
+      "file": "canvas-closure-asset-index-empty.json",
+      "kind": "api-response",
+      "purpose": "画布闭环素材索引空快照（五类计数为 0、canvases/items 为空，data_status=not_integrated，禁止伪造素材条目）"
+    },
+    {
+      "id": "canvas-closure-shared-folders-empty-v1",
+      "file": "canvas-closure-shared-folders-empty.json",
+      "kind": "api-response",
+      "purpose": "画布闭环共享文件夹空列表响应（folders 为空、revision 稳定，禁止伪造目录条目）"
+    },
+    {
+      "id": "canvas-closure-video-tasks-empty-v1",
+      "file": "canvas-closure-video-tasks-empty.json",
+      "kind": "api-response",
+      "purpose": "画布闭环视频任务空列表响应（video_tasks 为空，data_status=not_integrated，禁止伪造任务/进度）"
+    },
+    {
+      "id": "canvas-closure-video-task-not-integrated-v1",
+      "file": "canvas-closure-video-task-not-integrated.json",
+      "kind": "api-response",
+      "purpose": "画布闭环视频任务创建 fail-closed 说明（503 VIDEO_RENDERER_NOT_INTEGRATED，禁止伪造 task_id/progress/eta/url）"
     }
   ]
 }

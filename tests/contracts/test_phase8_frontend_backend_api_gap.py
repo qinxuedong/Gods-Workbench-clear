@@ -41,6 +41,7 @@ CONTRACTS = [
     REPO_ROOT / "docs" / "contracts" / "OBSERVABILITY-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "PROMPT-LIBRARY-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "SETTINGS-INTERFACE-CATALOG.yaml",
+    REPO_ROOT / "docs" / "contracts" / "CANVAS-CLOSURE-INTERFACE-CATALOG.yaml",
 ]
 
 # ---------------------------------------------------------------------------
@@ -91,6 +92,21 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/asset-registry/asset-structures',
     '/api/asset-registry/asset-structures/{p}',
     '/api/asset-registry/asset-structures/{p}/current',
+    # 2026-09-22 Phase 10E：画布闭环阶段新增 14 条归一化路径（3 个方法别名合并后）。
+    '/api/canvas-assets',
+    '/api/canvas-assets/download',
+    '/api/reference-canvases',
+    '/api/shared-folders',
+    '/api/shared-folders/import',
+    '/api/shared-folders/{p}',
+    '/api/shared-folders/{p}/tree',
+    '/api/video-tasks',
+    '/api/video-tasks/{p}',
+    '/api/canvases/trash',
+    '/api/canvases/assets',
+    '/api/canvases/{p}/meta',
+    '/api/canvases/{p}/touch',
+    '/api/canvases/{p}/purge',
 ])
 
 #: 前端引用但后端**未实现**的端点（归一化路径）—— 本守卫的核心防漂移清单
@@ -193,10 +209,6 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/asset-thumbnails/jobs/{p}',
     '/api/asset-thumbnails/settings',
     '/api/audio-waveform-data',
-    '/api/canvas-assets',
-    '/api/canvas-assets/download',
-    '/api/canvases/assets',
-    '/api/canvases/trash',
     '/api/chat',
     '/api/chat/agent',
     '/api/codex/help',
@@ -232,22 +244,12 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/prompt-libraries/items/delete',
     '/api/prompt-libraries/items/{p}',
     '/api/public/shares/{p}',
-    '/api/reference-canvases',
-    '/api/shared-folders',
-    '/api/shared-folders/import',
-    '/api/shared-folders/{p}',
-    '/api/shared-folders/{p}/tree',
     '/api/storage-files',
     '/api/storage-files/delete',
-    '/api/video-tasks',
-    '/api/video-tasks/{p}',
     # 2026-09-21 第二轮更正：helper 拼接类调用（如 `${canvasUrl(id)}/meta`）入集。
     # 旧扫描器只认以 /api 起头的字面量，这 8 条真实可达路径被结构性漏扫。
     '/api/asset-auth/teams/{p}/members',
     '/api/asset-auth/teams/{p}/members/{p}',
-    '/api/canvases/{p}/meta',
-    '/api/canvases/{p}/purge',
-    '/api/canvases/{p}/touch',
     '/api/public/shares/{p}/access',
     '/api/public/shares/{p}/approvals',
     '/api/public/shares/{p}/comments',
@@ -305,6 +307,21 @@ KNOWN_BACKEND_PATHS = frozenset([
     '/api/asset-registry/asset-structures',
     '/api/asset-registry/asset-structures/{p}',
     '/api/asset-registry/asset-structures/{p}/current',
+    # 2026-09-22 Phase 10E：画布闭环阶段新增后端路由（归一化后；/api/canvases/{p} 已存在）。
+    '/api/canvas-assets',
+    '/api/canvas-assets/download',
+    '/api/reference-canvases',
+    '/api/shared-folders',
+    '/api/shared-folders/import',
+    '/api/shared-folders/{p}',
+    '/api/shared-folders/{p}/tree',
+    '/api/video-tasks',
+    '/api/video-tasks/{p}',
+    '/api/canvases/trash',
+    '/api/canvases/assets',
+    '/api/canvases/{p}/meta',
+    '/api/canvases/{p}/touch',
+    '/api/canvases/{p}/purge',
     '/healthz',
 ])
 

@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from gods_workbench.api.routes_asset_library import router as asset_library_router
 from gods_workbench.api.routes_auth import router as auth_router
+from gods_workbench.api.routes_canvas_closure import router as canvas_closure_router
 from gods_workbench.api.routes_god_canvas import jobs_router, router as god_canvas_router
 from gods_workbench.api.routes_observability import router as observability_router
 from gods_workbench.api.routes_projects import router as projects_router
@@ -98,6 +99,8 @@ def create_app() -> FastAPI:
     # 挂载 API 路由
     app.include_router(auth_router)
     app.include_router(projects_router)
+    # 必须先于 god_canvas_router 注册：/api/canvases/trash 不能被 /{canvas_id} 抢先匹配。
+    app.include_router(canvas_closure_router)
     app.include_router(god_canvas_router)
     app.include_router(asset_library_router)
     app.include_router(jobs_router)
