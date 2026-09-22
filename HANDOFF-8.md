@@ -159,3 +159,16 @@ python run.py                                          # 本机端口 2077
 - 本轮所有实测为**本机 Chrome + 本机 uvicorn**，**不等于**生产验收。
 - **180 条未实现端点本轮零实现**，缺口保持原状。
 - 子代理通道受限：**同框架复核 ≠ 第三方独立审计**，本轮**无**外部独立复核。
+
+---
+
+## 7. 本文件提交与远端 CI 实测（2026-09-22 追加）
+
+- 提交 `76d7fb056ece4047a251929908a1b7bb2f9ba302`（"HANDOFF-8：Phase 9T 交接文档（任务/已完成/卡点/下一步）+ P9T 复核任务书入库"，5 files / +352）
+- 推送：`git push origin master` → `714414a..76d7fb0  master -> master`
+- 读回：`git rev-parse HEAD` == `git rev-parse origin/master` == `76d7fb056ece4047a251929908a1b7bb2f9ba302`，`git rev-list --left-right --count origin/master...HEAD` = `0	0`
+- 远端 CI：run `35685823472` → `status = completed`，`conclusion = success`，`headSha` 与上文逐字一致
+- 同批入库的复核任务书（供下一轮独立复核直接取用）：
+  `P9T-R1-AUTH-AUDIT-BRIEF.md` / `P9T-DECISIONS-STATUS-BRIEF.md` / `P9T-SUPPLY-CHAIN-BRIEF.md` / `P9T-CODE-REVIEW-BRIEF.md`
+- 本地门禁（提交前亲跑）：`pytest` **281 passed, 7 skipped**
+- **边界**：CI success **不等于** 生产验收，**不等于** 第三方独立审计，**不等于** 发布授权。本文件 §3.1 登记的「无外部独立复核」缺陷**不因 CI 变绿而消失**。
