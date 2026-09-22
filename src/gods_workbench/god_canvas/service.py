@@ -385,6 +385,15 @@ class GodCanvasService:
             self._jobs[job_id] = task_resp
             return task_resp
 
+    def list_jobs(self) -> List[SmartCanvasTaskResponse]:
+        """只读返回当前进程内全部任务快照（供观测层读取，不暴露内部字典）。
+
+        本方法是**纯读取**投影：返回深拷贝，调用方无法借返回值修改服务内部状态。
+        证据边界：任务表为进程内内存，重启即丢失、多 worker 不共享。
+        """
+        with self._lock:
+            return [copy.deepcopy(job) for job in self._jobs.values()]
+
     def get_job(self, job_id: str) -> SmartCanvasTaskResponse:
         """查询任务执行状态。"""
         with self._lock:

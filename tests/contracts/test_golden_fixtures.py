@@ -1,6 +1,6 @@
 """黄金夹具与契约模型一致性自动化测试。
 
-读取 docs/fixtures/GOLDEN-FIXTURE-MANIFEST.json，对全部 9 个黄金夹具执行严格的反序列化和契约断言。
+读取 docs/fixtures/GOLDEN-FIXTURE-MANIFEST.json，对清单登记的全部黄金夹具执行严格的反序列化和契约断言（数量以清单为准）。
 """
 
 import json
@@ -40,7 +40,8 @@ def test_manifest_integrity(fixtures_dir: Path):
         data = json.load(f)
     assert data["meta"]["distribution"] == "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
     # 2026-09-22 Phase 10A：素材库阶段新增 6 个黄金夹具（9 -> 15）。
-    assert len(data["fixtures"]) == 15
+    # 2026-09-22 Phase 10B：观测阶段新增 2 个黄金夹具（15 -> 17）。
+    assert len(data["fixtures"]) == 17
     for item in data["fixtures"]:
         file_path = fixtures_dir / item["file"]
         assert file_path.exists(), f"夹具文件不存在: {item['file']}"
@@ -259,3 +260,42 @@ def test_fixture_asset_library_duplicate_409(fixtures_dir: Path):
     assert content["detail"]["code"] == "DUPLICATE_LIBRARY_NAME"
     exc = CleanroomException(status_code=409, code="DUPLICATE_LIBRARY_NAME", message="素材库名称已存在：默认资产库")
     assert exc.to_envelope().detail.code == content["detail"]["code"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 10B：观测黄金夹具（docs/contracts/OBSERVABILITY-INTERFACE-CATALOG.yaml）
+# ---------------------------------------------------------------------------
+
+
+def test_fixture_observability_empty_not_integrated(fixtures_dir: Path):
+    """验证无数据时的诚实空响应夹具：空数组 + not_integrated，禁止伪造遥测/波形。"""
+    content = json.loads(
+        (fixtures_dir / "observability-empty-not-integrated.json").read_text(encoding="utf-8")
+    )
+    assert content["series"]["data_status"] == "not_integrated"
+    assert content["series"]["series"] == {}
+    assert content["series"]["metrics"] == []
+    for key in ("events", "tasks"):
+        assert content[key]["items"] == [], f"{key} 必须为空数组"
+        assert content[key]["total"] == 0, f"{key} 计数必须为 0"
+        assert content[key]["has_more"] is False
+    for key in ("sources", "asset_volumes"):
+        assert content[key]["data_status"] == "not_integrated", key
+        assert content[key]["items"] == [], key
+        assert content[key]["data_gaps"], f"{key} 必须说明未接入原因"
+
+
+def test_fixture_observability_health_truthful(fixtures_dir: Path):
+    """验证健康检查如实状态夹具：未接入组件必须为 not_integrated，不得整体恒为 ok。"""
+    content = json.loads(
+        (fixtures_dir / "observability-health-truthful.json").read_text(encoding="utf-8")
+    )
+    statuses = {check["name"]: check["status"] for check in content["checks"]}
+    assert statuses["projects"] == "ok"
+    assert statuses["canvas"] == "ok"
+    assert statuses["asset_library"] == "ok"
+    for name in ("hardware_telemetry", "metrics_series", "source_registry", "asset_volume_index"):
+        assert statuses[name] == "not_integrated", f"{name} 必须为 not_integrated"
+    assert content["status"] != "ok", "存在未接入组件时整体状态不得为 ok"
+    assert content["data_status"] == "degraded"
+    assert content["data_gaps"]

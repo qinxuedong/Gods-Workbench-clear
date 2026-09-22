@@ -95,6 +95,18 @@
       "file": "asset-library-duplicate-409.json",
       "kind": "api-response",
       "purpose": "素材库重名冲突错误样本"
+    },
+    {
+      "id": "observability-empty-not-integrated-v1",
+      "file": "observability-empty-not-integrated.json",
+      "kind": "api-response",
+      "purpose": "观测阶段无数据时的诚实空响应样本（空数组 + data_status=not_integrated，禁止伪造）"
+    },
+    {
+      "id": "observability-health-truthful-v1",
+      "file": "observability-health-truthful.json",
+      "kind": "api-response",
+      "purpose": "观测阶段健康检查如实状态样本（未接入组件必须为 not_integrated，不得恒为 ok）"
     }
   ]
 }

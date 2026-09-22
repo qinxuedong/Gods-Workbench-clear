@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from gods_workbench.api.routes_asset_library import router as asset_library_router
 from gods_workbench.api.routes_auth import router as auth_router
 from gods_workbench.api.routes_god_canvas import jobs_router, router as god_canvas_router
+from gods_workbench.api.routes_observability import router as observability_router
 from gods_workbench.api.routes_projects import router as projects_router
 from gods_workbench.core import session as session_store
 from gods_workbench.core.config import AUTH_MODE_OIDC, load_runtime_auth_config
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(god_canvas_router)
     app.include_router(asset_library_router)
     app.include_router(jobs_router)
+    app.include_router(observability_router)
 
     # 挂载静态文件目录
     if STATIC_DIR.exists():

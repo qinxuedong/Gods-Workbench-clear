@@ -1,0 +1,357 @@
+meta:
+  source: "洁净室自有设计（由实现代理依据根 AGENTS.md §3、docs/governance/TASKS.md T76 与前端 src/gods_workbench/static/js/task-center.js 调用面收敛）"
+  review_status: "coordinator_frozen_pending_independent_review"
+  distribution: "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
+  cleanroom_notice: "仅记录 method/path/query/status/schema/errors/acceptance 语义；不含旧仓源码结构或实现细节。"
+
+service: observability
+version: p10b-frozen-1
+
+# ============================================================================
+# 冻结说明（Phase 10B 观测阶段，2026-09-22）
+#
+# 【零伪造铁律｜本文件内显式声明】
+#   未接入数据源一律返回空 + data_status=not_integrated，禁止伪造。
+#   - 禁止 Math.random / 随机抖动 / 常量曲线 / 演示数据；
+#   - 禁止硬编码假 CPU、假 RAM、假任务、假事件、假波形；
+#   - overview 计数必须来自真实进程内服务状态（ProjectsService / GodCanvasService）；
+#   - events 必须来自真实脱敏审计来源（core.audit 环形缓冲），无事件即返回空数组；
+#   - health 必须如实反映组件可用性，未接入组件标 unknown / not_integrated，
+#     不得无条件返回 "ok"。
+#
+# 本契约只授权下列 8 个 GET 端点；其它 /api/* 端点（含 /api/asset-library/*
+# 的 items / libraries 明细、workflows/upload）仍属 KNOWN_UNIMPLEMENTED，未获授权。
+# ============================================================================
+
+decisions:
+  stable_ids:
+    decision: "对外字段一律使用稳定 ID：job_id / project_id / entity_id / asset_id / canvas_id；事件使用 event_id"
+    rationale: "根 AGENTS.md §3.1 强制统一稳定 ID 命名，禁止 id/pid/cid 别名。"
+  authentication:
+    decision: "8 个端点全部要求认证；未认证返回 401 且错误码复用 core.errors.UnauthorizedException"
+    rationale: "观测数据属于运行期内部信息，不得匿名读取；只读角色可读，不要求写权限。"
+  data_status:
+    decision: "统一数据可用性口径：ok（全部真实数据可得）/ degraded（部分真实数据不可求值）/ not_integrated（数据源未接入）"
+    rationale: "把「无数据」与「未接入」区分开，前端可据此降级展示而不是渲染假数据。"
+  pagination:
+    decision: "列表端点使用不透明游标：next_cursor + has_more；limit 取值区间 1..200，缺省 50"
+    rationale: "避免偏移量外露与全量拉取；非法游标/超界 limit 一律 400 INVALID_REQUEST 失败关闭。"
+  unavailable_filter_is_not_ignored:
+    decision: "无法求值的过滤条件一律不静默忽略：必须在 data_gaps 显式披露，且不得返回可能不满足该条件的行"
+    rationale: "静默忽略会把「无法过滤」伪装成「过滤后无匹配」，属误导性数据。"
+    tiers:
+      fail_closed: "会误导「命中」判断的过滤（events/tasks 上的作用域 ID、tasks 上的 source/level）→ 返回空集合 + degraded"
+      snapshot_disclosed: "tasks 的时间窗（range/start_ms/end_ms）→ 任务表无时间戳，属当前状态快照语义；返回真实快照 + degraded，并在 data_gaps 写明时间条件未生效（前端默认携带 range，返回空会把真实任务误报为窗口内无任务）"
+    note: "本阶段真实可求值的过滤条件：events 的 status/level/source/event_id/时间窗；tasks 的 status/job_id。"
+  events_source:
+    decision: "events 仅投影 core.audit 的已脱敏认证审计白名单字段（event/outcome/reason/subject/role/auth_mode/at）"
+    rationale: "审计缓冲本身即为脱敏白名单；本阶段不接入任何其它事件总线。"
+  hardware_telemetry:
+    decision: "不提供 CPU/内存/磁盘等硬件遥测；health 中该类组件固定为 not_integrated"
+    rationale: "本阶段无真实硬件遥测数据源，前端 VU 表已在无端点时显式显示「未接入」。"
+  series:
+    decision: "series 无真实时间序列数据源，固定返回空序列 + data_status=not_integrated"
+    rationale: "禁止伪造波形；指标可用性通过 metrics[].data_status 逐项声明。"
+
+interfaces:
+  - name: get_observability_index
+    method: GET
+    path: /api/observability
+    query:
+      range: "string | optional（Nm/Nh/Nd/Nw 或 all）"
+    body: null
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200:
+        service: string
+        contract_version: string
+        generated_at: "string(datetime)"
+        data_status: "enum(ok|degraded|not_integrated)"
+        data_gaps: "array[string]"
+        resources:
+          - name: string
+            path: string
+            # 注意：此处字段名必须与 ResourceDescriptor.method 一致，
+            # 且顺序保持 path 在前，避免被契约解析器的 method/path 配对规则误读为新增端点。
+            method: string
+            data_status: "enum(ok|degraded|not_integrated)"
+            description: string
+        applied_filters:
+          range: "string | null"
+          limit: integer
+    errors:
+      400: "range / limit / start_ms / end_ms / cursor 取值非法"
+      401: "未认证，需重新登录"
+      403: "角色不在已知集合内"
+    acceptance: "只列出本阶段已实现的 8 个观测端点；未接入资源必须标 not_integrated，不得声明未实现端点。"
+
+  - name: get_observability_overview
+    method: GET
+    path: /api/observability/overview
+    query:
+      range: "string | optional（Nm/Nh/Nd/Nw 或 all）"
+      limit: "integer | optional"
+      start_ms: "integer | optional"
+      end_ms: "integer | optional"
+    body: null
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200:
+        data_status: "enum(ok|degraded)"
+        generated_at: "string(datetime)"
+        summary:
+          total: integer
+          failed: integer
+          queue_depth: integer
+          "p95_latency_ms": "number | null（未接入延迟直方图时为 null）"
+        projects:
+          total: integer
+          active: integer
+          archived: integer
+          trashed: integer
+        jobs:
+          total: integer
+          by_status: "object[string,int]"
+          queue_depth: integer
+        data_gaps: "array[string]"
+        applied_filters: object
+    errors:
+      400: "range / limit / start_ms / end_ms 取值非法"
+      401: "未认证"
+      403: "角色不在已知集合内"
+    acceptance: "任务/项目计数必须来自 ProjectsService、GodCanvasService 当前内存状态；未接入指标必须为 null 并登记在 data_gaps，禁止伪造。"
+
+  - name: get_observability_series
+    method: GET
+    path: /api/observability/series
+    query:
+      range: "string | optional"
+      metrics: "string | optional（逗号分隔）"
+      start_ms: "integer | optional"
+      end_ms: "integer | optional"
+    body: null
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200:
+        data_status: "enum(not_integrated)（本阶段固定值）"
+        series: "object（本阶段固定空对象）"
+        metrics:
+          - metric: string
+            data_status: "enum(not_integrated)"
+            points: "array（本阶段固定空数组）"
+        requested_metrics: "array[string]"
+        data_gap: string
+        start_ms: "integer | null"
+        end_ms: "integer | null"
+        data_gaps: "array[string]"
+        applied_filters: object
+    errors:
+      400: "range / start_ms / end_ms 取值非法（end_ms < start_ms 亦拒绝）"
+      401: "未认证"
+      403: "角色不在已知集合内"
+    acceptance: "无真实时间序列数据源时必须返回空序列并标记 data_status=not_integrated，禁止伪造波形。"
+
+  - name: get_observability_events
+    method: GET
+    path: /api/observability/events
+    query:
+      range: "string | optional"
+      limit: "integer | optional（1..200）"
+      status: "string | optional"
+      source: "string | optional"
+      level: "string | optional"
+      project_id: "string | optional（审计事件无该关联 → 空 + degraded）"
+      job_id: "string | optional（审计事件无该关联 → 空 + degraded）"
+      entity_id: "string | optional（同上）"
+      asset_id: "string | optional（同上）"
+      canvas_id: "string | optional（同上）"
+      stable_id: "string | optional（同上）"
+      event_id: "string | optional"
+      cursor: "string | optional"
+      start_ms: "integer | optional"
+      end_ms: "integer | optional"
+    body: null
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200:
+        data_status: "enum(ok|degraded)"
+        items:
+          - event_id: string
+            event_name: string
+            level: "enum(info|warn)"
+            status: "enum(running|succeeded|denied|rejected|unknown)"
+            source: "string（当前仅 core.audit）"
+            message_safe: string
+            timestamp: "string(datetime)"
+            subject: "string | null"
+            role: "string | null"
+            auth_mode: "string | null"
+        total: integer
+        limit: integer
+        has_more: boolean
+        next_cursor: "string | null"
+        start_ms: "integer | null"
+        end_ms: "integer | null"
+        data_gaps: "array[string]"
+        applied_filters: object
+    errors:
+      400: "range / limit / start_ms / end_ms / cursor 取值非法"
+      401: "未认证"
+      403: "角色不在已知集合内"
+    acceptance: "事件只能来自 core.audit 的已脱敏缓冲；无事件返回空数组 []；响应绝不包含令牌、授权码、code_verifier、state、nonce、Cookie 值。审计事件无 project_id/job_id/canvas_id/asset_id/entity_id 关联：出现上述过滤时必须返回空 + degraded 并披露。"
+
+  - name: get_observability_tasks
+    method: GET
+    path: /api/observability/tasks
+    query:
+      range: "string | optional（任务无时间戳 → 空 + degraded）"
+      limit: "integer | optional（1..200）"
+      status: "string | optional"
+      job_id: "string | optional"
+      project_id: "string | optional（任务无该关联 → 空 + degraded）"
+      entity_id: "string | optional（同上）"
+      asset_id: "string | optional（同上）"
+      canvas_id: "string | optional（同上）"
+      stable_id: "string | optional（同上）"
+      cursor: "string | optional"
+      start_ms: "integer | optional（任务无时间戳 → 空 + degraded）"
+      end_ms: "integer | optional（同上）"
+    body: null
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200:
+        data_status: "enum(ok|degraded)"
+        items:
+          - job_id: string
+            status: string
+            poll_hint: "string | null"
+            has_result: boolean
+            error_safe: "string | null"
+        total: integer
+        limit: integer
+        has_more: boolean
+        next_cursor: "string | null"
+        start_ms: "integer | null"
+        end_ms: "integer | null"
+        data_gaps: "array[string]"
+        applied_filters: object
+    errors:
+      400: "range / limit / start_ms / end_ms / cursor 取值非法"
+      401: "未认证"
+      403: "角色不在已知集合内"
+    acceptance: "任务只能来自 GodCanvasService 当前内存任务表；不得伪造任务，也不得返回未记录字段。作用域 ID 或 source/level 过滤无法求值时必须返回空 + degraded 并披露；时间窗（range/start_ms/end_ms）无法求值，必须返回真实快照 + degraded 并披露时间条件未生效。禁止静默忽略任何过滤条件。"
+
+  - name: get_observability_health
+    method: GET
+    path: /api/observability/health
+    query:
+      range: "string | optional"
+    body: null
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200:
+        status: "enum(ok|partial|degraded)"
+        data_status: "enum(ok|degraded)"
+        checks:
+          - name: string
+            status: "enum(ok|failed|unknown|not_integrated)"
+            message_safe: string
+        buffered_audit_events: integer
+        checked_at: "string(datetime)"
+        data_gaps: "array[string]"
+        applied_filters: object
+    errors:
+      400: "range 取值非法"
+      401: "未认证"
+      403: "角色不在已知集合内"
+    acceptance: "必须如实反映 projects / canvas / asset_library 等组件实例可用性；未接入组件必须为 not_integrated 或 unknown，禁止无条件返回 ok；message_safe 不得包含凭据。"
+
+  - name: get_observability_sources
+    method: GET
+    path: /api/observability/sources
+    query:
+      range: "string | optional"
+      limit: "integer | optional（1..200）"
+      cursor: "string | optional"
+      start_ms: "integer | optional"
+      end_ms: "integer | optional"
+    body: null
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200:
+        data_status: "enum(not_integrated)"
+        items: "array（本阶段固定空数组）"
+        total: integer
+        limit: integer
+        has_more: boolean
+        next_cursor: "string | null"
+        start_ms: "integer | null"
+        end_ms: "integer | null"
+        data_gaps: "array[string]"
+        applied_filters: object
+    errors:
+      400: "range / limit / start_ms / end_ms / cursor 取值非法"
+      401: "未认证"
+      403: "角色不在已知集合内"
+    acceptance: "无真实数据源注册表时必须返回空数组 + data_status=not_integrated，禁止伪造数据源条目。"
+
+  - name: get_observability_asset_volumes
+    method: GET
+    path: /api/observability/asset-volumes
+    query:
+      range: "string | optional"
+      limit: "integer | optional（1..200）"
+      cursor: "string | optional"
+      start_ms: "integer | optional"
+      end_ms: "integer | optional"
+    body: null
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+    schema:
+      response_200:
+        data_status: "enum(not_integrated)"
+        items: "array（本阶段固定空数组）"
+        total: integer
+        limit: integer
+        has_more: boolean
+        next_cursor: "string | null"
+        start_ms: "integer | null"
+        end_ms: "integer | null"
+        data_gaps: "array[string]"
+        applied_filters: object
+    errors:
+      400: "range / limit / start_ms / end_ms / cursor 取值非法"
+      401: "未认证"
+      403: "角色不在已知集合内"
+    acceptance: "无真实素材体积来源时必须返回空数组 + data_status=not_integrated，禁止伪造体积统计。"

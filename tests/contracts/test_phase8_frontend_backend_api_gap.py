@@ -38,6 +38,7 @@ CONTRACTS = [
     REPO_ROOT / "docs" / "contracts" / "PROJECTS-HUB-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "CANVAS-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "ASSET-LIBRARY-INTERFACE-CATALOG.yaml",
+    REPO_ROOT / "docs" / "contracts" / "OBSERVABILITY-INTERFACE-CATALOG.yaml",
 ]
 
 # ---------------------------------------------------------------------------
@@ -66,6 +67,14 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/canvases',
     '/api/canvases/{p}',
     '/api/canvases/{p}/restore',
+    '/api/observability',
+    '/api/observability/overview',
+    '/api/observability/series',
+    '/api/observability/events',
+    '/api/observability/tasks',
+    '/api/observability/health',
+    '/api/observability/sources',
+    '/api/observability/asset-volumes',
 ])
 
 #: 前端引用但后端**未实现**的端点（归一化路径）—— 本守卫的核心防漂移清单
@@ -203,14 +212,6 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/local-assets/upload',
     '/api/media-preview',
     '/api/media-transcode',
-    '/api/observability',
-    '/api/observability/asset-volumes',
-    '/api/observability/events',
-    '/api/observability/health',
-    '/api/observability/overview',
-    '/api/observability/series',
-    '/api/observability/sources',
-    '/api/observability/tasks',
     '/api/online-image',
     '/api/projects',
     '/api/projects/{p}',
@@ -277,6 +278,15 @@ KNOWN_BACKEND_PATHS = frozenset([
     '/api/canvases/{p}/workflow/export',
     '/api/canvases/{p}/workflow/import',
     '/api/jobs/{p}',
+    # 2026-09-22 Phase 10B：观测阶段新增 8 个 GET 路由。
+    '/api/observability',
+    '/api/observability/overview',
+    '/api/observability/series',
+    '/api/observability/events',
+    '/api/observability/tasks',
+    '/api/observability/health',
+    '/api/observability/sources',
+    '/api/observability/asset-volumes',
     '/healthz',
 ])
 
