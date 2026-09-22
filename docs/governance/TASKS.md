@@ -601,3 +601,9 @@
   - **O5** 死类规则条数在 `tailwind-utilities.css` 中 = **0**；修正有视觉变更 ->
     **需用户明确授权**，未执行。
   - **O6** `tracked` 现值 **293**；历史行（269 / 275）**不改写**，仅登记现值。
+
+- [x] T62 Phase 9S 提交并读回远端 CI（2026-09-22）。
+  - 提交 `c347e97`（含 azp=null 修复 + T59/T60/T61 + 9S 状态段 + runbook 第 13 节）已推送 `origin/master`。
+  - 远端 CI run `35674340969`：`headSha = c347e97a501b9d9a2722e89d019ee384acc249a6`、
+    `status = completed`、`conclusion = success`，作业 `Python 3.11 tests and hygiene` = completed / success。
+  - 边界：CI success **不等于** 生产验收，**不等于** 第三方独立审计，**不等于** 发布授权。

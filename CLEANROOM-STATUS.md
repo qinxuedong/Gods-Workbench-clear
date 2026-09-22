@@ -1620,3 +1620,11 @@ dict/list/bool、`aud` 为 None/dict/空数组/嵌套数组/含非字符串、`u
 - 审计落点仍为**进程内内存 + 标准库日志**；持久化 / SIEM / 保留策略 / 时间同步属部署方职责。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
 
+
+### 五、远端 CI 读回（2026-09-22 追加）
+
+- 工作树这批改动提交为 `c347e97`（Phase 9S：修复 azp=null fail-open + 真实 IdP 登录实测落盘），已推送 `origin/master`。
+- 远端 CI run `35674340969` 读回：`headSha = c347e97a501b9d9a2722e89d019ee384acc249a6`，
+  `status = completed`，`conclusion = success`；作业 `Python 3.11 tests and hygiene` = completed / success。
+- 本地门禁（同一提交前）：`pytest` 268 passed / 7 skipped；`tests/hygiene` 16 passed；`node --check` 57 文件 / 0 失败。
+- 边界不变：远端 CI success **不等于** 生产验收，**不等于**第三方独立审计，**不等于**发布授权。

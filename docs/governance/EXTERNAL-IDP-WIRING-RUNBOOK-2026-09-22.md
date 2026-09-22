@@ -296,3 +296,17 @@ at_hash_match        : True   （SHA-256 左半 16 字节 -> base64url，长度 
 - 未在真实多实例 / TLS / 反向代理 / 生产容器中验收。
 - 本次为**同仓库本地实测**，**不构成**第三方独立审计，**不构成**发布授权。
 
+
+### 13.7 远端 CI 读回（2026-09-22 追加）
+
+提交 `c347e97`（含 9R azp=null 修复 + 本节实测记录）推送后，远端 CI 读回：
+
+```text
+run        = 35674340969
+headSha    = c347e97a501b9d9a2722e89d019ee384acc249a6
+status     = completed
+conclusion = success
+job        = 'Python 3.11 tests and hygiene' -> completed / success
+```
+
+边界：远端 CI 通过 **不等于** 生产 IdP 真机验收，**不等于** 第三方独立审计，**不等于** 发布授权。
