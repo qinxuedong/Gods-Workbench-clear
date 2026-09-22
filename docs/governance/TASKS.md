@@ -862,5 +862,5 @@
   零伪造 + fail-closed：视频渲染 / 素材打包下载 / 素材挂接 / 共享文件夹导入与目录扫描均 503 且不携带 task_id/progress/eta/url。
   生命周期采用 `_lifecycle` 侧表，未改 `CanvasItem`，既有 `/api/canvases` 契约模型不变。
   本地门禁：`pytest` **487 passed / 7 skipped**；`tests/hygiene` **16 passed**；
-  Phase 10E 契约测试 43 passed；变异 3/3 捕获并还原。
+  Phase 10E 契约测试 43 passed；变异 6/6 捕获并还原。
   边界：仍为进程内内存存储；真实渲染 / 目录扫描未接入；前端 E2E 未执行；发布授权未闭环。
