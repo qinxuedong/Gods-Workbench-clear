@@ -476,7 +476,7 @@ def test_fixture_canvas_closure_cas_conflict_409(fixtures_dir: Path):
 
 
 def test_fixture_canvas_closure_asset_index_empty(fixtures_dir: Path):
-    """验证素材索引空快照夹具：五类计数为 0，禁止伪造素材条目。"""
+    """验证素材索引空快照夹具：三类（smart / classic / reference）计数均为 0，禁止伪造素材条目。"""
     content = json.loads(
         (fixtures_dir / "canvas-closure-asset-index-empty.json").read_text(encoding="utf-8")
     )
