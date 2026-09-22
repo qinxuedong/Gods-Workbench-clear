@@ -181,3 +181,18 @@ python run.py                                            # 本机端口 2077
 - 本轮所有证据为**本机实测 + 远端 CI 读回**，**不等于**生产验收，**不等于**第三方独立审计。
 - 口径链：**本机通过 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权**。
 - 本轮**未建立独立复核**（§4.1），此缺陷**不因 CI 变绿而消失**。
+
+---
+
+## 9. 本文件引入提交与远端 CI 实测（2026-09-22 追加）
+
+本节记录**引入本文件的那一次提交**；本节自身若后续追加修订，其 SHA 以
+`git log --oneline -1 -- HANDOFF-9.md` 与 `docs/governance/TASKS.md` T80 登记为准。
+
+- 提交：`8c225fc5e71046e0164a41b8e4935c0a8b49b478`（「HANDOFF-9：T26 五段切片交接文档（已完成 / 卡点 / 下一步 / 未闭环清单）」），改动 1 文件 / +183 行。
+- 推送：`git push origin master` → `8e39237..8c225fc  master -> master`。
+- 推送后读回：`git rev-parse HEAD` = `git rev-parse origin/master` = `8c225fc...`；`git rev-list --left-right --count origin/master...HEAD` = `0` 与 `0`（0/0）。
+- 远端 CI：run `35736938358` → `status = completed`、`conclusion = success`、`headSha` 与 `8c225fc...` 逐字一致（`gh run list --json databaseId,headSha,status,conclusion` 读回）。
+- 提交前本地门禁复跑：`pytest` **487 passed, 7 skipped**；`tests/hygiene` **16 passed**。
+- 同形字守卫：本文件不含西里尔/零宽等可疑码点（主代理逐字符扫描实测 0 命中）。
+- **边界**：CI success **不等于**生产验收，**不等于**第三方独立审计，**不等于**发布授权。§4.1 登记的「未建立外部独立复核」缺陷**不因 CI 变绿而消失**。

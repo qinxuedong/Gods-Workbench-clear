@@ -864,3 +864,13 @@
   本地门禁：`pytest` **487 passed / 7 skipped**；`tests/hygiene` **16 passed**；
   Phase 10E 契约测试 43 passed；变异 6/6 捕获并还原。
   边界：仍为进程内内存存储；真实渲染 / 目录扫描未接入；前端 E2E 未执行；发布授权未闭环。
+
+- [x] T80 HANDOFF-9 交接文档入库（2026-09-22，用户追加要求「先写个交接文档」）。
+  承接 T74–T79：把 714414a → 8e39237 共 25 个提交（Phase 10A–10E 五段切片 + 5 个治理纠错）
+  汇总为 HANDOFF-9.md，结构与 HANDOFF-8 对齐：本轮做了什么 / 本轮提交 / 当前门禁证据 /
+  当前卡点 / 下一步计划 / 未闭环清单 / 复现入口与关键文件索引 / 边界重申。
+  引入提交 `8c225fc5e71046e0164a41b8e4935c0a8b49b478`（1 文件 / +183 行）；
+  远端 CI run `35736938358` conclusion=success、headSha 逐字一致。
+  本文件再由 T80 追加 §9（提交与 CI 读回证据）。
+  **边界**：HANDOFF-9 §4.1 登记的「本轮未建立外部独立复核」缺陷不因 CI 变绿而消失；
+  仓库仍为 NOT AUTHORIZED FOR PUBLIC DISTRIBUTION；未闭环项以 HANDOFF-9 §6 为准。
