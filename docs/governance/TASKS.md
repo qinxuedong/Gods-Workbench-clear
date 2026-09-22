@@ -780,3 +780,12 @@
   - 以已修复的 P8-A1 扫描器及冻结守卫为权威：前端引用 **188**、后端已实现 **14**、前端调用且后端已实现 **8**、前端调用但后端未实现 **180**、契约声明但前端无调用方 **3**。
   - 此后本仓当前口径统一使用 **188 / 180**；此前「189 / 12 / 177」仅作为扫描器缺陷修复前的历史快照保留，不再作为当前数量。
   - 权威依据：`docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md` §2、`tests/contracts/test_phase8_frontend_backend_api_gap.py` 冻结基线，以及 `CLEANROOM-STATUS.md` Phase 8 更正记录。
+- [x] T71 Phase 9U：用户裁决执行收口（2026-09-22）。
+  - **O4 已执行**：Tailwind 改为本地自托管快照 `src/gods_workbench/static/vendor/js/tailwindcss-cdn.js`，固定为 3.4.17 + forms 0.5.10 + container-queries 0.1.1；HTML 不再引用外部 Tailwind CDN；`AGENTS.md` 与 `vendor/MANIFEST.md` 已同步。
+  - **O5 已执行**：`backdrop-blur-xs` 改为 `backdrop-blur-[2px]`；`w-4.5/h-4.5` 改为 `w-[1.125rem]/h-[1.125rem]`。
+  - **删除已执行**：删除 `src/gods_workbench/static/js/canvas/http.js`；源码与测试无运行时引用。
+  - **T63 已执行**：新增 `GW_OIDC_CLIENT_ID` 配置，`azp` 严格与 `OidcConfig.client_id` 比对，并补充 `aud != client_id` 契约测试。
+  - **许可证边界**：根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 按用户裁决不建立；第三方审计、真实 IdP、发布授权仍未完成。
+  - **门禁**：本地 `pytest` 282 passed / 7 skipped，`tests/hygiene` 16 passed，tracked JS `node --check` 56 / 0 failed；Tailwind 快照哈希同时受测试常量与 `vendor/MANIFEST.md` 守卫。
+  - **远端 CI**：run `35694729525`，head SHA `cdf78a1748f3613e2276acd1054efcaeb315e14c`，conclusion `success`。
+

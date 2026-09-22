@@ -194,3 +194,15 @@ python run.py                                          # 本机端口 2077
 
 - 上述追加更正已登记至 `docs/governance/TASKS.md`；旧 T46 历史行保留，不改写其原始数字。
 - 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍按用户裁决不建立；其他需人工审核或外部安排的事项保持原状态。
+## 9. 2026-09-22 用户裁决执行结果（Phase 9U）
+
+- O4：已将 Tailwind 改为本地自托管快照 `src/gods_workbench/static/vendor/js/tailwindcss-cdn.js`，HTML 不再请求 `cdn.tailwindcss.com`。
+- O5：已修正 `backdrop-blur-xs`、`w-4.5`、`h-4.5` 为合法 arbitrary value；相关静态守卫与 JS 语法检查通过。
+- `src/gods_workbench/static/js/canvas/http.js`：已按用户明确授权删除，源码与测试无运行时引用。
+- T63：`azp` 已改为严格比对 `GW_OIDC_CLIENT_ID`，并新增 `aud != client_id` 契约测试。
+- T26 / T46：制作顺序、切片范围与 **188 / 180** 当前口径已登记到任务台账。
+- 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`：按用户裁决不建立。
+- 本地门禁：`pytest` **282 passed, 7 skipped**；`tests/hygiene` **16 passed**；tracked JS `node --check` **56 / 0 failed**。
+- 远端 CI：run `35694729525`，`headSha=cdf78a1748f3613e2276acd1054efcaeb315e14c`，`conclusion=success`。
+- 未完成且按用户要求暂跳过：第三方独立审计、真实外部 IdP 生产登录、发布授权及其他需外部/人工审核事项；T66 仍保持未收口。
+
