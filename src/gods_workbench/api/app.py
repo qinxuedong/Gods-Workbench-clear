@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from gods_workbench.api.routes_asset_library import router as asset_library_router
 from gods_workbench.api.routes_auth import router as auth_router
 from gods_workbench.api.routes_god_canvas import jobs_router, router as god_canvas_router
 from gods_workbench.api.routes_projects import router as projects_router
@@ -95,6 +96,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(projects_router)
     app.include_router(god_canvas_router)
+    app.include_router(asset_library_router)
     app.include_router(jobs_router)
 
     # 挂载静态文件目录

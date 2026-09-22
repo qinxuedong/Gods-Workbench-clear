@@ -37,6 +37,7 @@ API_DIR = REPO_ROOT / "src" / "gods_workbench" / "api"
 CONTRACTS = [
     REPO_ROOT / "docs" / "contracts" / "PROJECTS-HUB-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "CANVAS-INTERFACE-CATALOG.yaml",
+    REPO_ROOT / "docs" / "contracts" / "ASSET-LIBRARY-INTERFACE-CATALOG.yaml",
 ]
 
 # ---------------------------------------------------------------------------
@@ -50,6 +51,9 @@ CONTRACTS = [
 # `src/gods_workbench/api/routes_auth.py` 真实实现（OIDC 授权码 + PKCE + 服务端会话），
 # 故由 KNOWN_UNIMPLEMENTED 迁入本基线。
 KNOWN_IMPLEMENTED = frozenset([
+    '/api/asset-library',
+    '/api/asset-library/categories',
+    '/api/asset-library/libraries',
     '/api/asset-auth/callback',
     '/api/asset-auth/login',
     '/api/asset-auth/logout',
@@ -86,8 +90,6 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/asset-content/versions/{p}/restore',
     '/api/asset-file-info',
     '/api/asset-file-reveal',
-    '/api/asset-library',
-    '/api/asset-library/categories',
     '/api/asset-library/categories/{p}',
     '/api/asset-library/items/batch',
     '/api/asset-library/items/classify',
@@ -96,7 +98,6 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/asset-library/items/{p}',
     '/api/asset-library/items/{p}/avatar-status',
     '/api/asset-library/items/{p}/register-avatar',
-    '/api/asset-library/libraries',
     '/api/asset-library/libraries/{p}',
     '/api/asset-library/workflows/upload',
     '/api/asset-proxy/settings',
@@ -256,6 +257,9 @@ KNOWN_CONTRACT_WITHOUT_FRONTEND_CALLER = frozenset([
 
 #: 后端已实现路由的归一化路径（用于断言后端集合未被意外缩小）
 KNOWN_BACKEND_PATHS = frozenset([
+    '/api/asset-library',
+    '/api/asset-library/categories',
+    '/api/asset-library/libraries',
     '/',
     '/api/asset-auth/callback',
     '/api/asset-auth/login',

@@ -59,6 +59,42 @@
       "file": "canvas-forbidden-403.json",
       "kind": "api-response",
       "purpose": "权限不足错误样本"
+    },
+    {
+      "id": "asset-library-empty-v1",
+      "file": "asset-library-empty.json",
+      "kind": "api-response",
+      "purpose": "素材库空库响应样本（禁止伪造素材）"
+    },
+    {
+      "id": "asset-library-with-library-category-v1",
+      "file": "asset-library-with-library-category.json",
+      "kind": "api-response",
+      "purpose": "素材库非空库树样本（库-分类-条目稳定 ID）"
+    },
+    {
+      "id": "asset-library-create-library-request-v1",
+      "file": "asset-library-create-library-request.json",
+      "kind": "api-request",
+      "purpose": "创建素材库最小请求样本"
+    },
+    {
+      "id": "asset-library-create-category-request-v1",
+      "file": "asset-library-create-category-request.json",
+      "kind": "api-request",
+      "purpose": "创建素材库分类最小请求样本"
+    },
+    {
+      "id": "asset-library-conflict-409-v1",
+      "file": "asset-library-conflict-409.json",
+      "kind": "api-response",
+      "purpose": "素材库 CAS 版本冲突错误样本"
+    },
+    {
+      "id": "asset-library-duplicate-409-v1",
+      "file": "asset-library-duplicate-409.json",
+      "kind": "api-response",
+      "purpose": "素材库重名冲突错误样本"
     }
   ]
 }

@@ -18,6 +18,13 @@ from gods_workbench.core.errors import (
     VersionConflictException,
     CanvasVersionConflictException,
 )
+from gods_workbench.asset_library.models import (
+    AssetLibraryCreateRequest,
+    AssetLibraryResponse,
+    CategoryCreateRequest,
+    CategoryType,
+)
+from gods_workbench.core.errors import CleanroomException
 from gods_workbench.projects_hub.models import (
     ProjectCreateRequest,
     ProjectListResponse,
@@ -32,7 +39,8 @@ def test_manifest_integrity(fixtures_dir: Path):
     with open(manifest_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     assert data["meta"]["distribution"] == "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
-    assert len(data["fixtures"]) == 9
+    # 2026-09-22 Phase 10A：素材库阶段新增 6 个黄金夹具（9 -> 15）。
+    assert len(data["fixtures"]) == 15
     for item in data["fixtures"]:
         file_path = fixtures_dir / item["file"]
         assert file_path.exists(), f"夹具文件不存在: {item['file']}"
@@ -185,3 +193,69 @@ def test_api_contract_routes(client: TestClient):
     assert resp_202.status_code == 202
     assert resp_202.json()["state"] == "accepted"
     assert "job_id" in resp_202.json()
+
+
+# ---------------------------------------------------------------------------
+# Phase 10A：素材库黄金夹具（docs/contracts/ASSET-LIBRARY-INTERFACE-CATALOG.yaml）
+# ---------------------------------------------------------------------------
+
+
+def test_fixture_asset_library_empty(fixtures_dir: Path):
+    """验证空素材库夹具严格匹配契约：空数组 + null，不得伪造素材。"""
+    content = json.loads((fixtures_dir / "asset-library-empty.json").read_text(encoding="utf-8"))
+    res = AssetLibraryResponse.model_validate(content)
+    assert res.library.version == 1
+    assert res.library.active_library_id is None
+    assert res.library.libraries == []
+
+
+def test_fixture_asset_library_with_library_category(fixtures_dir: Path):
+    """验证非空素材库夹具的库-分类-条目三层稳定 ID 结构。"""
+    content = json.loads(
+        (fixtures_dir / "asset-library-with-library-category.json").read_text(encoding="utf-8")
+    )
+    res = AssetLibraryResponse.model_validate(content)
+    assert res.library.active_library_id == "library_default"
+    library = res.library.libraries[0]
+    assert library.library_id == "library_default"
+    assert library.version == 2
+    category = library.categories[0]
+    assert category.category_id == "category_image"
+    assert category.library_id == "library_default"
+    assert category.type is CategoryType.IMAGE
+    assert category.items == []
+
+
+def test_fixture_asset_library_create_requests(fixtures_dir: Path):
+    """验证创建素材库 / 创建分类请求夹具可被契约模型接受。"""
+    lib_req = AssetLibraryCreateRequest.model_validate(
+        json.loads((fixtures_dir / "asset-library-create-library-request.json").read_text(encoding="utf-8"))
+    )
+    assert lib_req.name == "角色参考库"
+    assert lib_req.expected_version is None
+
+    cat_req = CategoryCreateRequest.model_validate(
+        json.loads((fixtures_dir / "asset-library-create-category-request.json").read_text(encoding="utf-8"))
+    )
+    assert cat_req.library_id == "library_default"
+    assert cat_req.type is CategoryType.IMAGE
+
+
+def test_fixture_asset_library_conflict_409(fixtures_dir: Path):
+    """验证素材库 CAS 冲突夹具与异常构造逐字一致。"""
+    content = json.loads((fixtures_dir / "asset-library-conflict-409.json").read_text(encoding="utf-8"))
+    envelope = ErrorEnvelope.model_validate(content)
+    assert envelope.detail.code == "VERSION_CONFLICT"
+    assert envelope.detail.expected_version == 1
+    assert envelope.detail.current_version == 2
+
+    exc = VersionConflictException(expected_version=1, current_version=2, message="素材库版本冲突，请重新读取后重试")
+    assert exc.to_envelope().detail.code == envelope.detail.code
+
+
+def test_fixture_asset_library_duplicate_409(fixtures_dir: Path):
+    """验证素材库重名冲突夹具错误码；该码由 CleanroomException 生成，不出现在封闭 ErrorDetail 白名单之外。"""
+    content = json.loads((fixtures_dir / "asset-library-duplicate-409.json").read_text(encoding="utf-8"))
+    assert content["detail"]["code"] == "DUPLICATE_LIBRARY_NAME"
+    exc = CleanroomException(status_code=409, code="DUPLICATE_LIBRARY_NAME", message="素材库名称已存在：默认资产库")
+    assert exc.to_envelope().detail.code == content["detail"]["code"]
