@@ -218,3 +218,81 @@ Microsoft MSA 的 JWKS（8 keys）**不返回 `alg`**，而 Google（2 keys）�
   `conclusion = success`，`headSha = 3eaf314e16c810cef830a744de0b8f0829918b34`（逐字一致）。
 
 远端 CI 只证明该 SHA 在 CI 环境通过，**不等于**生产验收，**不构成**发布授权。
+
+## 13. 真实用户登录实测（2026-09-22 追加，Phase 9S；**首次取得**）
+
+本节登记本轮**首次实际执行**的真实用户登录端到端证据（此前 §7 一直登记为「未执行」）。
+被测对象为提交 `b1a04a3`（含 §11 的 azp / JWK 加固）。
+
+### 13.1 被测链路与命令
+
+```text
+python %TEMP%\gw-p9s-root\e2e_server.py     # 真实 uvicorn，:2077，GW_AUTH_MODE=oidc
+python %TEMP%\gw-p9s-root\pw_demo3.py      # 真实 Chrome 153，Playwright channel='chrome'
+
+GW_OIDC_ISSUER=https://demo.duendesoftware.com
+GW_OIDC_AUDIENCE=interactive.public
+GW_OIDC_CLIENT_ID=interactive.public
+GW_OIDC_REDIRECT_URI=http://127.0.0.1:2077/api/asset-auth/callback
+```
+
+`GET /healthz` -> `{"auth_mode":"oidc","oidc_ready":true,"release_authorized":false}`。
+
+### 13.2 真实浏览器驱动结果（应用页 UI，非直连授权 URL）
+
+```text
+status_before            -> authenticated=false, login_available=true
+点击 .hw-avatar-keycap   -> 认证中心弹出，#hwLoginSubmitBtn 可用（disabled=false）
+点击按钮                 -> POST /api/asset-auth/login -> 跳到 demo.duendesoftware.com
+IdP 页填写 alice/alice   -> 提交
+回调 URL                 -> /api/asset-auth/callback?code=...&state=...&iss=...
+final_url                -> http://127.0.0.1:2077/static/v2/index.html
+status_after             -> authenticated=false（根因见 13.3）
+page_errors              -> []
+```
+
+### 13.3 服务端探针：真实 id_token 的逐项校验结论
+
+```text
+STEP header      : {'alg': 'RS256', 'kid': '9370E95FD8C8C9CA7848ECBA638A7069', 'typ': 'JWT'}
+STEP claim keys  : ['amr','at_hash','aud','auth_time','exp','iat','idp','iss','nbf','nonce','sid','sub']
+STEP iss match   : True
+STEP aud         : 'interactive.public'  cfg: 'interactive.public'
+STEP azp present : False  value: None
+STEP groups claim 'groups' present: False  value: None
+STEP RESULT      : REJECTED UnauthorizedException 令牌组无已授权映射，已拒绝
+```
+
+**结论（可证）**：`alg=RS256` 签名校验、`iss`、`aud`、`exp` / `nbf` / `iat`、`nonce`
+**全部通过**；唯一失败点是该 demo OP 的 id_token **不含 `groups` claim**，
+故 `resolve_role()` 返回 `None`，按失败关闭拒绝。这是**末组映射未由 IdP 提供**的可解释终态，
+不是本仓缺陷。
+
+### 13.4 `at_hash` 真实性复核（本轮新增）
+
+用真实令牌响应复算（OIDC Core 1.0 §3.1.6 / §3.2.2.9 口径）：
+
+```text
+token_response_keys  : ['access_token','expires_in','id_token','scope','token_type']
+at_hash_present      : True
+at_hash_match        : True   （SHA-256 左半 16 字节 -> base64url，长度 22）
+```
+
+同时可证：本仓 `src/` 内**没有** `access_token` 的任何读取点
+（`git grep -n "access_token" -- src` = 0 命中），即本仓 id_token 校验
+**不消费 access_token**，因此不需要校验 `at_hash`。规范侧亦为 `MAY`
+（OIDC Core §3.1.3.8 原文 "the Client MAY use it ..."），非强制。
+
+### 13.5 UI 可达性（本轮实测）
+
+认证中心模态框通过头像键帽 `onclick` 进入（`window.HardwareDeck.openAccountModal()` 可达），
+`#hwLoginSubmitBtn` 渲染且可用，`page_errors = []`。
+
+### 13.6 仍未闭环（**不得写 PASS**）
+
+- **未取得「真实用户登录 -> 建立会话 -> 角色生效」的完整成功链**：demo IdP 不签发 `groups`，
+  末组映射无法由该 IdP 满足。**生产 IdP 的真机登录仍属部署方职责，未验收**。
+- 未验证令牌撤销、密钥轮换并发窗口、多实例会话一致性。
+- 未在真实多实例 / TLS / 反向代理 / 生产容器中验收。
+- 本次为**同仓库本地实测**，**不构成**第三方独立审计，**不构成**发布授权。
+

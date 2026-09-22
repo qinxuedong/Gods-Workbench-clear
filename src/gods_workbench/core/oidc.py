@@ -402,11 +402,13 @@ def verify_authorized_party(claims: Mapping[str, Any], config: OidcConfig) -> No
     """
     audience = claims.get("aud")
     multi_audience = isinstance(audience, (list, tuple)) and len(audience) > 1
-    azp = claims.get("azp")
-    if azp is None:
+    # 存在性判定必须用 ``in``：`azp: null` 属于「存在但非法」，
+    # 若用 ``claims.get("azp") is None`` 会被误当作「azp 缺失」而放行（fail-open）。
+    if "azp" not in claims:
         if multi_audience:
             raise UnauthorizedException(message="多 audience 令牌缺少 azp，已拒绝")
         return
+    azp = claims["azp"]
     if not isinstance(azp, str) or not azp.strip():
         raise UnauthorizedException(message="azp 声明类型无效，已拒绝")
     if not config.audience or azp.strip() != config.audience:

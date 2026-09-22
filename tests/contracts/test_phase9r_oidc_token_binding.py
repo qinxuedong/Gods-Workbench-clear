@@ -165,6 +165,29 @@ def test_empty_azp_is_rejected(rsa_keypair):
         oidc.verify_jwt(token, make_config(_jwk(public_key)), now=NOW)
 
 
+def test_null_azp_is_rejected(rsa_keypair):
+    """``azp`` 键存在但值为 ``null`` 时必须拒绝（不得被误当作「缺失」放行）。
+
+    回归缺陷：原实现用 ``azp = claims.get("azp"); if azp is None: ... return``，
+    于是 ``"azp": null`` 走「azp 缺失」分支，在单 ``aud`` 场景被**放行**（fail-open）。
+    正确判定必须用 ``"azp" in claims`` 区分「缺失」与「存在但非法」。
+    """
+    private_key, public_key = rsa_keypair
+    payload = claims(azp=None)
+    assert "azp" in payload, "用例前提：azp 键必须存在于载荷中（值为 null）"
+    token = make_token(private_key, payload)
+    with pytest.raises(UnauthorizedException):
+        oidc.verify_jwt(token, make_config(_jwk(public_key)), now=NOW)
+
+
+def test_multi_audience_with_null_azp_is_rejected(rsa_keypair):
+    """多 ``aud`` 且 ``azp: null`` 同样必须拒绝（不得因类型异常绕过）。"""
+    private_key, public_key = rsa_keypair
+    token = make_token(private_key, claims(aud=[AUDIENCE, OTHER_CLIENT], azp=None))
+    with pytest.raises(UnauthorizedException):
+        oidc.verify_jwt(token, make_config(_jwk(public_key)), now=NOW)
+
+
 # ---------------------------------------------------------------------------
 # JWK use / alg（RFC 7517 §4.2 / §4.3）
 # ---------------------------------------------------------------------------

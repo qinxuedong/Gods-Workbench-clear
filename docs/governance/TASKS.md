@@ -560,3 +560,44 @@
   **仍不闭环**：同框架内复核 ≠ 外部第三方独立审计；本地 ≠ 远端 CI ≠ 生产验收；
   审计存储 / 保留策略 / 多实例一致仍属部署方职责；O4 / O5 / O6 与 `static/js/canvas/http.js` 删除仍未处置。
   仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+- [x] T59 Phase 9S：真实用户登录端到端**首次实测** + 对抗式复核（2026-09-22，用户裁决第 6 项与第 5 项）。
+  被测 `b1a04a3`。链路：真实 `uvicorn`（:2077 / `GW_AUTH_MODE=oidc`）+ 真实 Chrome 153（Playwright
+  `channel='chrome'`）+ 应用页 UI（头像键帽 -> `#hwLoginSubmitBtn`）+ Duende demo IdP（`alice`/`alice`）-> 回调。
+  实测：`/healthz` `oidc_ready=true`；`POST /api/asset-auth/login` 跳转 IdP（PKCE S256）；
+  回调携带 `code`/`state`/`iss`；落地 `/static/v2/index.html`；`page_errors=[]`。
+  服务端探针（真实 id_token）：`alg=RS256`、`iss` 匹配、`aud` 匹配、`exp/nbf/iat` 通过、`nonce` 通过；
+  唯一失败点为该 demo OP **不签发 `groups`** -> `令牌组无已授权映射，已拒绝`（可解释终态，非本仓缺陷）。
+  `at_hash` 复算 `match=True`；`git grep -n "access_token" -- src` = 0 命中（本仓不消费 access_token，
+  故无需 at_hash 绑定；规范侧为 MAY）。
+  对抗式复核（同仓库内，主代理亲跑）：`core/audit.py` 7 项断言全通过（恶意对象/dict/list 降级、
+  256 截断、快照隔离、2048 有界、封闭集合 ValueError、4 写 x 500 + 4 读并发无异常）；
+  `/callback?error=<7 种载荷>` 审计污染 **NO_POLLUTION**（伪 JWT 串与任意载荷均未入账）；
+  `verify_authorized_party` + JWK `use`/`alg` 共 24 用例，**23 项符合预期、1 项不符**。
+  **仍未闭环（不得写 PASS）**：真实生产 IdP 真机登录（需 IdP 签发 `groups`）未验收；
+  审计存储/SIEM/保留策略/时间同步属部署方职责；同仓库复核 **≠** 第三方独立审计；发布授权待审计完成。
+
+## T60 Phase 9S 独立复核发现（azp=null fail-open）—— 已修复
+
+- [x] T60 Phase 9S 独立复核发现待修 -> **已修复并入本轮工作树**（2026-09-22）
+  - **缺陷**：`src/gods_workbench/core/oidc.py::verify_authorized_party` 用 `azp = claims.get("azp"); if azp is None` 判定缺失，
+    导致 JWT **声明存在 `azp` 但其值为 `null`** 时被误当作「azp 缺失」：
+    单值 `aud` + `azp: null` -> 放行（fail-open）；多值 `aud` + `azp: null` -> 拒绝（`多 audience 令牌缺少 azp`）。
+  - **修复**（最小改动）：改为 `if "azp" not in claims:` 判定存在性，再用 `azp = claims["azp"]` 取值；
+    `null` 形态随后落到类型检查分支「azp 声明类型无效，已拒绝」。
+  - **回归用例**：`tests/contracts/test_phase9r_oidc_token_binding.py` 新增
+    `test_null_azp_is_rejected`（单值 aud + `azp: null` 必须拒绝）、
+    `test_multi_audience_with_null_azp_is_rejected`（多值 aud + `azp: null` 必须拒绝）；该文件现 12 passed。
+  - **变异测试证据**（副本 `%TEMP%\gw-p9s-root\mut\`，oidc.py 还原为修复前版本）：
+    `python -m pytest tests/contracts/test_phase9r_oidc_token_binding.py -q` -> **1 failed, 11 passed**，
+    失败点 `test_null_azp_is_rejected ... DID NOT RAISE UnauthorizedException`（证明新守卫非恒真）。
+  - **说明**：多值 aud + `azp: null` 修复前后均被拒绝，故变异仅使 1 个用例失败（非 2 个），与分支逻辑一致。
+
+- [ ] T61 Phase 9S O4/O5/O6 复核结论（2026-09-22，**待用户新裁决**，承接 T35）。
+  - **O4** 生成器不可复现**已确证**：`Test-Path tools`=False、`git ls-files tools`=0、
+    `git log --all -- tools/build_static_tailwind_utilities.py`=0 条。
+    另澄清：该 CSS 工作树 83377 B(CRLF) 与 git blob 83374 B(LF) **内容等价**
+    （`.gitattributes` `eol=lf`），登记表 83377 为工作树字节数，**非新不一致**。
+  - **O5** 死类规则条数在 `tailwind-utilities.css` 中 = **0**；修正有视觉变更 ->
+    **需用户明确授权**，未执行。
+  - **O6** `tracked` 现值 **293**；历史行（269 / 275）**不改写**，仅登记现值。

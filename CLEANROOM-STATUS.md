@@ -1511,3 +1511,112 @@ GET /api/asset-auth/callback?error=password_reset_completed_by_admin
 - `gh run view 35671622012 --json conclusion,headSha` ->
   `{"conclusion":"success","event":"push","headSha":"3eaf314e16c810cef830a744de0b8f0829918b34","workflowName":"CI"}`（`headSha` 与本地 `git rev-parse HEAD` **逐字一致**）。
 - 该 success **不等于**生产验收，**不构成**发布授权；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+## Phase 9S 状态更新（2026-09-22 追加，主代理实测；仅追加不改写历史）
+
+本节回应「真实外部 IdP 接线」与「身份、审计与发布授权」两条用户裁决，
+登记本轮**新取得**的可复现证据与**新发现的真实缺陷**。
+
+### 一、真实用户登录端到端（**首次实际执行**，此前一直登记为「未执行」）
+
+被测提交 `b1a04a3`（含 9R 的 azp / JWK 加固）。链路：真实 `uvicorn`（:2077，
+`GW_AUTH_MODE=oidc`）-> 真实 Chrome 153（Playwright `channel='chrome'`）-> 应用页 UI
+（头像键帽 -> `#hwLoginSubmitBtn`）-> Duende demo IdP（`alice`/`alice`）-> 回调。
+
+```text
+/healthz                 -> {"auth_mode":"oidc","oidc_ready":true,"release_authorized":false}
+status_before            -> authenticated=false, login_available=true
+POST /api/asset-auth/login -> 跳到 demo.duendesoftware.com（PKCE S256）
+回调                     -> /api/asset-auth/callback?code=...&state=...&iss=...
+final_url                -> /static/v2/index.html
+status_after             -> authenticated=false
+page_errors              -> []
+```
+
+服务端探针（真实 id_token，不落盘令牌）：
+
+```text
+header           : alg=RS256, kid=9370E95FD8C8C9CA7848ECBA638A7069, typ=JWT
+claim keys       : amr, at_hash, aud, auth_time, exp, iat, idp, iss, nbf, nonce, sid, sub
+iss match        : True
+aud              : interactive.public == cfg
+azp present      : False
+groups claim     : False（值 None）
+RESULT           : REJECTED 令牌组无已授权映射，已拒绝
+```
+
+**结论**：签名（RS256）、`iss`、`aud`、`exp`/`nbf`/`iat`、`nonce` **全部通过**；
+唯一失败点是该 demo OP **不签发 `groups`**，末组映射无法满足，故按失败关闭拒绝。
+这是「IdP 未提供末组映射」的**可解释终态，不是本仓缺陷**。
+
+`at_hash` 复算（真实令牌响应，OIDC Core §3.2.2.9 口径）：`at_hash_present=True`、
+`at_hash_match=True`（SHA-256 左半 16 字节 -> base64url，长度 22）。同时
+`git grep -n "access_token" -- src` = **0 命中**，即本仓不消费 access_token，
+不需要 at_hash 绑定；规范侧亦为 `MAY`（§3.1.3.8），非强制。
+
+### 二、对抗式复核（主代理亲跑；**同仓库内复核，非第三方独立审计**）
+
+**(A) `core/audit.py` —— 7 项断言全部通过**
+
+```text
+恶意对象（__str__ 抛异常）注入 reason/subject/role/auth_mode -> 全部降级为 ""，不抛出
+dict / list 注入                                          -> 降级为 ""
+超长字段 100000 字符                                      -> 截断到 256
+快照隔离：改 list_auth_events() 返回值 / append 假记录     -> 内部缓冲不受污染
+环形缓冲                                                 -> 2048 / 2048（有界）
+封闭集合：非法 event / outcome / 空值                     -> ValueError
+并发：4 写线程 x 500 + 4 读线程                           -> 无异常，计数正确（2000）
+```
+
+**(B) 回调 `?error=` 审计污染 —— 未打通（已排除）**
+
+用 `TestClient` 对 `/api/asset-auth/callback?error=<payload>` 注入 7 种载荷
+（伪 JWT 串、5000 字符、SQL 片段、`%0aFAKE`、`auth.logout` 等）：
+
+```text
+allowlist 命中（invalid_request / state_mismatch 等） -> 按 allowlist 记账（设计如此）
+allowlist 未命中                                     -> 统一记为 unrecognized_failure
+伪 JWT 串是否进入审计                                 -> False（token_leaked=false）
+任意载荷原样串是否进入审计                            -> False
+verdict                                              -> NO_POLLUTION
+```
+
+**(C) `verify_authorized_party` 与 JWK `use`/`alg` —— 24 个用例，23 项符合预期，1 项不符**
+
+已排除的绕过：`aud` 多值缺 `azp`、`aud` 多值且 `azp` 指向他方、`azp` 空串/空白/非字符串/
+dict/list/bool、`aud` 为 None/dict/空数组/嵌套数组/含非字符串、`use=enc`、`use=ENC`、
+`alg=RS512`、`alg=HS256`、`kty=EC`、JWK 携带 `d`。
+
+过度拒绝检查（**必须通过、实测通过**）：单 `aud` 无 `azp`、单 `aud` + 匹配 `azp`、
+多 `aud` + 匹配 `azp`、`use=sig alg=RS256`、**`alg` 未声明（Microsoft MSA 形态）**、
+`use` 未声明、`use=" sig "`。
+
+> **新发现（低危，已登记待裁决）**：当 JWT **存在 `azp` 键但值为 `null`** 时，
+> `verify_authorized_party` 走 `azp is None` 分支，被当作「`azp` 不存在」放行
+> （多 `aud` 场景仍会被正确拒绝：`多 audience 令牌缺少 azp，已拒绝`）。
+> 规范侧 `azp` 无 `null` 形态语义，实际 IdP 不签发该形态，故**记为低危**；
+> 但因属「存在性判定用了 `is None` 而非 `in claims`」，**登记为待修**，不写 PASS。
+
+### 三、O4 / O5 / O6 复算（用户裁决第 4 项「按建议执行」）
+
+- **O4**：`static/css/tailwind-utilities.css` 首行指向 `tools/build_static_tailwind_utilities.py`；
+  实测 `Test-Path tools` = **False**、`git ls-files tools` = **0**、
+  `git log --all -- tools/build_static_tailwind_utilities.py` = **0 条** -> **生成器确实不可复现**。
+  另实测：该文件工作树 **83377 B（CRLF）**、git blob **83374 B（LF）**，
+  `.gitattributes` 为 `eol=lf`，二者**内容等价**，登记表记录的 83377 是工作树字节数，
+  **不构成新的不一致**（此前疑问已排除）。
+- **O5**：`py-0.2` / `backdrop-blur-xs` / `h-4.5` / `w-4.5` 在 `tailwind-utilities.css` 中
+  规则条数 = **0**（死类），前端仍有使用点；修正会产生**视觉变更**，
+  属破坏性/外观变更，**按治理要求继续待用户明确授权，本轮不擅自执行**。
+- **O6**：`tracked` 实测现值 **293**（`git ls-files | Measure-Object -Line`）；
+  `P9-B-INDEPENDENT-REVIEW.md` 历史段落写 269、`P9-D` 写 275。
+  **历史行不改写**，仅在本节登记现值；差异属历史快照，不是缺陷。
+
+### 四、边界（不得外推）
+
+- 本节全部为**同仓库本地实测**；**不等于**远端 CI，**不等于**生产验收，
+  **不构成**第三方独立审计，**不构成**发布授权。
+- 真实生产 IdP 的真机登录（IdP 需签发 `groups` 映射）**仍属部署方职责，未验收**。
+- 审计落点仍为**进程内内存 + 标准库日志**；持久化 / SIEM / 保留策略 / 时间同步属部署方职责。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
