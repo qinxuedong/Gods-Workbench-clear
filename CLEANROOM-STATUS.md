@@ -1500,3 +1500,14 @@ GET /api/asset-auth/callback?error=password_reset_completed_by_admin
 - 本发现为**同框架内复核**（与实现同仓、同 cwd、不同代理），**不等于**外部第三方独立审计。
 - 本地实测 **不等于** 远端 CI，更**不等于**生产验收。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+### Phase 9R 远端 CI 读回（2026-09-22 追加）
+
+- 提交 `3eaf314e16c810cef830a744de0b8f0829918b34`（Phase 9R，12 文件）；
+  推送 `2bf656a..3eaf314  master -> master`。
+- `HEAD == origin/master == git ls-remote origin refs/heads/master == 3eaf314e16c810cef830a744de0b8f0829918b34`；
+  `git status --porcelain -uall` = 0 条目。
+- `gh run view 35671622012 --json conclusion,headSha` ->
+  `{"conclusion":"success","event":"push","headSha":"3eaf314e16c810cef830a744de0b8f0829918b34","workflowName":"CI"}`（`headSha` 与本地 `git rev-parse HEAD` **逐字一致**）。
+- 该 success **不等于**生产验收，**不构成**发布授权；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

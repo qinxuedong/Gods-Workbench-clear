@@ -206,3 +206,15 @@ Microsoft MSA 的 JWKS（8 keys）**不返回 `alg`**，而 Google（2 keys）�
 **边界**：本项为静态规范遵从 + 本地契约测试（`tests/contracts/test_phase9r_oidc_token_binding.py`，10 条；
 对修复前版本 6 条可复现失败）。**未**执行真实用户登录，**不**证明生产登录可用，
 **不**构成生产就绪或发布授权。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+
+## 12. 远端 CI 读回（2026-09-22 追加，Phase 9R）
+
+本节记录令牌绑定加固（§11）本次提交的远端 CI 读回结果。
+
+- 提交 `3eaf314e16c810cef830a744de0b8f0829918b34`；推送 `2bf656a..3eaf314`。
+- `HEAD == origin/master == git ls-remote` 逐字一致；`git status --porcelain -uall` = 0 条目。
+- `gh run view 35671622012 --json conclusion,headSha` ->
+  `conclusion = success`，`headSha = 3eaf314e16c810cef830a744de0b8f0829918b34`（逐字一致）。
+
+远端 CI 只证明该 SHA 在 CI 环境通过，**不等于**生产验收，**不构成**发布授权。
