@@ -93,9 +93,12 @@ python -P -m pytest tests/hygiene -q
 | M1 | `god_canvas/service.py` 元信息 CAS 判断改为恒假 | **3 failed**（`test_update_canvas_meta_cas_conflict_matches_fixture` 等 CAS 系列全部捕获） |
 | M2 | `create_video_task` 改为直接返回伪造 `task_id`/`progress`/`eta`/`url` | **1 failed**（`test_create_video_task_is_fail_closed`） |
 | M3 | `list_reference_canvases` 空集合塞入演示条目 | **1 failed**（`test_reference_canvases_start_empty`） |
+| M4 | `canvas_closure/models.py` 放开共享文件夹 `..` 越界校验 | **1 failed**（越界路径用例被捕获） |
+| M5 | `god_canvas/service.py` 去掉 `CANVAS_NOT_IN_TRASH` 守卫 | **2 failed**（purge 流程用例被捕获） |
+| M6 | `canvas_closure/service.py` 删除不存在共享文件夹改为静默成功 | **1 failed**（404 用例被捕获） |
 | 还原 | — | **43 passed** |
 
-三次变异均按预期失败，说明对应守卫与「零伪造」断言不是恒真；每次注入后均已完整还原（逐字节比对一致）。
+六次变异均按预期失败，说明对应守卫与「零伪造」断言不是恒真；每次注入后均已完整还原（逐字节比对一致）。
 
 ### 5.2 默认运行时边界（避免误读）
 
