@@ -8,7 +8,7 @@
 本阶段所有证据均为**本机实测**，不等于真实外部接口验收或发布授权。
 
 按 T26 顺序（素材库 → 观测 → 提示词库 → 设置页 → **画布闭环**），本阶段为最后一段切片：
-补齐画布闭环 17 条路径 / 20 个方法条目（含方法别名），
+补齐画布闭环 15 条路径 / 20 个方法条目（含方法别名），
 使 god-canvas 的元信息、归档、回收站、共享文件夹、视频任务、参考画布、素材索引形成最小可验证闭环。
 
 ## 1. 范围与端点清单
@@ -28,7 +28,7 @@
 | GET | `/api/video-tasks` | 视频任务列表；起始为空、`data_status: not_integrated` |
 | POST | `/api/video-tasks` | 创建视频任务；本阶段固定 503 `VIDEO_RENDERER_NOT_INTEGRATED` |
 | GET | `/api/video-tasks/{video_task_id}` | 读取单任务；不存在返回 404 `VIDEO_TASK_NOT_FOUND` |
-| GET | `/api/canvas-trash` | 回收站 / 归档视图；起始为空、非伪造条目 |
+| GET | `/api/canvases/trash` | 回收站 / 归档视图；起始为空、非伪造条目 |
 | PATCH / POST | `/api/canvases/{canvas_id}/meta` | 更新画布元信息（**方法别名并存**，CAS 生效） |
 | POST | `/api/canvases/{canvas_id}/touch` | 归档 / 解归档（`archive` / `unarchive`） |
 | POST / DELETE | `/api/canvases/{canvas_id}/purge` | 彻底删除（**方法别名并存**） |
@@ -43,7 +43,7 @@
 | # | 裁决项 | 结论 |
 |---|---|---|
 | 1 | 方法别名 | 任务书写 `PATCH /meta`、`POST /purge`，前端实测为 `POST /meta`、`DELETE /purge`；两组方法**并存**、共享同一实现与守卫，`decisions.method_aliases` 显式声明 |
-| 2 | 方法条目计数 | 20 = 17 条路径 + 3 个别名增量（meta 2 + purge 2 合并计数） |
+| 2 | 方法条目计数 | 15 条独立路径 / 20 个方法条目。其中 5 条路径各带两个方法；reference-canvases / shared-folders / video-tasks 为天然 GET+POST 配对（本身就是两个资源动作），meta / purge 为别名对（各自共享同一实现与守卫）。“3 个别名条目”的口径不准，已修正 |
 | 3 | 稳定 ID | `canvas_id` / `folder_id`（`fold_NNNN` 确定性序号）/ `video_task_id` / `asset_id`；前端兼容字段 `id` / `project` 由 `decisions.frontend_compat` 显式声明 |
 | 4 | 零伪造 + fail-closed | 未接入的渲染 / 扫描 / 打包链路一律 503 且不携带 `task_id`/`progress`/`eta`/`url` |
 | 5 | CAS | 元信息 / 归档 / 回收站 / 画布拓扑写操作必须携带 `expected_version`，冲突返回 409 `CANVAS_VERSION_CONFLICT` |
@@ -96,6 +96,17 @@ python -P -m pytest tests/hygiene -q
 | 还原 | — | **43 passed** |
 
 三次变异均按预期失败，说明对应守卫与「零伪造」断言不是恒真；每次注入后均已完整还原（逐字节比对一致）。
+
+### 5.2 默认运行时边界（避免误读）
+
+`src/gods_workbench/god_canvas/service.py` 的默认单例 `default_god_canvas_service`
+以 `seed_golden_fixture=True` 预置一张黄金画布 `cv-0001`（该行为在 Phase 8 即已存在，
+**本阶段未修改**）。因此在未重置的默认进程内，
+`GET /api/canvas-assets` 的 `canvases` 不为空（含 `cv-0001`）。
+
+`canvas-closure-asset-index-empty.json` 对应的是**显式空来源服务**（`GodCanvasService(seed_golden_fixture=False)`）
+的快照，用于验证“无来源时不伪造条目”，
+**不代表默认进程启动即返回空集**。中标套件与入口文档不得将两者混淆。
 
 ## 6. 洁净室边界声明
 

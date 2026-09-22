@@ -90,7 +90,7 @@ def api_client(canvas_service: GodCanvasService, monkeypatch) -> TestClient:
 
 
 def test_catalog_declares_exact_methods():
-    """契约必须恰好声明本阶段授权的方法集合（含 3 个方法别名）。"""
+    """契约定义恰好本阶段授权的 20 个方法条目（覆盖 15 条独立路径）。"""
     pairs = re.findall(r"method:\s*(\w+)\s*\n\s*path:\s*(\S+)", CATALOG.read_text(encoding="utf-8"))
     assert len(pairs) == 20, f"契约方法数应为 20，实际 {len(pairs)}: {pairs}"
     paths = {p for _, p in pairs}
