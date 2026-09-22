@@ -770,3 +770,13 @@
   - **门禁（本轮亲跑，本地 Windows）**：`pytest` **281 passed / 7 skipped**；`tests/hygiene` **16 passed**；
     `node --check` 57 / 0 failed。
   - **边界**：仍为**本地**证据；三块大功能面仍「未纳入当前切片」；仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+- [x] T26 端点实现顺序与切片范围裁决收口（2026-09-22，用户追加裁决）。
+  - **固定制作顺序**：素材库 → 观测 → 提示词库 → 设置页 → 画布闭环。
+  - `asset-manager`、`api-settings`、`task-center` 继续整体标记为**未纳入当前切片**；本条仅收口排序与范围，不代表已实现任何后端端点。
+  - **边界**：180 条缺口仍保持未实现；后续实现须按上述顺序逐阶段立项、验证与独立复核。
+
+- [x] T46 未实现端点口径统一（2026-09-22，追加更正；不改写历史行）。
+  - 以已修复的 P8-A1 扫描器及冻结守卫为权威：前端引用 **188**、后端已实现 **14**、前端调用且后端已实现 **8**、前端调用但后端未实现 **180**、契约声明但前端无调用方 **3**。
+  - 此后本仓当前口径统一使用 **188 / 180**；此前「189 / 12 / 177」仅作为扫描器缺陷修复前的历史快照保留，不再作为当前数量。
+  - 权威依据：`docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md` §2、`tests/contracts/test_phase8_frontend_backend_api_gap.py` 冻结基线，以及 `CLEANROOM-STATUS.md` Phase 8 更正记录。

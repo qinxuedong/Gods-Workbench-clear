@@ -172,3 +172,25 @@ python run.py                                          # 本机端口 2077
   `P9T-R1-AUTH-AUDIT-BRIEF.md` / `P9T-DECISIONS-STATUS-BRIEF.md` / `P9T-SUPPLY-CHAIN-BRIEF.md` / `P9T-CODE-REVIEW-BRIEF.md`
 - 本地门禁（提交前亲跑）：`pytest` **281 passed, 7 skipped**
 - **边界**：CI success **不等于** 生产验收，**不等于** 第三方独立审计，**不等于** 发布授权。本文件 §3.1 登记的「无外部独立复核」缺陷**不因 CI 变绿而消失**。
+
+## 8. 2026-09-22 用户裁决追加收口（T26 / T46）
+
+本节为当前状态更正；不改写前文历史快照与原始卡点记录。
+
+### 8.1 T46：当前权威数量口径
+
+- 当前统一口径为：前端引用 **188**、后端已实现 **14**、前端调用且后端已实现 **8**、前端调用但后端未实现 **180**、契约声明但前端无调用方 **3**。
+- 「189 引用 / 12 已实现 / 177 未实现」是 P8-A1 扫描器缺陷修复前的历史快照，仅保留用于追溯，**不再作为当前数量**。
+- 权威依据：`docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md` §2、`tests/contracts/test_phase8_frontend_backend_api_gap.py` 冻结基线、`CLEANROOM-STATUS.md` Phase 8 扫描器更正记录。
+
+### 8.2 T26：顺序与切片范围已裁决
+
+- 后续制作顺序固定为：**素材库 → 观测 → 提示词库 → 设置页 → 画布闭环**。
+- `asset-manager`、`api-settings`、`task-center` 继续整体标记为**未纳入当前切片**。
+- 本裁决只收口产品排序与范围，**不代表已实现任何后端端点**；180 条缺口仍保持未实现。
+- 后续实现按上述顺序逐阶段立项，并在每个阶段完成对应契约测试、运行验证和审核。
+
+### 8.3 文档状态
+
+- 上述追加更正已登记至 `docs/governance/TASKS.md`；旧 T46 历史行保留，不改写其原始数字。
+- 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍按用户裁决不建立；其他需人工审核或外部安排的事项保持原状态。
