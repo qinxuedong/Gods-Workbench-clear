@@ -1,0 +1,27 @@
+{
+  "status": "DRAFT / NOT FROZEN",
+  "fixture_kind": "candidate-golden-error",
+  "request": {
+    "method": "POST",
+    "path": "/api/asset-library/categories",
+    "body": {
+      "library_id": "library_characters",
+      "name": "正面肖像",
+      "type": "image",
+      "expected_version": 1
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "detail": {
+        "code": "VERSION_CONFLICT",
+        "message": "素材库版本已变化，请重新读取后重试。",
+        "resource": "library",
+        "library_id": "library_characters",
+        "expected_version": 1,
+        "actual_version": 2
+      }
+    }
+  }
+}

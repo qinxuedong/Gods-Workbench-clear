@@ -1,0 +1,8 @@
+{
+  "fixture_status": "DRAFT_NOT_FROZEN",
+  "case": "version_conflict",
+  "detail": {
+    "code": "VERSION_CONFLICT",
+    "message": "素材库版本冲突"
+  }
+}

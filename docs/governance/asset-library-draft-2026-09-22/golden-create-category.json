@@ -1,0 +1,32 @@
+{
+  "status": "DRAFT / NOT FROZEN",
+  "fixture_kind": "candidate-golden-create-category",
+  "request": {
+    "method": "POST",
+    "path": "/api/asset-library/categories",
+    "body": {
+      "library_id": "library_characters",
+      "name": "正面肖像",
+      "type": "image"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "category": {
+        "category_id": "category_portrait",
+        "library_id": "library_characters",
+        "name": "正面肖像",
+        "type": "image",
+        "version": 1,
+        "items": [],
+        "created_at": "2026-09-22T06:02:00Z",
+        "updated_at": "2026-09-22T06:02:00Z"
+      },
+      "library": {
+        "library_id": "library_characters",
+        "version": 2
+      }
+    }
+  }
+}

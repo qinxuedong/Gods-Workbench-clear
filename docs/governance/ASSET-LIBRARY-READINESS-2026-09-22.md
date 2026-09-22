@@ -36,6 +36,10 @@ T26 已确定制作顺序为“素材库 → 观测 → 提示词库 → 设置�
 5. 至少 2 个素材库黄金夹具和对应契约测试：非空库树成功响应、空库或重复名称错误响应；如采用 CAS，再增加 409 `VERSION_CONFLICT` 响应；
 6. 审核并将端点从 `KNOWN_UNIMPLEMENTED` 移入实现基线。
 
+## 非冻结草案
+
+为减少下一轮等待，已新增非冻结草案与示例夹具：`docs/governance/asset-library-draft-2026-09-22/`。这些文件明确标记 `DRAFT_NOT_FROZEN`，不得作为实现授权、不得替代 `docs/contracts/` 或 `docs/fixtures/`。
+
 ## 本轮已执行边界
 
 - 未新增 `/api/asset-library` 或 `/api/asset-registry/assets` 后端路由；

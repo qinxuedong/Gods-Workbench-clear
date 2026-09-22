@@ -1,0 +1,8 @@
+{
+  "fixture_status": "DRAFT_NOT_FROZEN",
+  "case": "asset_library_empty",
+  "library": {
+    "active_library_id": null,
+    "libraries": []
+  }
+}
