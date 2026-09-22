@@ -2706,3 +2706,183 @@ GET /api/asset-auth/callback?error=password_reset_completed_by_admin
 - 本发现为**同框架内复核**，**不等于**外部第三方独立审计。
 - 本地实测 **不等于** 远端 CI，更**不等于**生产验收。
 - 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+## 21.26 Phase 9T：三块大功能面「分项显式降级」修复（2026-09-22 追加）
+
+> 仅追加，不改写历史章节。承接用户 2026-09-21 裁决第 2 项与第 3 项。
+
+### 21.26.1 新发现的两处真实缺陷（主代理真实浏览器实测）
+
+**环境**：真实 `uvicorn`（127.0.0.1:2077，`GW_AUTH_MODE=local`）+ 真实 Chrome（`channel=chrome`）
++ Playwright；未实现端点统一返回 FastAPI 默认 404。
+
+1. **`task-center.js` 分项失败未分类（中）**：`Promise.allSettled` 的 `failed()` 处理器只推泛化 label，
+   未读 `error.code`。实测 `/api/observability/*` 全部 404 时，提示条 14 条全为「…数据暂不可用」，
+   **全页无「未接入」**，`[data-gw-degradation]` 数量 0。既有守卫
+   `test_task_center_tracks_load_error_kind` 只断言字符串存在，未覆盖分项路径，故漏检。
+2. **`episode-pipeline.js:1846-1848` 静默降级（中）**：`api(...).catch(() => fallback)`
+   在 `/api/prompt-libraries`、`/api/providers` 404 时静默回落到内置演示数据，UI 不说明来源；
+   实测页面「未接入」0 处、`[data-gw-degradation]` 0 处。
+
+### 21.26.2 处置（最小改动）
+
+- `task-center.js`：新增 `degradeKind()` / `degradeLabel()` 单一分类器；`failed()` 分支全部 push 经分类器；
+  提示条按 `degradedKinds` 输出结构化标记；新增 i18n 键 `taskCenter.serviceUnavailable`。
+- `episode-pipeline.js`：新增 `recordDegradation()` / `loadWithExplicitFallback()`，
+  **保留**可用回落但把未接入端点写入可见清单（按 kind 归并，`title` 给端点明细）。
+- `episode-pipeline.html`：新增 `#episodeDegradation` 容器，**必须位于 `#episodePipeline` 之外**
+  （`render()` 整体重写该容器；放入内部会被抹掉，已实测复现）。
+- `episode-pipeline.css`：新增 `.episode-degradation` 样式（不依赖 Tailwind CDN 工具类）。
+
+### 21.26.3 变异测试（本轮亲跑，三处全红）
+
+```text
+M1 还原未分类 push              -> test_task_center_per_item_failure_is_explicitly_degraded FAILED
+M2 还原 .catch(() => fallback)  -> test_episode_pipeline_has_no_silent_catch_fallback FAILED
+M3 降级容器挪回渲染容器内部      -> test_episode_pipeline_degradation_host_is_outside_render_container FAILED
+```
+
+第一轮变异曾暴露 2 条**恒真守卫**（下标比较式父容器判定；`assert in` 过窄），已按变异结果收紧并复跑。
+原始输出：`%TEMP%\gw-p9t-root\reports\MUTATION-P9T.txt`。
+
+### 21.26.4 门禁（本轮亲跑，全部本地）
+
+```text
+pytest                                                    -> 275 passed, 7 skipped
+pytest tests/hygiene                                      -> 16 passed
+node --check（全部 tracked *.js）                          -> 57 / 0 failed
+```
+
+### 21.26.5 仍未闭环（不得写 PASS）
+
+- **未实现任何后端端点**；180 条缺口保持原状，三块大功能面仍「未纳入当前切片」。
+- 页面级降级覆盖为**抽样 16 页 sweep**，非穷尽核验。
+- 独立核验代理本轮**任务正文未送达**（与 §21.22.3 同类），故以上为**主代理同框架内实测**，
+  **不等于**第三方独立审计；第三方审计仍未安排，发布授权待审计完成。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+## 21.27 独立审核发现（D 系列）与处置（2026-09-22 追加）
+
+> 本节仅追加，不改写 §21.26。审核方式：独立审核代理（Code Reviewer 角色）只读复核
+> 当前未提交差异 + **主代理逐条独立复算**；凡结论均标注「谁跑的、在哪跑」。
+
+独立审核代理（`/root/review_d`，只读，未做任何 git 写）对 Phase 9T 变更集给出 1 处状态缺陷 + 3 处
+「目标未贯彻到 100%」；主代理逐条复算后**确认 4 条全部成立**，并已修复：
+
+### 21.27.1 D1（🔴 真实缺陷）降级状态永不复位 —— 已修复
+
+- **现象（审核方复算）**：`episode-pipeline.js` 的 `episodeDegradations` 是模块级数组，只在
+  `recordDegradation()` 里 push，**从不重置**；`load()` 也不把 `#episodeDegradation` 置回 `hidden`。
+  端点 404 → 出现「该功能尚未接入后端（未纳入当前切片）」横幅；端点接入后用户点「重新读取」
+  （`data-retry` → `load()`），三请求全部成功，**横幅仍在**，与真实状态相反而误导。
+  同轮 `task-center.js` 已在 `load()` 里做 `state.degraded = []; state.degradedKinds = [];`，
+  **两个模块对同一策略实现不一致**。
+- **处置**：新增 `resetDegradations()`（清空清单 + `host.hidden = true` + 移除 `data-gw-degradation`
+  + 清空 `textContent`），由 `load()` 在每次重新读取开始时调用。
+- **主代理运行时复算（真实 Chrome 151 + 真实 HTTP，路由拦截 `**/api/**`）**：
+  第一轮全部 404 → 横幅 `hidden=false`、`attr=not_integrated`、文案「…×3」；
+  同一文档内派发 `data-retry` 点击、第二轮全部 200 → 横幅 `hidden=true`、`attr=null`、`text=""`。
+  原始 JSON：`%TEMP%\gw-p9t-root\reports\D1-RESET-VERIFY.json`；`page_errors` 为空。
+
+### 21.27.2 D2（🟡 结构化标记失真）聚合 kind 覆盖逐条 kind —— 已修复
+
+- **现象（审核方复算）**：`task-center.js` 的 `state.degradedKinds` 是**全集**判定，`state.degraded`
+  是**逐条**列表，渲染时却用同一个 `degradedKind` 给**所有** span 打
+  `data-gw-degradation`——只要 14 条里 1 条 404、其余 503，**全部被标成 `not_integrated`**，
+  恰好是本轮要消除的语义混淆；新增守卫断言的正是这个聚合变量，**等于把缺陷固化成契约**。
+  `episode-pipeline.js` 同类：`host.dataset.gwDegradation = kind` 是「最后一次写入获胜」，
+  结果随失败顺序变化、不确定。
+- **处置**：
+  - 新增 `pushDegraded(text, kind)`，`state.degraded` 改存 `{text, kind}`，逐条携带自身 kind；
+    `renderNotice()` 改为**逐条取** `item.kind`（仅在条目未带 kind 时回落页面级 `fallbackKind`）。
+  - `episode-pipeline.js` 宿主标记改为**按优先级汇总**（未接入 > 服务不可用 > 其他），
+    不再 last-wins；每条 `span` 仍保留自身 `group.kind`。
+  - 守卫改为断言「登记器携带自身 kind + 渲染逐条取 item.kind」，不再断言聚合变量。
+- **主代理运行时复算（真实 Chrome + 真实 HTTP）**：混装场景（`/api/asset-registry/projects` 404 +
+  `/api/prompt-libraries` 503）下，两条 span 分别携带 `not_integrated` 与 `service_unavailable`，
+  文案分别为「该功能尚未接入后端（未纳入当前切片）」与「后端服务暂时不可用，请稍后重试」。
+  原始 JSON：`%TEMP%\gw-p9t-root\reports\D1D2-RUNTIME-VERIFY.json`。
+
+### 21.27.3 D3（🟡 残留静默回落）单项目查询仍静默吞错 —— 已修复
+
+- **现象（审核方复算）**：`episode-pipeline.js` 原
+  `api(主路径).catch(() => api(兼容路径)).catch(() => null)` 两级静默 `.catch`，
+  404/503 均不登记降级；既有守卫只断言三个具体字符串不在文件里，**漏检此处**。
+- **处置**：改为**串行显式降级**——主路径 `try`，失败先 `recordDegradation()` 再退回兼容路径，
+  兼容路径经 `loadWithExplicitFallback()`（失败同样登记），最终仍可退到 `null`（可用性不变）。
+- **主代理运行时复算**：主路径与兼容路径均 404 时，两条 span 各自登记
+  （`error` = `/api/asset-registry/projects/proj-01`、`not_integrated` = `/api/projects/proj-01`）。
+  证据同上 JSON。
+
+### 21.27.4 D4（🟡 文档口径不一致）门禁数字与当前变更集不匹配 —— 已修复
+
+- **现象（审核方复算）**：`CLEANROOM-STATUS.md` 写 `275 passed, 7 skipped`，
+  同期 `TASKS.md` 写 `277 passed`；审核方与主代理按当前工作树实跑均为 **280 passed, 7 skipped**
+  （新增 D3/D1/D2 守卫后 277 → 280）。数字属**不同时间点快照**，不能并存为同一变更集的证据。
+- **处置**：本文件与状态文件统一登记为**带时间戳的历次快照**，最新值以本轮为准：
+  `pytest` **280 passed / 7 skipped**；`tests/hygiene` **16 passed**；`node --check` **57 / 0 failed**。
+
+### 21.27.5 审核方另提、主代理复算后**不成立或已单独处理**的项
+
+| 审核方主张 | 主代理复算结果 |
+|---|---|
+| 降级横幅位于页面底部、「需滚动才可见」（疑 🟡） | **不成立**：1440×900 视口实测 `top=617 / bottom=656`、`scrollY=0`、`pageHeight=900`，**首屏可见**。证据 `%TEMP%\gw-p9t-root\reports\EP-BANNER-VERIFY.json` |
+| 测试注释声称有 `test_phase9t_*_runtime` 运行时用例覆盖 | **成立**（措辞缺陷）：仓库内并无该命名的用例。注释已更正为「本节为静态源码守卫；运行时行为由主代理单独实测」，不再指向不存在的用例 |
+| 测试文件 `STATIC_DIR_ROOT` 命名易误读（死别名） | **成立**（可读性）：已删除该死别名，仅保留 `EPISODE_HTML` |
+| Tailwind `?plugins=forms@0.5.10,...` 是否真为 200 | 由独立实测任务 C 复核，主代理本轮不重复断言 |
+| **（第二轮复核新增）** `loadPipelines()` 主数据路径仍静默降级 | **成立**：见 §21.27.8（D5），已修复 |
+
+### 21.27.6 新增变异测试（主代理亲跑，4 处全红）
+
+副本 `%TEMP%\gw-p9t-root\mut2\`（仓库未被污染）；变异后**逐条对应守卫变红**，
+证明 4 条新守卫**不是恒真断言**：
+
+```text
+[BASELINE]                                    59 passed
+[M4-no-reset]              exit=1 :: 1 failed  -> test_episode_pipeline_degradation_state_is_reset_on_reload
+[M5-silent-single-catch]   exit=1 :: 1 failed  -> test_episode_pipeline_single_project_lookup_is_not_silent
+[M6-host-lastwins]         exit=1 :: 1 failed  -> test_episode_pipeline_host_marker_is_deterministic
+[M7-tc-pagelevel-kind]     exit=1 :: 1 failed  -> test_task_center_per_item_failure_is_explicitly_degraded
+[RESTORED]                                    59 passed
+```
+
+原始输出：`%TEMP%\gw-p9t-root\reports\MUTATION-P9T-D2.txt`。
+
+### 21.27.7 边界声明（不得省略）
+
+- 以上全部为**本地**证据（Windows / Python 3.11 / 真实 Chrome 151 / 本机 uvicorn:2077）。
+  **本地通过 != 远端 CI != 生产验收**。
+- `review_d` 为**同框架独立审核代理**，按用户既有口径**不等于第三方独立审计**。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**；T36 / T40 保持未执行。
+### 21.27.8 D5（🔴 真实缺陷，第二轮独立复核发现）主数据路径 `loadPipelines()` 仍静默降级 —— 已修复
+
+- **发现方**：独立审核代理 `/root/review_d` **第二轮只读复核**（对同一变更集做更深的路径追踪），
+  主代理随后**独立复算**确认成立。
+- **现象**：`episode-pipeline.js::loadPipelines()` 原为
+  ```js
+  try { incoming = (await api(`/api/episode-pipelines?project_id=...`)).pipelines || []; }
+  catch (e) { console.warn('获取项目流水线列表失败:', e); incoming = []; }
+  ```
+  失败后 `incoming` 置空、`state.pipelines = []`，页面显示「当前项目尚未建立剧集或影片流水线」——
+  读者会理解成「我没有流水线」，而**不是**「后端没接」。第一轮 D1/D2/D3 修复**漏掉了本页最主要的数据端点**。
+- **端点状态确证**：`/api/episode-pipelines` 属 **180 条未实现端点**（`P8-A1-FRONTEND-BACKEND-API-GAP.md`
+  §2.3 第 112 行，明细第 254-258 / 448 行），后端**无路由**（`git grep -F "episode-pipelines" -- src/gods_workbench/api/` 为空）。
+- **附带风险（审核方指出，成立）**：该 `catch` 把**任何**错误（含 503 瞬时故障）都变成空列表，
+  随后 `clearAssetPoll(id, true)` 会中止轮询——瞬时故障会清空用户正在进行的流水线视图。
+- **处置**：改为
+  `const data = await loadWithExplicitFallback('api/episode-pipelines?...', { pipelines: [] })`，
+  回落值仍为空数组（可用性不变），但 404/503 均登记可见降级；`console.warn` 静默分支删除。
+- **守卫**：新增 `test_episode_pipeline_load_pipelines_is_not_silent`（断言经 `loadWithExplicitFallback`、
+  且不得残留 `console.warn('获取项目流水线列表失败:'` 与静默 `incoming = [];`）。
+- **主代理运行时复算（真实 Chrome + 真实 HTTP，路由拦截 `/api/episode-pipelines` → 404）**：
+  横幅 `hidden=false`、`attr=not_integrated`、文案「该功能尚未接入后端（未纳入当前切片） ×3」，
+  端点明细 `title` 含 `/api/episode-pipelines?project_id=prj-0001`，`page_errors=[]`。
+  原始 JSON：`%TEMP%\gw-p9t-root\reports\D5-RUNTIME-VERIFY.json`。
+- **变异测试（主代理亲跑，副本 `%TEMP%\gw-p9t-root\mut3\`）**：
+  `[M8-silent-loadPipelines] exit=1 :: 1 failed` → `test_episode_pipeline_load_pipelines_is_not_silent`；
+  复原后 `60 passed`。原始输出 `%TEMP%\gw-p9t-root\reports\MUTATION-P9T-D5.txt`。
+- **门禁更新**：`pytest` **281 passed / 7 skipped**（60 条降级守卫）；`tests/hygiene` 16 passed；
+  `node --check` 57 / 0 failed。
+
+> **过程反思（如实登记）**：D5 由**第二轮**复核才发现，说明第一轮的收口口径偏窄——
+> 只覆盖了「`.catch(() => fallback)` 字面量」这一种静默模式，未覆盖 `try/catch + console.warn + 置空`
+> 这另一种同源反模式。已有守卫已相应补强为按**函数体**判定，而非只 grep 字符串字面量。

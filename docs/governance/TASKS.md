@@ -633,3 +633,140 @@
   - `core/oidc.py` 内所有 claims 取值点已复核：`nonce`/`iss`/`aud`/`azp`/`sub`/`groups` 及 `_numeric_date`（exp/nbf/iat）
     均已按「存在性」或显式类型校验处理，无静默放行路径。
   - 门禁：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。
+
+- [x] T65 Phase 9T：三块大功能面**分项**显式降级修复（2 处真实缺陷，2026-09-22，用户裁决第 2/3 项）。
+  - **缺陷 1（中，主代理真实浏览器实测发现）**：`src/gods_workbench/static/js/task-center.js`
+    的 `Promise.allSettled` 失败分支只把「XX 数据暂不可用」推入 `state.degraded`，**未读取 `error.code`**。
+    实测（真实 Chrome + 真实 uvicorn:2077，`/api/observability/*` 全部 404 未实现）：提示条显示
+    「总览数据暂不可用 / 指标序列暂不可用 / …」共 14 条，**全页无「未接入」字样**，
+    `[data-gw-degradation]` 数量为 0 —— 会被读成「后端存在但暂时取不到」，违反裁决第 3 项
+    「明说未接入，而不是静默坏掉」。本仓既有守卫 `test_task_center_tracks_load_error_kind`
+    只断言**字符串存在**，未断言分项失败路径走分类，故未能捕获。
+  - **缺陷 2（中，同批发现）**：`src/gods_workbench/static/js/episode-pipeline.js:1846-1848`
+    用 `api(...).catch(() => ({ projects: DEMO_PROJECTS_FALLBACK }))` 形式**静默降级**：
+    `/api/prompt-libraries`、`/api/providers` 未实现（404）时静默回落到内置演示数据，
+    UI 上不说明来源。实测该页 `[data-gw-degradation]` 为 0、页面无「未接入」字样。
+  - **处置 1**：`task-center.js` 新增 `degradeKind(reason)` / `degradeLabel(reason, label)` 单一分类器，
+    `NOT_INTEGRATED` → 追加「该功能尚未接入后端（未纳入当前切片）」；`SERVICE_UNAVAILABLE` → 独立文案；
+    提示条按 `degradedKinds` 输出 `data-gw-degradation="not_integrated"`；
+    `failed()` 分支的所有 `state.degraded.push(...)` 均经分类器（消除未分类裸 push）。
+    新增 i18n 键 `taskCenter.serviceUnavailable`（`js/i18n/task-center.js`）。
+  - **处置 2**：`episode-pipeline.js` 新增 `recordDegradation(url, code)` /
+    `loadWithExplicitFallback(url, fallback)`：**保留**可用回落（不破坏页面可用性），
+    但把未接入端点写入可见降级清单并按 kind 归并展示（`title` 给端点明细）；
+    新增 `episode-pipeline.html` 可见容器 `#episodeDegradation`（**必须位于 `#episodePipeline`
+    之外**——`render()` 会整体重写该容器，放内部会被抹掉，已实测复现）；
+    `episode-pipeline.css` 新增 `.episode-degradation` 样式（不依赖 Tailwind CDN 工具类）。
+  - **新增守卫**（`tests/contracts/test_phase9_frontend_degradation.py`，5 条）：
+    `test_task_center_per_item_failure_is_explicitly_degraded`、
+    `test_task_center_service_unavailable_label_is_translated`、
+    `test_episode_pipeline_has_no_silent_catch_fallback`、
+    `test_episode_pipeline_degradation_host_is_outside_render_container`（按标签配对判定，
+    不接受下标比较式恒真守卫）、`test_episode_pipeline_degradation_banner_has_style`。
+  - **变异测试（亲跑，副本 `%TEMP%\gw-p9t-root\mut\`，三处逐一还原缺陷实现）**：
+    M1 还原未分类 push → `test_task_center_per_item_failure_is_explicitly_degraded` FAILED；
+    M2 还原 `.catch(() => ({ providers: [] }))` → `test_episode_pipeline_has_no_silent_catch_fallback` FAILED；
+    M3 把降级容器挪回 `#episodePipeline` 内部 → `test_episode_pipeline_degradation_host_is_outside_render_container` FAILED。
+    第一轮变异曾暴露**2 条恒真守卫**（下标比较式、断言过窄），已按变异结果收紧后复跑为「三处全红」。
+    原始输出：`%TEMP%\gw-p9t-root\reports\MUTATION-P9T.txt`。
+  - **修复后浏览器实测（真实 Chrome + 真实 HTTP）**：`task-center.html` 提示条 14 条**全部**变为
+    「… · 该功能尚未接入后端（未纳入当前切片）」，`[data-gw-degradation]` = `not_integrated`，
+    `page_errors = []`；`episode-pipeline.html` `#episodeDegradation` 可见，文案
+    「该功能尚未接入后端（未纳入当前切片） ×2」，`title = /api/prompt-libraries | /api/providers`，
+    `page_errors = []`。
+  - **门禁（本轮亲跑，本地 Windows）**：`pytest` **275 passed / 7 skipped**；
+    `tests/hygiene` **16 passed**；`node --check` 全部 tracked `*.js` **57 / 0 failed**。
+  - **边界**：本次**未实现任何后端端点**（180 条缺口保持原状）；三块大功能面仍为「未纳入当前切片」；
+    浏览器实测为**本机** Chrome + 本机 uvicorn，**不等于**生产验收、**不等于**第三方独立审计；
+    仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+- [ ] T66 Phase 9T 独立复核（**进行中**，2026-09-22）。
+  - 已按「任务书写盘 + 极短消息指路径」方式派发 2 名只读核验代理
+    （前端 `fetch` 覆盖面审计 / 合规供应链实测复算），任务书位于
+    `%TEMP%\gw-p9s-root\briefs\BRIEF-A.md`、`BRIEF-C.md`。
+  - **本轮子代理通道再次失效**：多轮派发均只收到环境上下文、任务正文未送达（与 Phase 9N/9O 同类），
+    截至登记时**未取得任何代理结论**。该独立性缺陷**如实登记，不得写成已独立复核**。
+  - 主代理同框架内自行复算结论见 T65；**同框架复核 ≠ 第三方独立审计**。
+
+- [x] T67 Phase 9T：Tailwind Play CDN **插件版本钉死**（2026-09-22，用户裁决第 4 项本地可闭环部分）。
+  - **实测（主代理亲跑，真实网络）**：
+    `https://cdn.tailwindcss.com/3.4.17?plugins=forms,container-queries` → **HTTP 302**
+    （`Location: /3.4.17?plugins=forms@0.5.10,container-queries@0.1.1`）；
+    钉死版 `...?plugins=forms@0.5.10,container-queries@0.1.1` → **HTTP 200**，
+    **418,973 B**，SHA-256 `A789CE5A73191759006B64A0C05F63AFBF9AA43A86511BF798D688737429E60A`。
+    浏览器复算（真实 Chrome + 真实 HTTP）：加载序列 `302` → `200`，`typeof window.tailwind === "object"`。
+  - **处置**：`src/gods_workbench/static/episode-pipeline.html:17` 改为钉死插件版本 URL
+    （消除依赖上游 302 的浮动解析）。其余 9 个 `v2/*.html` 本就不带插件查询串，维持 `/3.4.17`。
+  - **新增守卫**（`tests/contracts/test_phase9_frontend_degradation.py`）：
+    `test_tailwind_plugin_versions_are_pinned`、`test_tailwind_base_version_is_still_pinned`。
+  - **变异测试（亲跑）**：把 URL 改回未钉死形式 + 把 `v2/index.html` 改为无版本形式 →
+    **两条守卫同时变红**（`%TEMP%\gw-p9t-root\reports\MUTATION-P9T-TAILWIND.txt`）。
+  - **台账**：`docs/provenance/CDN-SUPPLY-CHAIN-2026-09-21.md` 新增 §10。
+  - **仍未闭环**：上游**无 `Access-Control-Allow-Origin`**，SRI/`integrity` 仍不可启用（§5 结论未变）；
+    Play CDN 传递组件版本仍不可完全恢复（`vendor/MANIFEST.md` 中 `js/tailwindcss-cdn.js` 状态仍 `BLOCKED`）；
+    **自托管替代路径需用户裁决**——`AGENTS.md` §1.2/§2.1 明确写「样式使用 Tailwind CDN」，改自托管属
+    **宪章变更**，本轮**未改动 `AGENTS.md`**。
+  - **门禁**：`pytest` **277 passed / 7 skipped**；`tests/hygiene` 16 passed；`node --check` 57 / 0 failed。
+
+- [x] T68 Phase 9T：`asset-share.html` 缺参提示与降级链路复核（2026-09-22，用户裁决第 1/3 项）。
+  - **复核结论（真实 Chrome + 真实 HTTP 实测）**：直接打开 `/static/asset-share.html`
+    → 页面渲染 `class="share-error"`、文案「无法打开分享 / 缺少分享令牌，请使用完整的分享链接打开本页面。」、
+    `aria-busy=false`、**未发起任何 `/api/*` 请求**、`page_errors=[]`。裁决第 1 项**已闭环**。
+  - **降级链路复核（证伪式）**：`js/asset-share/api.js` 经 `js/asset-share/http.js` →
+    `createFetchTransport`，故 404/501 会先被 transport 拦截为 `NotIntegratedError`
+    （`code=NOT_INTEGRATED`、`unavailable=true`、文案含「未纳入当前切片」），
+    **不会**退到 `asset-share.js::readJson` 的泛化「访问失败」。Node 副本实测已确认该错误对象形状。
+  - **如实登记的未纳入项**：`/api/public/shares*`（4 条）后端**未实现**，
+    且静态挂载对 `/static/asset-share.html/<token>` 返回 404（`{"detail":"Not Found"}`），
+    故**分享链接功能整体不可用**，属「未纳入当前切片」；本项**只**保证「缺参直开有明确提示 + 降级语义正确」。
+  - 边界：以上为**本机** Chrome + 本机 uvicorn 实测，**不等于**生产验收。
+- [x] T69 Phase 9T 独立审核发现（D 系列）处置 + 门禁数字对齐（2026-09-22，承接 T66）。
+  - **独立性**：`/root/review_d`（Code Reviewer 角色）只读复核当前未提交差异，**未执行任何 git 写**、
+    未改动仓库内任何文件；主代理逐条**独立复算**后才处置。同框架复核 **不等于**第三方独立审计。
+  - **审核方结论**：1 处状态缺陷 + 3 处「本轮目标未贯彻到 100%」；
+    主代理复算后 **4 条全部成立**（另 1 条「横幅需滚动才可见」**不成立**、1 条措辞缺陷**成立并已改**）。
+  - **D1（🔴 真实缺陷）**：`episode-pipeline.js` 的 `episodeDegradations` **从不重置**、`load()` 也不
+    隐藏横幅 → 端点接入后点「重新读取」仍显示「该功能尚未接入后端」，与真实状态相反而误导；
+    `task-center.js` 同轮已复位，**两模块策略不一致**。
+    **处置**：新增 `resetDegradations()`，`load()` 开始时调用。
+    **运行时复算**：全 404 时横幅可见（`attr=not_integrated`）；同一文档内 `data-retry` 后全 200 →
+    `hidden=true / attr=null / text=""`。证据 `%TEMP%\gw-p9t-root\reports\D1-RESET-VERIFY.json`。
+  - **D2（🟡 结构化标记失真）**：`task-center.js` 用**全集** `degradedKinds` 给**每条** span 打同一
+    `data-gw-degradation`（1 条 404 + 其余 503 时全部被标 `not_integrated`）；`episode-pipeline.js`
+    的宿主标记是 **last-wins**（随失败顺序变化）。
+    **处置**：新增 `pushDegraded(text, kind)`，条目改存 `{text, kind}` 并**逐条**渲染自身 kind；
+    宿主标记改按优先级汇总（未接入 > 服务不可用 > 其他）。守卫同步改为断言「逐条携带自身 kind」，
+    **不再断言聚合变量**（旧断言等于把缺陷固化成契约）。
+    **运行时复算**：404 + 503 混装时两条 span 分别携带 `not_integrated` / `service_unavailable`。
+    证据 `%TEMP%\gw-p9t-root\reports\D1D2-RUNTIME-VERIFY.json`。
+  - **D3（🟡 残留静默回落）**：单项目查询原为两级静默 `.catch` → 改为串行显式降级
+    （主路径失败先 `recordDegradation()` 再退兼容路径，兼容路径经 `loadWithExplicitFallback()`），
+    可用性不变但失败可见；新增守卫 `test_episode_pipeline_single_project_lookup_is_not_silent`。
+  - **D4（🟡 文档口径）**：`CLEANROOM-STATUS.md` 的 `275 passed` 与 `TASKS.md` 的 `277 passed`
+    属不同时间点快照，不得并存为同一变更集证据 → 统一登记为**带时间戳的历次快照**。
+  - **新增变异复核（主代理亲跑）**：副本 `%TEMP%\gw-p9t-root\mut2\` 内还原 4 处缺陷，
+    4 条新守卫**逐条变红**（M4 复位丢失 / M5 静默单查 / M6 宿主 last-wins / M7 页面级 kind），
+    复原后 59 passed。原始输出 `%TEMP%\gw-p9t-root\reports\MUTATION-P9T-D2.txt`。
+  - **门禁（本轮亲跑，本地 Windows；含新增守卫后）**：`pytest` **280 passed / 7 skipped**；
+    `tests/hygiene` **16 passed**；`node --check` 全部 tracked `*.js` **57 / 0 failed**。
+  - **边界**：均为**本地**证据，**本地通过 != 远端 CI != 生产验收**；三块大功能面仍为
+    「未纳入当前切片」，180 条缺口保持原状；仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+- [x] T70 Phase 9T 第二轮独立复核发现 D5（🔴）处置（2026-09-22，承接 T69）。
+  - **发现方**：独立审核代理 `/root/review_d` **第二轮**只读复核（路径追踪），主代理独立复算确认成立。
+  - **D5 现象**：`episode-pipeline.js::loadPipelines()` 原为 `try/catch + console.warn + incoming = []` 的
+    **静默降级**，失败后页面显示「当前项目尚未建立剧集或影片流水线」——被读成「我没有流水线」而非
+    「后端没接」。第一轮 D1/D2/D3 修复**漏掉了本页最主要的数据端点** `/api/episode-pipelines`。
+  - **端点确证**：`/api/episode-pipelines` 属 180 条未实现端点（P8-A1 §2.3），后端无路由
+    （`git grep -F "episode-pipelines" -- src/gods_workbench/api/` 为空）。
+  - **附带风险（成立）**：该 `catch` 把任何错误（含 503）都变成空列表，随后 `clearAssetPoll(id, true)`
+    中止轮询——瞬时故障会清空用户进行中的流水线视图。
+  - **处置**：改用 `loadWithExplicitFallback('/api/episode-pipelines?...', { pipelines: [] })`；
+    回落值不变、可用性不变，但 404/503 均登记可见降级；删除 `console.warn` 静默分支。
+  - **新增守卫**：`test_episode_pipeline_load_pipelines_is_not_silent`（按**函数体**判定，不再只 grep 字面量）。
+  - **运行时复算**：路由拦截使其 404 → 横幅 `attr=not_integrated`、「… ×3」、`title` 含该端点、`page_errors=[]`；
+    证据 `%TEMP%\gw-p9t-root\reports\D5-RUNTIME-VERIFY.json`。
+  - **变异复核**：副本 `%TEMP%\gw-p9t-root\mut3\` 还原静默 `try/catch` → 对应守卫 FAILED（exit=1）；
+    复原后 60 passed。证据 `%TEMP%\gw-p9t-root\reports\MUTATION-P9T-D5.txt`。
+  - **门禁（本轮亲跑，本地 Windows）**：`pytest` **281 passed / 7 skipped**；`tests/hygiene` **16 passed**；
+    `node --check` 57 / 0 failed。
+  - **边界**：仍为**本地**证据；三块大功能面仍「未纳入当前切片」；仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

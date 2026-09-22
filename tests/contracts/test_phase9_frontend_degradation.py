@@ -271,6 +271,7 @@ def test_v2_collab_and_settings_no_fake_latency_claim():
 # ---------------------------------------------------------------------------
 TELEMETRY_JS = STATIC_JS / "hardware-telemetry.js"
 EPISODE_JS = STATIC_JS / "episode-pipeline.js"
+EPISODE_HTML = STATIC_JS.parent / "episode-pipeline.html"
 V2_PAGES = [
     "index.html", "projects.html", "workshop.html", "production.html",
     "storyboard.html", "agents.html", "assets.html", "collab.html", "settings.html",
@@ -858,3 +859,209 @@ def test_legacy_pages_load_degradation_before_page_scripts():
         if deco == -1 or page == -1 or deco > page:
             missing.append(html_path.name + " (deco=" + str(deco) + ", page=" + str(page) + ")")
     assert not missing, "degradation.js 接线順序不正确: " + str(missing)
+
+
+# ---------------------------------------------------------------------------
+# Phase 9T：三块大功能面的**分项**显式降级（用户 2026-09-21 裁决第 2/3 项）
+#
+# 真实缺陷（主代理 2026-09-22 实测）：task-center 的 Promise.allSettled 分支只把
+# 「XX 数据暂不可用」推入 state.degraded，未读取 error.code，因此 `/api/observability/*`
+# 全部 404（未纳入当前切片）时页面显示的是「总览数据暂不可用」——会被读成
+# 「后端存在但暂时取不到」，违反「明说未接入」的口径。
+#
+# 证据边界：本节为**静态源码守卫**，只断言源码形态，不执行浏览器；
+# 运行时行为由主代理在真实 Chrome + 真实 HTTP 下单独实测（证据路径见
+# docs/governance/TASK-NOTES-2026-09-18.md §21.26 / §21.27）。不等于生产验收。
+# ---------------------------------------------------------------------------
+
+TASK_CENTER_I18N = STATIC_JS / "i18n" / "task-center.js"
+
+
+def test_task_center_per_item_failure_is_explicitly_degraded():
+    """task-center 的每条 allSettled 失败必须区分未接入 / 服务不可用。"""
+    js = _read(TASK_CENTER_JS)
+    assert "degradeKind" in js, "必须提供分项降级分类函数"
+    assert "degradeLabel" in js, "必须提供分项降级文案函数"
+    assert "NOT_INTEGRATED_LABEL" in js, "必须复用「未纳入当前切片」文案"
+    assert "未纳入当前切片" in js
+    # allSettled 失败分支（failed 处理器）内的每一条 push 都必须经 degradeLabel 分类
+    marker = "const failed = (result, label) => {"
+    start = js.find(marker)
+    assert start != -1, "未找到 failed 处理器（allSettled 失败分支）"
+    end = js.find("};", start)
+    assert end != -1, "未找到 failed 处理器的闭合"
+    failed_body = js[start:end]
+    assert "degradeLabel(result.reason, label)" in failed_body, "失败分支必须经分类器"
+    assert "state.degraded.push(label)" not in failed_body, "不得保留未分类的裸 push"
+    assert js.count("degradeKind(result.reason)") >= 1
+    # 分项降级（审核发现 D2）：每条降级记录必须携带**自身** kind，
+    # 且渲染时必须逐条取 item.kind；不得用全屏汇总变量给所有条目打同一标记
+    # （否则一页混装 404 与 503 时，503 条目会被误标为 not_integrated）。
+    assert "function pushDegraded" in js, "必须提供携带自身 kind 的降级登记器"
+    assert "state.degraded.push({ text: String(text), kind: normalized })" in js, (
+        "降级条目必须以 {text, kind} 结构登记，才能逐条区分"
+    )
+    assert "const kind = (item && item.kind) || fallbackKind;" in js, (
+        "渲染时必须逐条取 item.kind，不得用页面级汇总标记"
+    )
+    assert 'data-gw-degradation="${esc(kind)}"' in js, "分项降级必须带逐条结构化标记"
+
+
+def test_task_center_service_unavailable_label_is_translated():
+    """新增的服务不可用文案必须有 i18n 键，不得漏键回落成裸 key。"""
+    js = _read(TASK_CENTER_JS)
+    i18n = _read(TASK_CENTER_I18N)
+    import re
+    keys = sorted(set(re.findall(r"tr\('([^']+)'\)", js)))
+    missing = [key for key in keys if ('"' + key + '"') not in i18n]
+    assert not missing, "task-center.js 使用的 i18n 键缺失: " + str(missing)
+
+
+def test_episode_pipeline_has_no_silent_catch_fallback():
+    """episode-pipeline 不得用 `.catch(() => fallback)` 静默吞掉未接入错误。"""
+    js = _read(EPISODE_JS)
+    assert ".catch(() => ({ projects: DEMO_PROJECTS_FALLBACK }))" not in js, "项目回落不得静默"
+    assert ".catch(() => ({ providers: [] }))" not in js, "providers 回落不得静默"
+    assert "loadWithExplicitFallback" in js, "必须经由显式降级包装器回落"
+    assert "recordDegradation" in js
+    assert "data-gw-degradation" in js
+    assert "未纳入当前切片" in js, "必须明说未接入"
+
+
+def test_episode_pipeline_single_project_lookup_is_not_silent():
+    """审核发现 D3：单项目查询原本是两级静默 .catch，必须接入显式降级。"""
+    js = _read(EPISODE_JS)
+    assert ".catch(() => api(" not in js, "不得保留静默链式 .catch 回落"
+    marker = "if (state.projectId"
+    start = js.find(marker)
+    assert start != -1, "未找到单项目查询分支"
+    end = js.find("const pObj =", start)
+    assert end != -1, "未找到单项目查询分支闭合"
+    body = js[start:end]
+    assert "recordDegradation(" in body, "单项目查询失败必须登记显式降级"
+
+
+def test_episode_pipeline_load_pipelines_is_not_silent():
+    """审核发现 D5：主数据路径 loadPipelines() 原本 try/catch + console.warn 静默吞错。"""
+    js = _read(EPISODE_JS)
+    start = js.find("async function loadPipelines()")
+    assert start != -1, "未找到 loadPipelines()"
+    end = js.find("const activeIds", start)
+    assert end != -1, "未找到 loadPipelines() 主体闭合"
+    body = js[start:end]
+    assert "loadWithExplicitFallback(" in body, "loadPipelines() 必须经显式降级包装器"
+    assert "recordDegradation(" in body or "loadWithExplicitFallback(" in body
+    assert "console.warn('获取项目流水线列表失败:'" not in body, (
+        "不得保留 console.warn 式静默降级"
+    )
+    # 所有 api(...) 调用点必须有显式降级路径：统计 try/catch 静默吞错的残留
+    assert "incoming = [];" not in body, "失败后不得静默置空而不登记降级"
+
+
+def test_episode_pipeline_degradation_state_is_reset_on_reload():
+    """审核发现 D1：load() 必须重置降级清单，否则端点接入后陈旧横幅仍报「未接入」。"""
+    js = _read(EPISODE_JS)
+    assert "function resetDegradations()" in js, "必须提供降级状态重置函数"
+    reset_start = js.find("function resetDegradations()")
+    reset_body = js[reset_start: js.find("async function loadWithExplicitFallback", reset_start)]
+    assert "episodeDegradations.length = 0" in reset_body, "必须清空降级清单"
+    assert "host.hidden = true" in reset_body, "必须隐藏降级横幅"
+    load_start = js.find("async function load() {")
+    assert load_start != -1, "未找到 load()"
+    load_head = js[load_start: js.find("try {", load_start)]
+    assert "resetDegradations()" in load_head, "load() 开始时必须重置降级状态"
+
+
+def test_episode_pipeline_host_marker_is_deterministic():
+    """审核发现 D2 同类：宿主元素标记不得「最后一次写入获胜」，必须按优先级确定。"""
+    js = _read(EPISODE_JS)
+    assert "host.dataset.gwDegradation = kind;" not in js, (
+        "不得用最后一次写入覆盖宿主标记（结果随调用顺序变化）"
+    )
+    assert "episodeDegradations.some(i => i.kind === 'not_integrated')" in js
+
+
+def test_episode_pipeline_degradation_host_is_outside_render_container():
+    """降级容器必须**不是** #episodePipeline 的后代，否则会被 render() 的 innerHTML 重写抹掉。
+
+    实测（主代理 2026-09-22，真实 Chrome + 真实 HTTP）：容器放在 #episodePipeline 内时
+    `render()` 执行后 `#episodeDegradation` 从 DOM 消失，降级文案不可见。本守卫按标签配对
+    判定父子关系，而非仅比较下标（下标比较对「放在容器内部」同样成立，是恒真守卫）。
+    """
+    html = _read(EPISODE_HTML)
+    assert 'id="episodeDegradation"' in html
+    start = html.find('<section id="episodePipeline"')
+    assert start != -1, "未找到 #episodePipeline"
+    end = html.find("</section>", start)
+    assert end != -1, "未找到 #episodePipeline 的闭合标签"
+    inside = html[start:end]
+    assert 'id="episodeDegradation"' not in inside, (
+        "降级容器不得位于 #episodePipeline 内部（render() 会整体重写该容器）"
+    )
+    assert html.find('id="episodeDegradation"') > end, "降级容器应作为稳定兄弟节点位于其后"
+
+
+def test_episode_pipeline_degradation_banner_has_style():
+    """降级横幅必须有可见样式，不得依赖 Tailwind 工具类（该页 Tailwind 为 CDN）。"""
+    css = _read(STATIC_JS.parent / "css" / "episode-pipeline.css")
+    assert ".episode-degradation" in css
+    assert 'data-gw-degradation="not_integrated"' in css
+
+
+# ---------------------------------------------------------------------------
+# Phase 9T：Tailwind Play CDN 插件版本必须钉死（用户 2026-09-21 裁决第 4 项
+# 「Phase 7 滚动的合规/供应链项：按建议执行」的本地可闭环部分）
+#
+# 实测（主代理 2026-09-22，真实网络）：
+#   https://cdn.tailwindcss.com/3.4.17?plugins=forms,container-queries
+#     -> HTTP 302，Location: /3.4.17?plugins=forms@0.5.10,container-queries@0.1.1
+#   https://cdn.tailwindcss.com/3.4.17?plugins=forms@0.5.10,container-queries@0.1.1
+#     -> HTTP 200，418,973 B，SHA-256 A789CE5A...C50D60A（钉死版）
+# 未钉死插件版本 = 依赖上游重定向的浮动解析（上游一旦改指向即静默漂移），
+# 且 302 使「实际加载制品」无法做单跳哈希核对。
+#
+# 证据边界：本节为静态源码守卫，**不能**替代真实网络探测；
+# 状态码/字节数/SHA-256 真值记录在 docs/provenance/CDN-SUPPLY-CHAIN-2026-09-21.md。
+# ---------------------------------------------------------------------------
+
+PINNED_TAILWIND_PLUGIN_URL = (
+    "https://cdn.tailwindcss.com/3.4.17?plugins=forms@0.5.10,container-queries@0.1.1"
+)
+FLOATING_TAILWIND_PLUGIN_URL = (
+    "https://cdn.tailwindcss.com/3.4.17?plugins=forms,container-queries"
+)
+
+
+def _all_occurrences(text, needle):
+    start = 0
+    while True:
+        idx = text.find(needle, start)
+        if idx == -1:
+            return
+        yield idx
+        start = idx + len(needle)
+
+
+def test_tailwind_plugin_versions_are_pinned():
+    """Tailwind CDN 的传递插件版本必须显式钉死，不得依赖上游 302 解析。"""
+    offenders = []
+    for path in STATIC_DIR.rglob("*.html"):
+        text = _read(path)
+        if FLOATING_TAILWIND_PLUGIN_URL in text:
+            offenders.append(path.relative_to(REPO_ROOT).as_posix())
+    assert not offenders, "存在未钉死插件版本的 Tailwind CDN 引用: " + str(offenders)
+
+    episode = _read(STATIC_DIR / "episode-pipeline.html")
+    assert PINNED_TAILWIND_PLUGIN_URL in episode, "episode-pipeline.html 必须使用钉死版 URL"
+
+
+def test_tailwind_base_version_is_still_pinned():
+    """所有 Tailwind CDN 引用都必须带不可变版本号（不得出现无版本 URL）。"""
+    offenders = []
+    for path in STATIC_DIR.rglob("*.html"):
+        text = _read(path)
+        for pos in _all_occurrences(text, "https://cdn.tailwindcss.com"):
+            tail = text[pos + len("https://cdn.tailwindcss.com"): pos + len("https://cdn.tailwindcss.com") + 40]
+            if not tail.startswith("/3.4.17"):
+                offenders.append(path.relative_to(REPO_ROOT).as_posix() + " -> " + tail[:32])
+    assert not offenders, "存在未钉死版本的 Tailwind CDN 引用: " + str(offenders)

@@ -1655,3 +1655,187 @@ dict/list/bool、`aud` 为 None/dict/空数组/嵌套数组/含非字符串、`u
 - 前置提交 `3086dfd`（收口文档）远端 CI run `35675279177` 亦为 completed / success。
 - 本地门禁（ce326db 提交前）：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。
 - 边界不变：CI success **不等于** 生产验收、**不等于**第三方独立审计、**不等于**发布授权。
+
+---
+
+## Phase 9T 状态更新（2026-09-22 追加，主代理实测；仅追加不改写历史）
+
+### 一、本轮目标
+
+承接用户 2026-09-21 六项裁决的第 2 项（三块大功能面整体标记「未纳入当前切片」）与
+第 3 项（前端统一「无后端时显式降级」）——核验**页面级**是否真的明说「未接入」。
+
+### 二、新发现的 2 处真实缺陷（主代理真实浏览器实测）
+
+**环境**：真实 `uvicorn`（127.0.0.1:2077，`GW_AUTH_MODE=local`）+ 真实 Chrome（`channel=chrome`，
+headless）+ Playwright；全部 `/api/*` 未实现端点返回 FastAPI 默认 404 `{"detail":"Not Found"}`。
+
+| # | 文件 | 缺陷 | 实测现象（修复前） |
+|---|---|---|---|
+| 1 | `src/gods_workbench/static/js/task-center.js` | `Promise.allSettled` 失败分支未读 `error.code`，一律推「XX 数据暂不可用」 | 提示条 14 条泛化文案，**全页 0 处「未接入」**，`[data-gw-degradation]` = 0 |
+| 2 | `src/gods_workbench/static/js/episode-pipeline.js:1846-1848` | `api(...).catch(() => fallback)` 静默降级到内置演示数据 | 页面 **0 处「未接入」**，`[data-gw-degradation]` = 0，用户无法分辨演示数据 |
+
+两者都违反裁决第 3 项「明说『未接入』，而不是静默坏掉」。既有守卫
+`test_task_center_tracks_load_error_kind` 仅断言字符串存在（`loadErrorKind`/`taskCenterDegradationNotice`/
+`data-gw-degradation`），**未覆盖分项失败路径**，故未捕获缺陷 1。
+
+### 三、修复后实测（真实 Chrome + 真实 HTTP）
+
+| 页面 | 修复后 | `data-gw-degradation` | `page_errors` |
+|---|---|---|---|
+| `/static/task-center.html` | 提示条 14 条**全部**为「… · 该功能尚未接入后端（未纳入当前切片）」 | `not_integrated` | `[]` |
+| `/static/episode-pipeline.html` | `#episodeDegradation` 可见：「该功能尚未接入后端（未纳入当前切片） ×2」（`title` = `/api/prompt-libraries | /api/providers`） | `not_integrated` | `[]` |
+
+全站 16 个页面 sweep 复跑：`page_errors` 全为 0；三块大功能面
+`asset-manager` / `api-settings` / `task-center` 均可见「未纳入当前切片」（本轮修复前 `task-center` 不满足）。
+
+### 四、变异测试（证明新增守卫非恒真）
+
+第一轮变异暴露**2 条恒真守卫**（下标比较式父容器判定、`assert in` 过窄），已按变异结果收紧。
+收紧后三处逐一还原缺陷实现，对应守卫**并全部变红**：
+
+```text
+M1-taskcenter-unclassified   -> EXIT=1  test_task_center_per_item_failure_is_explicitly_degraded FAILED
+M2-episode-silent-catch      -> EXIT=1  test_episode_pipeline_has_no_silent_catch_fallback FAILED
+M3-host-inside-render        -> EXIT=1  test_episode_pipeline_degradation_host_is_outside_render_container FAILED
+```
+
+原始输出：`%TEMP%\gw-p9t-root\reports\MUTATION-P9T.txt`（副本路径 `%TEMP%\gw-p9t-root\mut\`）。
+
+### 五、门禁（本轮亲跑，全部本地）
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider                    -> 275 passed, 7 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene      -> 16 passed
+node --check（全部 tracked *.js）                                        -> 57 / 0 failed
+```
+
+### 六、独立性问题（**如实登记**）
+
+本轮按「任务书写盘 + 极短消息指向路径」方式派发 2 名**只读**核验代理
+（前端 `fetch` 覆盖面审计 / 合规供应链实测复算，任务书 `%TEMP%\gw-p9s-root\briefs\`）。
+**多轮派发均只送达环境上下文、任务正文未送达**（与 Phase 9N §T54、Phase 9O §21.22.3 同类基础设施故障），
+**截至本段登记未取得任何代理结论**。故本 Phase 全部结论均为**主代理同框架内实测**。
+
+> 同框架内实测 **≠** 同一多代理框架内的独立执行主体复核 **≠** 外部第三方独立审计。
+> 第三方审计仍未安排；发布授权仍待审计完成后另议。
+
+### 七、仍未闭环（**不得写 PASS**）
+
+- **180 条未实现端点**未实现任何一条（T65 明确「未实现任何后端端点」）；三块大功能面仍「未纳入当前切片」。
+- `asset-manager` / `api-settings` / `task-center` 之外的页面级降级覆盖**未做穷尽核验**（本轮为抽样 16 页 sweep）。
+- **真实第三方独立审计**未安排；**发布授权**待审计完成。
+- T61（O4/O5/O6）与 T63-发现 3 仍待用户裁决；根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+## Phase 9T 独立审核发现（D 系列）与门禁数字对齐（2026-09-22 追加，仅追加不改写历史）
+
+> 本节仅追加。**独立性声明**：`/root/review_d` 为**同框架只读独立审核代理**（Code Reviewer 角色），
+> 未执行任何 git 写、未改动仓库内文件；按用户既有口径，**同框架复核 != 第三方独立审计**。
+
+### 一、审核方结论与主代理复算
+
+审核方对 Phase 9T 未提交差异给出 **1 处状态缺陷 + 3 处「本轮目标未贯彻到 100%」**；
+主代理**逐条独立复算**后确认 **4 条全部成立**并处置，另 1 条**不成立**、1 条措辞缺陷成立并修正。
+
+| 编号 | 级别 | 结论 | 处置 |
+|---|---|---|---|
+| D1 | 🔴 真实缺陷 | `episode-pipeline.js` 降级清单**从不复位**、`load()` 不隐藏横幅 → 端点接入后仍报「未接入」，与真实状态相反而误导；`task-center.js` 同轮已复位，两模块策略不一致 | 新增 `resetDegradations()`，`load()` 开始时调用 |
+| D2 | 🟡 结构化标记失真 | `task-center.js` 用**全集** kind 给**每条** span 打同一标记（1 条 404 + 其余 503 时全部误标 `not_integrated`）；`episode-pipeline.js` 宿主标记为 **last-wins** | 条目改存 `{text, kind}` 并**逐条**渲染自身 kind；宿主标记改按优先级汇总；守卫同步改为「逐条携带自身 kind」 |
+| D3 | 🟡 残留静默回落 | 单项目查询仍为两级静默 `.catch`（既有守卫漏检） | 改为串行显式降级，可用性不变但失败可见；新增守卫 |
+| D4 | 🟡 文档口径 | 本文件 `275 passed` 与 `TASKS.md` `277 passed` 属不同时间点快照 | 统一登记为**带时间戳的历次快照**，最新值见下 |
+| —（不成立） | — | 审核方疑「横幅在页面底部、需滚动才可见」 | **不成立**：1440×900 实测 `top=617 / bottom=656`、`scrollY=0`、`pageHeight=900`，**首屏可见** |
+| —（措辞） | — | 测试注释指向不存在的 `test_phase9t_*_runtime` 用例 | **成立**：注释已更正为「静态源码守卫 + 主代理单独运行时实测」 |
+
+### 二、D 系列修复的运行时复算（真实 Chrome 151 + 真实 HTTP，路由拦截 `**/api/**`）
+
+| 场景 | 复算结果 | 证据 |
+|---|---|---|
+| D1 复位：全 404 → 同一文档 `data-retry` → 全 200 | 404 时 `hidden=false / attr=not_integrated /「…×3」`；200 后 `hidden=true / attr=null / text=""` | `%TEMP%\gw-p9t-root\reports\D1-RESET-VERIFY.json` |
+| D2 逐条 kind：`/api/asset-registry/projects` 404 + `/api/prompt-libraries` 503 | 两条 span 分别 `not_integrated` / `service_unavailable`，文案各自正确 | `%TEMP%\gw-p9t-root\reports\D1D2-RUNTIME-VERIFY.json` |
+| D3 单查降级：主路径与兼容路径均 404 | 两条 span 各自登记（`error` = `/api/asset-registry/projects/proj-01`、`not_integrated` = `/api/projects/proj-01`） | 同上 JSON |
+
+以上三场景 `page_errors` 均为空数组。
+
+### 三、新增变异复核（主代理亲跑；证明 4 条新守卫非恒真）
+
+副本 `%TEMP%\gw-p9t-root\mut2\`（仓库未被污染），变异后**逐条对应守卫变红**：
+
+```text
+[BASELINE]                                    59 passed
+[M4-no-reset]              exit=1 :: 1 failed  -> test_episode_pipeline_degradation_state_is_reset_on_reload
+[M5-silent-single-catch]   exit=1 :: 1 failed  -> test_episode_pipeline_single_project_lookup_is_not_silent
+[M6-host-lastwins]         exit=1 :: 1 failed  -> test_episode_pipeline_host_marker_is_deterministic
+[M7-tc-pagelevel-kind]     exit=1 :: 1 failed  -> test_task_center_per_item_failure_is_explicitly_degraded
+[RESTORED]                                    59 passed
+```
+
+原始输出：`%TEMP%\gw-p9t-root\reports\MUTATION-P9T-D2.txt`。
+
+### 四、门禁（**带时间戳**；均为本地 Windows）
+
+```text
+[2026-09-22 Phase 9T 初稿]  pytest -> 275 passed, 7 skipped（历史快照，已被下方取代）
+[2026-09-22 Phase 9T + D 系列]  python -m pytest -q --no-header -p no:cacheprovider  -> 280 passed, 7 skipped
+[2026-09-22 Phase 9T + D 系列]  pytest tests/hygiene                                      -> 16 passed
+[2026-09-22 Phase 9T + D 系列]  node --check（全部 tracked *.js）                          -> 57 / 0 failed
+```
+
+> **口径更正（D4）**：此前本节仅登记 `275 passed`、`TASKS.md` 仅登记 `277 passed`，
+> 二者为**不同时间点快照**。同一变更集只允许一个口径，本轮统一为 **280 passed / 7 skipped**
+> （新增 D1/D2/D3 三条守卫：277 → 280）。
+
+### 五、边界（不得外推）
+
+- 以上全部为**本地**证据：**本地通过 != 远端 CI != 生产验收**。
+- `/root/review_d` 为同框架独立审核代理，**不等于第三方独立审计**；T36 / T40 保持**未执行**、
+  发布授权保持**未授权**。
+- 三块大功能面（`asset-manager` / `api-settings` / `task-center`）仍为「**未纳入当前切片**」；
+  180 条未实现端点保持原状，本轮**未实现任何后端端点**。
+- 仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+### 六、第二轮独立复核发现 D5（🔴）与门禁更新（2026-09-22 追加）
+
+- **发现方**：独立审核代理 `/root/review_d` **第二轮**只读复核（对同一变更集做更深的路径追踪），
+  主代理**独立复算确认成立**。
+- **D5 现象**：`episode-pipeline.js::loadPipelines()` 为 `try/catch + console.warn + incoming = []` 的
+  **静默降级**——失败后页面显示「当前项目尚未建立剧集或影片流水线」，被读成「我没有流水线」，
+  而非「后端没接」。第一轮 D1/D2/D3 **漏掉了本页最主要的数据端点** `/api/episode-pipelines`
+  （属 180 条未实现端点，后端无路由）。
+- **附带风险（成立）**：该 `catch` 把任何错误（含 503 瞬时故障）都变成空列表，随后
+  `clearAssetPoll(id, true)` 中止轮询 → 瞬时故障会清空用户进行中的流水线视图。
+- **处置**：改用 `loadWithExplicitFallback('/api/episode-pipelines?...', { pipelines: [] })`；
+  回落值不变，但 404/503 均登记可见降级；新增守卫
+  `test_episode_pipeline_load_pipelines_is_not_silent`（按**函数体**判定，不再只 grep 字面量）。
+
+**运行时复算（真实 Chrome 151 + 真实 HTTP，路由拦截该端点 → 404）**
+
+```text
+横幅 hidden=false / data-gw-degradation=not_integrated / 文案「该功能尚未接入后端（未纳入当前切片） ×3」
+端点明细 title 含 /api/episode-pipelines?project_id=prj-0001
+page_errors = []
+```
+
+证据：`%TEMP%\gw-p9t-root\reports\D5-RUNTIME-VERIFY.json`。
+
+**变异复核（主代理亲跑，副本 `%TEMP%\gw-p9t-root\mut3\`）**
+
+```text
+[M8-silent-loadPipelines] exit=1 :: 1 failed  -> test_episode_pipeline_load_pipelines_is_not_silent
+[RESTORED]                                    60 passed
+```
+
+证据：`%TEMP%\gw-p9t-root\reports\MUTATION-P9T-D5.txt`。
+
+**门禁（本轮亲跑，本地 Windows，含 D5 守卫）**
+
+```text
+python -m pytest -q --no-header -p no:cacheprovider   -> 281 passed, 7 skipped
+python -m pytest -q --no-header -p no:cacheprovider tests/hygiene  -> 16 passed
+node --check（全部 tracked *.js）                      -> 57 / 0 failed
+```
+
+> **过程反思（如实登记）**：D5 由**第二轮**复核才发现，说明第一轮收口口径偏窄——只覆盖了
+> 「`.catch(() => fallback)`」一种静默模式，未覆盖 `try/catch + console.warn + 置空` 这一同源反模式。
+> 守卫已补强为按**函数体**判定。这同时说明：**同框架复核也确有增量价值，但依然不等于第三方独立审计**。
+
+**边界**：均为**本地**证据；**本地通过 != 远端 CI != 生产验收**；三块大功能面仍「未纳入当前切片」；
+180 条未实现端点保持原状；仓库仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**；T36 / T40 未执行。

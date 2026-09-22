@@ -1824,3 +1824,26 @@ body.is-video-step {
   background: rgba(251, 191, 36, 0.12);
   border-color: #fbbf24;
 }
+
+/* ===== 显式降级：未接入后端时的可见提示（Phase 9T） =====
+   背景（用户 2026-09-21 裁决第 3 项）：本页 `/api/prompt-libraries`、`/api/providers` 等
+   后端端点尚未纳入当前切片，原实现静默回落到内置演示数据；此处提供可见的降级清单容器样式。
+   证据边界：仅为样式与可见性，不改变任何数据语义。 */
+.episode-degradation{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:0 0 12px;
+  padding:8px 10px;
+  border:1px solid rgba(245,158,11,.32);
+  border-radius:10px;
+  background:rgba(245,158,11,.06);
+}
+.episode-degradation[hidden]{display:none;}
+.episode-degradation span{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:10px;
+  letter-spacing:.02em;
+  color:#fcd34d;
+}
+.episode-degradation span[data-gw-degradation="not_integrated"]{color:#cbd5e1;}

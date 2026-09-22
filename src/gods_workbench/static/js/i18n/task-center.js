@@ -138,6 +138,7 @@
     "taskCenter.event.runtime": { zh: "运行事件", en: "Runtime event" },
     "taskCenter.observabilitySource": { zh: "观测来源", en: "Observability source" },
     "taskCenter.queryUnavailable": { zh: "观测查询不可用", en: "Observability query unavailable" },
+    "taskCenter.serviceUnavailable": { zh: "后端服务暂时不可用，请稍后重试", en: "Backend service is temporarily unavailable; please retry later." },
     "taskCenter.overviewUnavailable": { zh: "总览数据暂不可用", en: "Overview data is unavailable" },
     "taskCenter.seriesUnavailable": { zh: "指标序列暂不可用", en: "Metric series is unavailable" },
     "taskCenter.eventsUnavailable": { zh: "事件数据暂不可用", en: "Event data is unavailable" },

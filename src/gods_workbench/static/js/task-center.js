@@ -64,7 +64,7 @@
     level: initial.get('level') === 'warning' ? 'warn' : (initial.get('level') || 'all'), status: initial.get('status') || 'all', logStatus: initial.get('status') || 'all', stableId: initial.get('stable_id') || initial.get('asset_id') || (deepLink?.type === 'asset' ? deepLink.id : ''),
     projectId: initial.get('project_id') || '', entityId: initial.get('entity_id') || '', assetId: initial.get('asset_id') || '', canvasId: initial.get('canvas_id') || '', jobId: initial.get('job_id') || (deepLink?.type === 'task' ? deepLink.id : ''),
     eventId: initial.get('event_id') || (deepLink?.type === 'event' ? deepLink.id : ''), overview: {}, tasks: [], stalledTasks: [], events: [], series: {}, health: [], sources: [], assetVolumes: [], longTasks: [], eventWindow: null, taskWindow: null,
-    nextCursor: '', hasMore: false, taskNextCursor: '', taskHasMore: false, assetVolumeNextCursor: '', assetVolumeHasMore: false, assetVolumeLoading: false, assetVolumeError: '', longTaskLoading: false, longTasksError: '', stalledTasksError: '', stalledTasksDataStatus: 'ok', loading: false, loadError: '', loadErrorKind: '', degraded: [], permissionDenied: false, summaryOnly: false, role: '', lastUpdated: '', detail: null,
+    nextCursor: '', hasMore: false, taskNextCursor: '', taskHasMore: false, assetVolumeNextCursor: '', assetVolumeHasMore: false, assetVolumeLoading: false, assetVolumeError: '', longTaskLoading: false, longTasksError: '', stalledTasksError: '', stalledTasksDataStatus: 'ok', loading: false, loadError: '', loadErrorKind: '', degraded: [], degradedKinds: [], permissionDenied: false, summaryOnly: false, role: '', lastUpdated: '', detail: null,
     detailActions: {}, detailActionReasons: {}, selectedJobId: '', detailTrigger: null, detailLoading: false, detailError: '', pendingAction: '', actionBusy: '',
     deepLinkPending: Boolean(initial.get('job_id') || initial.get('event_id') || deepLink), toastTimer: 0,
   };
@@ -588,7 +588,7 @@
   function noteDataStatus(data, label) {
     if (data?.data_status !== 'degraded') return;
     if (Array.isArray(data.degraded_sources) && data.degraded_sources.includes('permission') && state.role === 'reviewer') state.summaryOnly = true;
-    state.degraded.push(`${label} · ${tr('taskCenter.degradedData')}`);
+    pushDegraded(`${label} · ${tr('taskCenter.degradedData')}`, '');
   }
 
   function renderStatus(status) {
@@ -597,6 +597,29 @@
   }
 
   // 统一显式降级（裁决第 3 项）：命中 NOT_INTEGRATED 时明说「未接入」，而非泛泛「查询不可用」。
+  // 分项降级（裁决第 3 项，Phase 9T）：Promise.allSettled 的**每条**失败都必须区分
+  // 「未接入（404/501，未纳入当前切片）」与「服务暂时不可用（503）」，不得退回泛泛的
+  // 「XX 数据暂不可用」——后者会在后端未实现时被误读为「后端存在但暂时取不到」。
+  const NOT_INTEGRATED_LABEL = '该功能尚未接入后端（未纳入当前切片）';
+  function degradeLabel(reason, label) {
+    const code = reason && reason.code;
+    if (code === 'NOT_INTEGRATED') return label + ' · ' + NOT_INTEGRATED_LABEL;
+    if (code === 'SERVICE_UNAVAILABLE') return label + ' · ' + tr('taskCenter.serviceUnavailable');
+    return label;
+  }
+  function degradeKind(reason) {
+    const code = reason && reason.code;
+    if (code === 'NOT_INTEGRATED') return 'not_integrated';
+    if (code === 'SERVICE_UNAVAILABLE') return 'service_unavailable';
+    return '';
+  }
+  // 分项降级登记（审核发现 D2）：每条降级记录携带**自身** kind，
+  // 不得在渲染时用全屏汇总标记，否则一页混装 404 与 503 时全部被标成 not_integrated。
+  function pushDegraded(text, kind) {
+    const normalized = kind || '';
+    state.degraded.push({ text: String(text), kind: normalized });
+    if (normalized) state.degradedKinds.push(normalized);
+  }
   function taskCenterDegradationNotice(error) {
     state.loadErrorKind = error && error.code === 'NOT_INTEGRATED' ? 'not_integrated'
       : (error && error.code === 'SERVICE_UNAVAILABLE' ? 'service_unavailable' : 'error');
@@ -610,7 +633,14 @@
     if (state.permissionDenied) parts.push(`<strong>${esc(tr('taskCenter.permissionDenied'))}</strong>`);
     if (state.summaryOnly) parts.push(`<span class="notice-degraded"><i data-lucide="eye" aria-hidden="true"></i>${esc(tr('taskCenter.summaryOnly'))}</span>`);
     if (state.loadError) parts.push(`<strong data-gw-degradation="${esc(state.loadErrorKind || 'error')}">${esc(state.loadError)}</strong>`);
-    state.degraded.forEach(item => parts.push(`<span class="notice-degraded"><i data-lucide="triangle-alert" aria-hidden="true"></i>${esc(item)}</span>`));
+    // 页面级兜底标记（仅用于未携带自身 kind 的历史条目，如 data_status=degraded 的后端自报降级）。
+    const fallbackKind = state.degradedKinds.includes('not_integrated') ? 'not_integrated'
+      : (state.degradedKinds.includes('service_unavailable') ? 'service_unavailable' : 'degraded');
+    state.degraded.forEach(item => {
+      const kind = (item && item.kind) || fallbackKind;
+      const text = item && typeof item === 'object' ? item.text : item;
+      parts.push(`<span class="notice-degraded" data-gw-degradation="${esc(kind)}"><i data-lucide="triangle-alert" aria-hidden="true"></i>${esc(text)}</span>`);
+    });
     notice.innerHTML = parts.length ? parts.join('') : '';
     notice.classList.toggle('visible', parts.length > 0);
     if (window.lucide?.createIcons) window.lucide.createIcons({attrs: {'aria-hidden': 'true'}});
@@ -1071,10 +1101,10 @@
 
   async function load() {
     if (state.loading || !acquireDataRequest('refresh')) return;
-    state.loading = true; state.assetVolumeLoading = true; state.longTaskLoading = true; state.loadError = ''; state.loadErrorKind = ''; state.assetVolumeError = ''; state.longTasksError = ''; state.stalledTasksError = ''; state.stalledTasksDataStatus = 'ok'; state.stalledTasks = []; state.assetVolumes = []; state.assetVolumeNextCursor = ''; state.assetVolumeHasMore = false; state.eventWindow = null; state.taskWindow = null; state.degraded = []; state.permissionDenied = false; state.summaryOnly = state.role === 'reviewer'; render();
+    state.loading = true; state.assetVolumeLoading = true; state.longTaskLoading = true; state.loadError = ''; state.loadErrorKind = ''; state.assetVolumeError = ''; state.longTasksError = ''; state.stalledTasksError = ''; state.stalledTasksDataStatus = 'ok'; state.stalledTasks = []; state.assetVolumes = []; state.assetVolumeNextCursor = ''; state.assetVolumeHasMore = false; state.eventWindow = null; state.taskWindow = null; state.degraded = []; state.degradedKinds = []; state.permissionDenied = false; state.summaryOnly = state.role === 'reviewer'; render();
     const eventQuery = observationQuery(state.eventId ? {limit: 1, event_id: state.eventId} : {limit: 50}, 'events'); const taskQuery = observationQuery(state.jobId ? {limit: 1, job_id: state.jobId} : {limit: 50}, 'tasks'); const assetVolumeQueryString = assetVolumeQuery(); const longRunningQuery = observationQuery({range: 'all', limit: '50', status: 'running', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const longQueuedQuery = observationQuery({range: 'all', limit: '50', status: 'queued', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const longSucceededQuery = observationQuery({range: 'all', limit: '50', status: 'succeeded', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const longFailedQuery = observationQuery({range: 'all', limit: '50', status: 'failed', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const longCanceledQuery = observationQuery({range: 'all', limit: '50', status: 'canceled', job_type: LONG_TASK_JOB_TYPES}, 'tasks'); const stalledQueuedQuery = observationQuery({range: 'all', limit: '100', stall_classification: ['queued', 'historical']}, 'tasks'); const stalledRecoveringQuery = observationQuery({range: 'all', limit: '100', stall_classification: ['recovering', 'historical']}, 'tasks');
     [longRunningQuery, longQueuedQuery, longSucceededQuery, longFailedQuery, longCanceledQuery].forEach(query => ['stable_id', 'project_id', 'entity_id', 'asset_id', 'canvas_id', 'job_id'].forEach(key => query.delete(key)));
-    const failed = (result, label) => { if (result.status === 'rejected') { if (isPermissionError(result.reason)) { if (['reviewer', 'editor'].includes(String(state.role || ''))) { if (state.role === 'reviewer') state.summaryOnly = true; const notice = state.role === 'reviewer' ? tr('taskCenter.summaryOnly') : tr('taskCenter.degradedData'); state.degraded.push(`${label} · ${notice}`); } else state.permissionDenied = true; } else state.degraded.push(label); } };
+    const failed = (result, label) => { if (result.status === 'rejected') { const itemKind = degradeKind(result.reason); if (itemKind) { pushDegraded(degradeLabel(result.reason, label), itemKind); } else if (isPermissionError(result.reason)) { if (['reviewer', 'editor'].includes(String(state.role || ''))) { if (state.role === 'reviewer') state.summaryOnly = true; const notice = state.role === 'reviewer' ? tr('taskCenter.summaryOnly') : tr('taskCenter.degradedData'); pushDegraded(`${label} · ${notice}`, ''); } else state.permissionDenied = true; } else pushDegraded(degradeLabel(result.reason, label), ''); } };
     try {
       const results = await Promise.allSettled([api(`${ENDPOINTS.overview}?${observationQuery()}`), api(`${ENDPOINTS.series}?${observationQuery({metrics: 'asset_response_bytes,asset_search_duration_ms'})}`), api(`${ENDPOINTS.events}?${eventQuery}`), api(`${ENDPOINTS.tasks}?${taskQuery}`), api(`${ENDPOINTS.health}?${observationQuery()}`), api(`${ENDPOINTS.sources}?${observationQuery()}`), api(`${ENDPOINTS.assetVolumes}?${assetVolumeQueryString}`), api(`${ENDPOINTS.tasks}?${longRunningQuery}`), api(`${ENDPOINTS.tasks}?${longQueuedQuery}`), api(`${ENDPOINTS.tasks}?${longSucceededQuery}`), api(`${ENDPOINTS.tasks}?${longFailedQuery}`), api(`${ENDPOINTS.tasks}?${longCanceledQuery}`), api(`${ENDPOINTS.tasks}?${stalledQueuedQuery}`), api(`${ENDPOINTS.tasks}?${stalledRecoveringQuery}`)]);
       const [overview, series, events, tasks, health, sources, assetVolumes, longRunning, longQueued, longSucceeded, longFailed, longCanceled, stalledQueued, stalledRecovering] = results;
@@ -1118,8 +1148,8 @@
         state.stalledTasksDataStatus = 'unavailable';
         state.stalledTasksError = 'unavailable';
       }
-      if (health.status === 'fulfilled') { state.health = firstArray(health.value, ['health', 'items', 'checks', 'data']); if (health.value.status === 'degraded') state.degraded.push(`${tr('taskCenter.healthUnavailable')} · ${tr('taskCenter.degradedData')}`); } else failed(health, tr('taskCenter.healthUnavailable'));
-      if (sources.status === 'fulfilled') { updateSources(sources.value); if (firstArray(sources.value, ['sources', 'items']).some(item => item.status === 'degraded')) state.degraded.push(`${tr('taskCenter.sourcesUnavailable')} · ${tr('taskCenter.degradedData')}`); } else failed(sources, tr('taskCenter.sourcesUnavailable'));
+      if (health.status === 'fulfilled') { state.health = firstArray(health.value, ['health', 'items', 'checks', 'data']); if (health.value.status === 'degraded') pushDegraded(`${tr('taskCenter.healthUnavailable')} · ${tr('taskCenter.degradedData')}`, ''); } else failed(health, tr('taskCenter.healthUnavailable'));
+      if (sources.status === 'fulfilled') { updateSources(sources.value); if (firstArray(sources.value, ['sources', 'items']).some(item => item.status === 'degraded')) pushDegraded(`${tr('taskCenter.sourcesUnavailable')} · ${tr('taskCenter.degradedData')}`, ''); } else failed(sources, tr('taskCenter.sourcesUnavailable'));
       if (assetVolumes.status === 'fulfilled') {
         state.assetVolumes = firstArray(assetVolumes.value, ['items', 'assets', 'data']).map(assetVolumeRecord).filter(item => item.asset_type);
         state.assetVolumeNextCursor = cleanId(assetVolumes.value.next_cursor || assetVolumes.value.cursor?.next || assetVolumes.value.meta?.next_cursor);

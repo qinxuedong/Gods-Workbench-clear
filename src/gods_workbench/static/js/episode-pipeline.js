@@ -1838,14 +1838,68 @@
     ]
   };
 
+  // 显式降级（用户 2026-09-21 裁决第 3 项 / Phase 9T）：本页原有的 `.catch(() => fallback)`
+  // 是**静默降级**——后端未接入（404/501）时静默回落到内置演示数据，UI 上不说明来源，
+  // 容易被读成真实数据。此处改为：仍保留可用回落（不破坏页面可用性），但把「未接入」
+  // 写进页面可见的降级清单，并打 data-gw-degradation="not_integrated" 标记。
+  const episodeDegradations = [];
+  function recordDegradation(url, code) {
+    const kind = code === 'NOT_INTEGRATED' ? 'not_integrated'
+      : (code === 'SERVICE_UNAVAILABLE' ? 'service_unavailable' : 'error');
+    if (!episodeDegradations.some(item => item.url === url && item.kind === kind)) {
+      episodeDegradations.push({ url: String(url), kind });
+    }
+    const host = q('#episodeDegradation');
+    if (!host) return;
+    host.hidden = false;
+    // 按 kind 归并，避免同一条文案重复堆叠；端点明细放进 title 便于核对。
+    const groups = new Map();
+    episodeDegradations.forEach(item => {
+      const g = groups.get(item.kind) || { kind: item.kind, urls: [] };
+      g.urls.push(item.url);
+      groups.set(item.kind, g);
+    });
+    // 宿主元素上的单一标记按优先级汇总（未接入 > 服务不可用 > 其他），
+    // 不使用「最后一次写入获胜」，否则同一页多个端点失败时标记不确定（审核发现 D2 同类问题）。
+    host.dataset.gwDegradation = episodeDegradations.some(i => i.kind === 'not_integrated') ? 'not_integrated'
+      : (episodeDegradations.some(i => i.kind === 'service_unavailable') ? 'service_unavailable' : 'error');
+    host.innerHTML = [...groups.values()].map(group => {
+      const text = group.kind === 'not_integrated' ? '该功能尚未接入后端（未纳入当前切片）'
+        : (group.kind === 'service_unavailable' ? '后端服务暂时不可用，请稍后重试' : '后端请求失败');
+      const suffix = group.urls.length > 1 ? ' ×' + group.urls.length : '';
+      return `<span data-gw-degradation="${group.kind}" title="${esc(group.urls.join('\n'))}">${esc(text + suffix)}</span>`;
+    }).join('');
+    if (window.lucide?.createIcons) window.lucide.createIcons({attrs: {'aria-hidden': 'true'}});
+  }
+  // 重置本轮降级状态（审核发现 D1）：由 load() 在每次重新读取前调用。
+  function resetDegradations() {
+    episodeDegradations.length = 0;
+    const host = q('#episodeDegradation');
+    if (!host) return;
+    host.hidden = true;
+    host.removeAttribute('data-gw-degradation');
+    host.textContent = '';
+  }
+  async function loadWithExplicitFallback(url, fallback) {
+    try {
+      return await api(url);
+    } catch (error) {
+      recordDegradation(url, error && error.code);
+      return fallback;
+    }
+  }
+
   async function load() {
     state.busy = true;
+    // 每次重新读取都清空上一轮的降级清单：否则端点接入后用户点「重新读取」，
+    // 陈旧横幅仍会显示「该功能尚未接入后端」，与真实状态相反地误导（审核发现 D1）。
+    resetDegradations();
     q('#episodePipeline').innerHTML = '<div class="episode-loading panel">正在读取项目、提示词和模型配置…</div>';
     try {
       const [projects, libraries, providers] = await Promise.all([
-        api('/api/asset-registry/projects?archived=false').catch(() => ({ projects: DEMO_PROJECTS_FALLBACK })),
-        api('/api/prompt-libraries').catch(() => ({ libraries: [{ id: 'episode', name: '系统剧集提示词库', items: [] }] })),
-        api('/api/providers').catch(() => ({ providers: [] })),
+        loadWithExplicitFallback('/api/asset-registry/projects?archived=false', { projects: DEMO_PROJECTS_FALLBACK }),
+        loadWithExplicitFallback('/api/prompt-libraries', { libraries: [{ id: 'episode', name: '系统剧集提示词库', items: [] }] }),
+        loadWithExplicitFallback('/api/providers', { providers: [] }),
       ]);
       // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml，
 // 黄金夹具 docs/fixtures/projects-hub-list-active.json 不含 id 字段）；此处归一化为内部 id，
@@ -1858,7 +1912,15 @@ state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
       if (state.projectId && !state.projects.some(item => item.id === state.projectId)) {
         // 尝试单项目查询，若存在则加入 state.projects；绝不强制重置为 proj-01
         try {
-          const singleP = await api(`/api/asset-registry/projects/${encodeURIComponent(state.projectId)}`).catch(() => api(`/api/projects/${encodeURIComponent(state.projectId)}`)).catch(() => null);
+          // 审核发现 D3：此处原为两级静默 .catch，404/503 不登记降级；改为**串行**显式降级：
+          // 主路径失败先登记再退回兼容路径，兼容路径失败同样登记，最终仍可退到 null（可用性不变）。
+          let singleP = null;
+          try {
+            singleP = await api(`/api/asset-registry/projects/${encodeURIComponent(state.projectId)}`);
+          } catch (primaryError) {
+            recordDegradation(`/api/asset-registry/projects/${encodeURIComponent(state.projectId)}`, primaryError && primaryError.code);
+            singleP = await loadWithExplicitFallback(`/api/projects/${encodeURIComponent(state.projectId)}`, null);
+          }
           const pObj = singleP?.project || singleP;
           const pObjId = pObj && (pObj.id || pObj.project_id);
           if (pObjId) {
@@ -2041,14 +2103,12 @@ state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
 
   async function loadPipelines() {
     if (!state.projectId) state.projectId = 'proj-01';
-    let incoming = [];
-    try {
-      const data = await api(`/api/episode-pipelines?project_id=${encodeURIComponent(state.projectId)}`);
-      incoming = data.pipelines || [];
-    } catch (e) {
-      console.warn('获取项目流水线列表失败:', e);
-      incoming = [];
-    }
+    // 显式降级（审核发现 D5 / 承接 D3）：此处原为 `try/catch` + `console.warn` 的**静默降级**，
+    // 失败后把 incoming 置空，UI 会显示「尚未建立剧集或影片流水线」——读者会理解成
+    // 「我没有流水线」，而不是「后端没接」。`/api/episode-pipelines` 属 180 条未实现端点
+    // （P8-A1 缺口报告 §2.3），必须登记可见降级；回落值仍为空数组，可用性不变。
+    const data = await loadWithExplicitFallback(`/api/episode-pipelines?project_id=${encodeURIComponent(state.projectId)}`, { pipelines: [] });
+    const incoming = data.pipelines || [];
     const activeIds = new Set(incoming.map(item => item.pipeline_id));
     Object.keys(state.assetRuns).forEach(id => {
       if (!activeIds.has(id)) clearAssetPoll(id, true);

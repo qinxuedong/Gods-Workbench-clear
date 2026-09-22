@@ -202,3 +202,79 @@ curl.exe -sS -o NUL -w "%{http_code}\n" "https://raw.githubusercontent.com/googl
 - **未**创建根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`；**未**发布。
 - **未**解决 Tailwind SRI（上游 CORS 限制）。
 - **未**闭环字体上游匹配（本地 1.004 vs 上游 2.005R，见 `VENDOR-UPSTREAM-MATCH-AUDIT-2026-09-21.md` §4）。
+
+---
+
+## 10. Phase 9T 追加实测：Tailwind 插件版本已钉死（2026-09-22）
+
+### 10.1 实测（主代理亲跑，真实网络，Windows PowerShell）
+
+| URL | 状态码 | 字节数 | SHA-256 |
+|---|---|---|---|
+| `https://cdn.tailwindcss.com/3.4.17` | 200 | 407,279 | `176E894661AA9CDC9A5CBA6C720044CBBF7B8BD80D1C9A142A7C24B1B6C50D15` |
+| `https://cdn.tailwindcss.com/3.4.17?plugins=forms,container-queries` | **302** | — | Location: `/3.4.17?plugins=forms@0.5.10,container-queries@0.1.1` |
+| `https://cdn.tailwindcss.com/3.4.17?plugins=forms@0.5.10,container-queries@0.1.1` | 200 | **418,973** | `A789CE5A73191759006B64A0C05F63AFBF9AA43A86511BF798D688737429E60A` |
+
+浏览器侧复算（真实 Chrome + 真实 HTTP，`/static/episode-pipeline.html`）：
+加载序列为 `302` → `200`（重定向后），`typeof window.tailwind === "object"`（脚本正常生效）。
+
+### 10.2 处置（本地可闭环部分，已执行）
+
+- `src/gods_workbench/static/episode-pipeline.html:17` 的引用由
+  `?plugins=forms,container-queries`（浮动，依赖上游 302 解析）
+  改为 **`?plugins=forms@0.5.10,container-queries@0.1.1`**（显式钉死传递插件版本）。
+- 新增静态守卫 `tests/contracts/test_phase9_frontend_degradation.py`：
+  `test_tailwind_plugin_versions_are_pinned`（禁止未钉死插件版本，并强制 episode-pipeline 使用钉死版）、
+  `test_tailwind_base_version_is_still_pinned`（所有 `cdn.tailwindcss.com` 引用必须带 `/3.4.17`）。
+- 变异测试：把 URL 改回未钉死形式、并把 `v2/index.html` 改成无版本形式 →
+  上述两条守卫**同时变红**（原始输出 `%TEMP%\gw-p9t-root\reports\MUTATION-P9T-TAILWIND.txt`）。
+
+### 10.3 仍未闭环（不得写 PASS）
+
+- **上游无 `Access-Control-Allow-Origin`**，故 SRI/`integrity` **仍不可启用**（§5 结论未变）；
+  本次钉死仅消除**302 间接跳转与插件版本浮动**，不解决完整性校验缺口。
+- Tailwind Play CDN 的**传递组件版本仍不可完全恢复**：正式分发前仍需构建
+  metafile / lockfile / SBOM（`src/gods_workbench/static/vendor/MANIFEST.md` 中
+  `js/tailwindcss-cdn.js` 条目状态**仍为 `BLOCKED`**）。
+- 自托管替代路径（台账 §5 建议①②③）**仍需用户裁决**：`AGENTS.md` §1.2 与 §2.1
+  明确写「样式使用 Tailwind CDN」「视觉系统……与 Tailwind CSS CDN」，
+  自托管属**宪章变更**，须用户明确授权后方可执行；本轮**未改动 `AGENTS.md`**。
+- 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立（`AGENTS.md` §1.4 禁止未经审计添加）。
+---
+
+## 11. 主代理独立复算（2026-09-22，只读；**同框架自审**，非第三方审计）
+
+> 子代理通道本轮失效（3 次派发只送达环境上下文），故由主代理直接复算。
+> 结论**不构成**独立审核；所有请求均为只读 GET。
+
+### 11.1 Tailwind Play CDN（禁跟随重定向，取原始状态码）
+
+| URL | 原始状态 | Location / 字节 | SHA-256 | ACAO |
+|---|---|---|---|---|
+| `https://cdn.tailwindcss.com/3.4.17` | **200** | 407,279 B | `176E894661AA9CDC9A5CBA6C720044CBBF7B8BD80D1C9A142A7C24B1B6C50D15` | 无 |
+| `...?plugins=forms,container-queries` | **302** | `Location: /3.4.17?plugins=forms@0.5.10,container-queries@0.1.1` | — | 无 |
+| `...?plugins=forms@0.5.10,container-queries@0.1.1` | **200** | 418,973 B | `A789CE5A73191759006B64A0C05F63AFBF9AA43A86511BF798D688737429E60A` | 无 |
+
+**复算结论**：与 §10 记录**逐字一致**；未钉死版本确实经 **302** 间接跳转，钉死后为单跳 200。
+**上游始终不返回 `Access-Control-Allow-Origin`** → `integrity`/SRI 仍不可启用（§5 结论未变）。
+证据：`%TEMP%\gw-p9t-root\reports\TAILWIND-PROBE.json`、`NO-REDIRECT-PROBE.json`。
+
+### 11.2 其余台账项复算
+
+| 项 | 实测 | 台账 | 判定 |
+|---|---|---|---|
+| Google Fonts 许可入口 `https://fonts.google.com/license` | **404** | 台账称 404 | 一致 |
+| Material Symbols 上游 LICENSE（GitHub） | **200** | 台账称改用上游仓库正文 | 一致 |
+| prompt-registry `sources/*.json` | **6 个文件 / 1,230 条** | 台账称 6 来源 / 约 1230 条 | 一致 |
+| prompt-registry 许可分布 | **4×MIT + 2×CC-BY-4.0** | 台账同 | 一致 |
+| `vendor/MANIFEST.md` 中 `js/tailwindcss-cdn.js` | 条目存在、状态仍含 **`BLOCKED`** | 台账同 | 一致 |
+| 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` | `git ls-files` **空输出** | 台账称未建立 | 一致 |
+
+证据：`%TEMP%\gw-p9t-root\reports\SUPPLY-COUNT.json`。
+
+### 11.3 仍未闭环（口径不变）
+
+- SRI/`integrity`：**上游限制**（无 ACAO），本仓无法本地闭环。
+- Tailwind Play CDN 传递组件版本**不可完全恢复**；`js/tailwindcss-cdn.js` 仍 **`BLOCKED`**。
+- 自托管替代路径属**宪章变更**（`AGENTS.md` §1.2/§2.1 明写使用 CDN），**需用户裁决**；本轮未改 `AGENTS.md`。
+- 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` 仍未建立（§1.4 禁止未审计添加），需发布授权后处理。
