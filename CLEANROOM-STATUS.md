@@ -1646,3 +1646,12 @@ dict/list/bool、`aud` 为 None/dict/空数组/嵌套数组/含非字符串、`u
   当时的收口文档尚未提交，属「结论先行于证据」；已由 `3086dfd` 提交并独立读回 CI 解决。
 
 门禁（本轮修复后）：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。
+
+### 七、复审修复提交与远端 CI 读回（2026-09-22 追加）
+
+- 复审修复提交 `ce326db`（`_numeric_date` 键存在性判定对齐 + 审核发现登记）已推送 `origin/master`。
+- 远端 CI run `35675706075` 读回：`headSha = ce326db3...`、`status = completed`、`conclusion = success`；
+  作业 `Python 3.11 tests and hygiene` = completed / success。
+- 前置提交 `3086dfd`（收口文档）远端 CI run `35675279177` 亦为 completed / success。
+- 本地门禁（ce326db 提交前）：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。
+- 边界不变：CI success **不等于** 生产验收、**不等于**第三方独立审计、**不等于**发布授权。

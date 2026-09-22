@@ -625,3 +625,11 @@
   - **发现 4（已处置，证据口径）**：审核指出本轮首份 CI 读回证据（`35674340969` / `c347e97`）
     对应的是「源码 + 旧版文档」，此时收口文档尚未提交；该问题已由 `3086dfd` 提交 + 独立 CI 读回解决。
   - 门禁：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。
+
+- [x] T64 Phase 9S 全域残留扫描：`is None` 式「键存在性」误判（2026-09-22）。
+  - 方法：`git grep -n "is None" -- src/gods_workbench` 全量列出 16 处命中并逐条人工判读（含 2 处为本次修复注释）。
+  - 结论：**无残留同类反模式**。其余命中均为对象/字典取值判空（如 `flow is None`、`session is None`、
+    `os.environ.get(...) is None`），语义上「值为 None 即视为不存在」正确，不属 claims 键存在性问题。
+  - `core/oidc.py` 内所有 claims 取值点已复核：`nonce`/`iss`/`aud`/`azp`/`sub`/`groups` 及 `_numeric_date`（exp/nbf/iat）
+    均已按「存在性」或显式类型校验处理，无静默放行路径。
+  - 门禁：`pytest` 270 passed / 7 skipped；`tests/hygiene` 16 passed。
