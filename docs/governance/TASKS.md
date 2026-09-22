@@ -799,3 +799,41 @@
   - 全部文件明确标记 `DRAFT / NOT FROZEN`，不得替代 `docs/contracts/`、`docs/fixtures/`，不得作为后端实现授权。
   - 待用户/架构审核确认字段、状态码、CAS 粒度、命名和错误语义后，才能正式冻结并实现。
 
+- [x] T74 Phase 10A 素材库最小闭环（2026-09-22，承接 T72/T73 的契约阻塞）。
+  冻结契约 `docs/contracts/ASSET-LIBRARY-INTERFACE-CATALOG.yaml`（`p10a-frozen-1`），
+  逐条收口原草案待确认项：`category_id` 口径 / 创建 201 / 库级 CAS 粒度 /
+  重名 409（trim + 大小写不敏感）/ 空库 `libraries: []` 不得伪造 / 版本递增规则。
+  实现 `src/gods_workbench/asset_library/`（models+service）与
+  `src/gods_workbench/api/routes_asset_library.py`，仅 3 个端点：
+  `GET /api/asset-library`、`POST /api/asset-library/libraries`、`POST /api/asset-library/categories`。
+  新增 6 个黄金夹具并登记清单（9 -> 15）；新增契约测试 14 条 + 夹具测试 5 条。
+  **未获契约的素材库端点由测试显式守卫其保持 404**（反向断言）。
+  变异测试 4/4 被守卫捕获（去 CAS / 去重名守卫 / 伪造演示库 / 降级写权限）。
+  门禁（本地）：`pytest` **301 passed / 7 skipped**；`tests/hygiene` **16 passed**。
+  提交 `aff8f2de5c904997143d57fe67a2e5079eddba3c`；远端 CI run `35706164022`
+  -> `conclusion=success`、`headSha` 与 HEAD 逐字一致。
+  **边界**：内存存储、重启即失、多 worker 不共享；本地证据 ≠ 生产验收；发布授权仍未完成。
+
+- [x] T75 独立复核通道修复 + T66 收口（2026-09-22，用户要求「审核代理人在最终成果完成前核实」）。
+  **根因**：此前 Phase 9N/9O/9T 的子代理通道失效，实为 **Orca runtime 未运行**
+  （`orca status` -> `runtimeReachable: false`），并非任务正文不可送达。
+  **修复**：以 headless 方式启动 Orca runtime（`orca serve`），
+  改用 `orca orchestration worker-start/dispatch/check` 结构化通道派发只读核验代理。
+  **实测**：探针代理成功回传（确认 `HANDOFF-8.md` 存在、16478 字节）；
+  R1 治理复算代理独立完成全量数字复算并回传结论。
+  **R1 独立复算结论（与主代理基线逐字一致）**：`git ls-files`=323、
+  前端去重 `/api` 引用=189、后端唯一路由路径=21、交集=15、缺口=174、
+  禁用二进制命中 3 条且全部为白名单思源黑体、token 级同形字守卫 0 违规。
+  **R1 同时证伪了文档口径**：`TASKS.md` / `CLEANROOM-STATUS.md` 记载的
+  tracked「现值 293/275/269」已过期（293 对应 `714414a`、275 对应 `6c8ca98`、
+  269 对应 `9808bab`），tracked 数随提交漂移，**必须以 commit 为锚**；
+  本条按「追加更正、不改写历史行」处理。
+  **边界**：`orca` 同名子代理属同框架核验，**不等于**第三方独立审计（T36/T40 仍未闭环）。
+
+- [ ] T76 Phase 10B 观测阶段（**进行中**，2026-09-22，承接 T26 顺序第 2 阶段）。
+  范围：`GET /api/observability` 及其 `overview`、`series`、`events`、`tasks`、
+  `health`、`sources`、`asset-volumes` 共 8 个端点。
+  硬性约束：**零伪造数据**（无真实来源一律返回空 + `data_status=not_integrated`）、
+  稳定 ID、401/只读放行、真实解析查询参数与分页、禁止实现其它未授权端点。
+  交付：冻结契约 + `observability/` 领域模块 + 路由 + 黄金夹具 + 契约测试 + 缺口基线更新。
+  状态：已派发实现代理；完成后须经独立复核再进行提交与远端 CI 读回。
