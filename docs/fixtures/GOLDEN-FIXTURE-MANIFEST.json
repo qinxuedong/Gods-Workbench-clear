@@ -137,6 +137,36 @@
       "file": "prompt-library-not-empty-409.json",
       "kind": "api-response",
       "purpose": "提示词库非空删除冲突错误样本（LIBRARY_NOT_EMPTY，禁止静默级联删除）"
+    },
+    {
+      "id": "settings-providers-empty-v1",
+      "file": "settings-providers-empty.json",
+      "kind": "api-response",
+      "purpose": "设置页 providers 默认空列表样本（不得预置任何厂商条目）"
+    },
+    {
+      "id": "settings-storage-unconfigured-v1",
+      "file": "settings-storage-unconfigured.json",
+      "kind": "api-response",
+      "purpose": "设置页存储设置未配置样本（configured=false，不得伪造根目录）"
+    },
+    {
+      "id": "settings-storage-conflict-409-v1",
+      "file": "settings-storage-conflict-409.json",
+      "kind": "api-response",
+      "purpose": "设置页存储设置 CAS 冲突错误样本"
+    },
+    {
+      "id": "settings-provider-probe-not-integrated-v1",
+      "file": "settings-provider-probe-not-integrated.json",
+      "kind": "api-response",
+      "purpose": "设置页探测端点未接入错误样本（503 PROVIDER_PROBE_NOT_INTEGRATED）"
+    },
+    {
+      "id": "settings-structure-conflict-409-v1",
+      "file": "settings-structure-conflict-409.json",
+      "kind": "api-response",
+      "purpose": "设置页素材结构 CAS 冲突错误样本"
     }
   ]
 }

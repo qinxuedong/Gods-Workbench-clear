@@ -40,6 +40,7 @@ CONTRACTS = [
     REPO_ROOT / "docs" / "contracts" / "ASSET-LIBRARY-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "OBSERVABILITY-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "PROMPT-LIBRARY-INTERFACE-CATALOG.yaml",
+    REPO_ROOT / "docs" / "contracts" / "SETTINGS-INTERFACE-CATALOG.yaml",
 ]
 
 # ---------------------------------------------------------------------------
@@ -81,6 +82,15 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/prompt-libraries/categories',
     '/api/prompt-libraries/categories/{p}',
     '/api/prompt-libraries/{p}',
+    # 2026-09-22 Phase 10D：设置页阶段 8 条归一化路径。
+    '/api/storage-settings',
+    '/api/providers',
+    '/api/providers/fetch-models',
+    '/api/providers/probe-async',
+    '/api/providers/test-connection',
+    '/api/asset-registry/asset-structures',
+    '/api/asset-registry/asset-structures/{p}',
+    '/api/asset-registry/asset-structures/{p}/current',
 ])
 
 #: 前端引用但后端**未实现**的端点（归一化路径）—— 本守卫的核心防漂移清单
@@ -117,9 +127,6 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/asset-library/workflows/upload',
     '/api/asset-proxy/settings',
     '/api/asset-registry',
-    '/api/asset-registry/asset-structures',
-    '/api/asset-registry/asset-structures/{p}',
-    '/api/asset-registry/asset-structures/{p}/current',
     '/api/asset-registry/assets',
     '/api/asset-registry/assets/archive',
     '/api/asset-registry/assets/export-pdf',
@@ -224,10 +231,6 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/prompt-libraries/items',
     '/api/prompt-libraries/items/delete',
     '/api/prompt-libraries/items/{p}',
-    '/api/providers',
-    '/api/providers/fetch-models',
-    '/api/providers/probe-async',
-    '/api/providers/test-connection',
     '/api/public/shares/{p}',
     '/api/reference-canvases',
     '/api/shared-folders',
@@ -236,7 +239,6 @@ KNOWN_UNIMPLEMENTED = frozenset([
     '/api/shared-folders/{p}/tree',
     '/api/storage-files',
     '/api/storage-files/delete',
-    '/api/storage-settings',
     '/api/video-tasks',
     '/api/video-tasks/{p}',
     # 2026-09-21 第二轮更正：helper 拼接类调用（如 `${canvasUrl(id)}/meta`）入集。
@@ -294,6 +296,15 @@ KNOWN_BACKEND_PATHS = frozenset([
     '/api/prompt-libraries/categories',
     '/api/prompt-libraries/categories/{p}',
     '/api/prompt-libraries/{p}',
+    # 2026-09-22 Phase 10D：设置页阶段 8 条归一化路径。
+    '/api/storage-settings',
+    '/api/providers',
+    '/api/providers/fetch-models',
+    '/api/providers/probe-async',
+    '/api/providers/test-connection',
+    '/api/asset-registry/asset-structures',
+    '/api/asset-registry/asset-structures/{p}',
+    '/api/asset-registry/asset-structures/{p}/current',
     '/healthz',
 ])
 

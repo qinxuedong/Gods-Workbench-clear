@@ -28,6 +28,10 @@ from gods_workbench.prompt_library.models import (
     PromptLibraryCreateRequest,
     PromptLibrarySnapshot,
 )
+from gods_workbench.settings.models import (
+    ProviderSnapshot,
+    StorageSettingsSnapshot,
+)
 from gods_workbench.core.errors import CleanroomException
 from gods_workbench.projects_hub.models import (
     ProjectCreateRequest,
@@ -46,7 +50,8 @@ def test_manifest_integrity(fixtures_dir: Path):
     # 2026-09-22 Phase 10A：素材库阶段新增 6 个黄金夹具（9 -> 15）。
     # 2026-09-22 Phase 10B：观测阶段新增 2 个黄金夹具（15 -> 17）。
     # 2026-09-22 Phase 10C：提示词库阶段新增 5 个黄金夹具（17 -> 22）。
-    assert len(data["fixtures"]) == 22
+    # 2026-09-22 Phase 10D：设置页阶段新增 5 个黄金夹具（22 -> 27）。
+    assert len(data["fixtures"]) == 27
     for item in data["fixtures"]:
         file_path = fixtures_dir / item["file"]
         assert file_path.exists(), f"夹具文件不存在: {item['file']}"
@@ -379,3 +384,59 @@ def test_fixture_prompt_library_not_empty_409(fixtures_dir: Path):
         message="提示词库 plib_default 仍包含 1 个分类，请先清空后再删除",
     )
     assert exc.to_envelope().detail.code == content["detail"]["code"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 10D：设置页夹具（docs/contracts/SETTINGS-INTERFACE-CATALOG.yaml）
+# ---------------------------------------------------------------------------
+
+
+def test_fixture_settings_providers_empty(fixtures_dir: Path):
+    """验证 providers 空列表夹具：不得预置任何厂商条目。"""
+    content = json.loads((fixtures_dir / "settings-providers-empty.json").read_text(encoding="utf-8"))
+    snapshot = ProviderSnapshot.model_validate(content)
+    assert snapshot.providers == []
+    assert snapshot.configured is False
+    assert snapshot.data_status == "not_configured"
+
+
+def test_fixture_settings_storage_unconfigured(fixtures_dir: Path):
+    """验证存储设置未配置夹具：不得伪造根目录。"""
+    content = json.loads((fixtures_dir / "settings-storage-unconfigured.json").read_text(encoding="utf-8"))
+    snapshot = StorageSettingsSnapshot.model_validate(content)
+    assert snapshot.configured is False
+    assert snapshot.dirs == {}
+    assert snapshot.local_libraries == []
+
+
+def test_fixture_settings_storage_conflict_409(fixtures_dir: Path):
+    """验证存储设置 CAS 冲突夹具错误码。"""
+    content = json.loads((fixtures_dir / "settings-storage-conflict-409.json").read_text(encoding="utf-8"))
+    envelope = ErrorEnvelope.model_validate(content)
+    assert envelope.detail.code == "VERSION_CONFLICT"
+    assert envelope.detail.expected_version == 1
+    assert envelope.detail.current_version == 2
+
+
+def test_fixture_settings_probe_not_integrated(fixtures_dir: Path):
+    """验证探测端点未接入夹具错误码。"""
+    content = json.loads(
+        (fixtures_dir / "settings-provider-probe-not-integrated.json").read_text(encoding="utf-8")
+    )
+    assert content["detail"]["code"] == "PROVIDER_PROBE_NOT_INTEGRATED"
+    exc = CleanroomException(
+        status_code=503,
+        code="PROVIDER_PROBE_NOT_INTEGRATED",
+        message=content["detail"]["message"],
+    )
+    assert exc.to_envelope().detail.code == content["detail"]["code"]
+
+
+def test_fixture_settings_structure_conflict_409(fixtures_dir: Path):
+    """验证结构 CAS 冲突夹具错误码。"""
+    content = json.loads((fixtures_dir / "settings-structure-conflict-409.json").read_text(encoding="utf-8"))
+    envelope = ErrorEnvelope.model_validate(content)
+    assert envelope.detail.code == "STRUCTURE_VERSION_CONFLICT"
+    assert envelope.detail.expected_version == 1
+    assert envelope.detail.current_version == 2
+

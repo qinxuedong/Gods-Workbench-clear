@@ -81,7 +81,7 @@ tracked JS node --check
 
 | 变异 | 注入内容 | 结果 |
 |---|---|---|
-| M1 | 去除库重名守卫 | 1 failed, 42 passed |
+| M1 | 去除库重名守卫 | 2 failed（创建+重命名各 1；仅创建路径单独跑为 1 failed） |
 | M2 | 去除 CAS 校验（`_assert_expected_version` 恒返回） | 6 failed, 37 passed |
 | M3 | 删非空库改为静默级联 | 1 failed, 42 passed |
 | 还原 | — | **43 passed** |

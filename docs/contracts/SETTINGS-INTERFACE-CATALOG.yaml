@@ -1,0 +1,398 @@
+meta:
+  source: "洁净室自有设计（由主代理依据根 AGENTS.md 3.1/3.2/3.3、docs/governance/TASK-NOTES-2026-09-18.md 功能域表与前端 src/gods_workbench/static/js/asset-manager/api.js、api-settings.js 调用面收敛）"
+  review_status: "coordinator_frozen_pending_independent_review"
+  distribution: "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
+  cleanroom_notice: "仅记录 method/path/body/status/schema/错误/验收语义；不含旧仓源码结构或实现细节。"
+
+service: settings
+version: p10d-frozen-1
+
+# 冻结说明（Phase 10D，2026-09-22）
+# 本契约是「设置页」阶段的最小实现授权范围，仅覆盖下列 8 条归一化路径 / 13 个方法。
+# 其余相邻端点（尤其 /api/asset-registry/assets*、/api/local-assets*、/api/storage-files*、
+# /api/asset-registry/reindex、/api/asset-registry/project-directory*）仍属 KNOWN_UNIMPLEMENTED，
+# 未获契约授权，本阶段不得顺带实现，并由契约测试显式反向断言其保持 404/405。
+
+decisions:
+  stable_ids:
+    decision: "对外稳定 ID：结构体用 structure_id（strc_NNNN），存储设置用 revision，provider 用 provider_id"
+    rationale: "根 AGENTS.md 3.1 强制统一稳定 ID；禁止 pid / cid / sid 等别名。"
+    id_format: "结构体 structure_id 为确定性前缀序号字符串（4 位补零），禁止随机数、uuid 或时间戳作为外部 ID。provider_id 一律来自调用方提交，服务端**绝不自造**厂商 ID。"
+    frontend_compat: "前端 registryStructureId 读取 value.id || value.structure_id，normalizeRegistryAssetStructure 读取 structure_type || kind；provider 列表读取 data.providers 且逐项读取 item.id。本阶段未改动前端，provider 以调用方原样提交的字段回传（含其自带 id），provider_id 仅作为服务端登记键，不由服务端生成。"
+  forbidden_fabrication:
+    decision: "不得伪造设置页数据"
+    rationale: "洁净室零伪造口径（对齐 Phase 10B/10C）。"
+    enforcement: "GET /api/storage-settings 在无真实配置来源时返回 configured: false、空 dirs/空集合与 data_gaps，不得编造根目录、容量或路径；GET /api/providers 默认必须返回 providers: []，不得预置任何厂商条目；结构体成员 asset 元数据在素材注册表未接入时不得编造（省略而非填充假状态）；禁止 random / uuid4 生成业务内容。"
+  providers_empty_list:
+    decision: "providers 空列表口径：默认 GET /api/providers 返回 providers: []、configured: false 与 data_gaps"
+    rationale: "无真实厂商数据源时不得预置演示条目；空列表是唯一诚实取值。"
+  probe_fail_closed:
+    decision: "探测端点 fail-closed：POST /api/providers/{fetch-models,probe-async,test-connection} 本阶段无真实外网探测能力"
+    rationale: "无真实出网探测实现时，绝不允许返回伪造的模型列表、伪造的连通性成功或伪造的延迟数字。"
+    error_code: "PROVIDER_PROBE_NOT_INTEGRATED（503）"
+    real_probe_note: "如未来接入真实探测，必须默认关闭并在未启用时如实降级为同一错误码，不得静默放行。"
+  cas_scope:
+    decision: "CAS 粒度：PATCH /api/storage-settings 校验存储设置 revision；PUT /api/providers 校验 provider 集合 revision；PATCH/DELETE 结构体校验目标结构 version；POST 结构体校验集合 revision；PATCH 结构体 current 校验目标结构 version"
+    rationale: "根 AGENTS.md 3.2 要求写入类操作携带 expected_version，版本不一致必须 409，禁止静默覆盖。"
+  expected_version_source:
+    decision: "expected_version 一律可选（缺省表示不校验）：PATCH/POST 位于请求体，DELETE 无请求体故位于查询串"
+    rationale: "前端 saveStorageSettings 发送 expected_revision，deleteAssetStructure 以查询串发送 expected_version；本阶段既接受契约字段 expected_version，也接受前端既有别名 expected_revision。"
+  version_conflict_codes:
+    decision: "409 错误码：存储设置与 provider 集合使用 VERSION_CONFLICT；结构体使用 STRUCTURE_VERSION_CONFLICT"
+    rationale: "结构体冲突需与项目/画布 CAS 冲突区分，故在契约中写死独立错误码，但外层仍是标准错误包。"
+  auth_and_permissions:
+    decision: "认证与权限：读端点需认证（401 unauthorized / 403 FORBIDDEN）；写端点需写权限（401 / 403）"
+    rationale: "复用 core/auth.py 的 require_authenticated / require_edit_access，不自造权限体系；401 码沿用 core/errors.py 既有权威值。"
+  error_codes:
+    decision: "错误码表：400 INVALID_REQUEST；401 unauthorized；403 FORBIDDEN；404 STRUCTURE_NOT_FOUND；409 VERSION_CONFLICT / STRUCTURE_VERSION_CONFLICT；503 PROVIDER_PROBE_NOT_INTEGRATED"
+    rationale: "外层结构统一为标准错误包：detail 内至少含 code 与 message。"
+  forbidden_neighbors:
+    decision: "禁止实现清单之外的相邻端点"
+    rationale: "未获契约授权的端点不得实现；契约测试对其保持 404/405 做反向断言。"
+
+endpoints:
+
+  - name: get_storage_settings
+    method: GET
+    path: /api/storage-settings
+    body: null
+    status:
+      - 200
+      - 401
+      - 403
+    schema:
+      response_200:
+        configured: boolean
+        revision: integer
+        dirs: object
+        defaults: object
+        extra_local_dirs: array
+        extra_local_entries: array
+        local_library_names: object
+        local_library_order: array
+        local_libraries: array
+        data_status: "string（not_configured | ok）"
+        data_gaps: array
+    errors:
+      401: "未认证"
+      403: "角色不合法（只读以外的非法角色）"
+    acceptance: "无真实配置来源时必须返回 configured: false 与 data_gaps，且 dirs 为空对象；不得编造根目录、容量或路径。"
+
+  - name: patch_storage_settings
+    method: PATCH
+    path: /api/storage-settings
+    body:
+      dirs: "object | optional"
+      extra_local_entries: "array | optional"
+      local_library_names: "object | optional"
+      local_library_order: "array | optional"
+      expected_version: "integer | optional（缺省时不校验 revision）"
+      expected_revision: "integer | optional（前端既有别名，等价 expected_version）"
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 409
+    schema:
+      response_200:
+        configured: boolean
+        revision: integer
+        dirs: object
+        extra_local_entries: array
+        local_library_names: object
+        local_library_order: array
+        data_status: string
+        data_gaps: array
+    errors:
+      400: "expected_version 非法或字段类型不合法"
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      409: "VERSION_CONFLICT revision 不一致"
+    acceptance: "保存成功后 revision 递增并回传最新设置；revision 不一致必须 409 VERSION_CONFLICT，禁止静默覆盖。"
+
+  - name: list_providers
+    method: GET
+    path: /api/providers
+    body: null
+    status:
+      - 200
+      - 401
+      - 403
+    schema:
+      response_200:
+        providers: array
+        revision: integer
+        configured: boolean
+        data_status: "string（not_configured | ok）"
+        data_gaps: array
+    errors:
+      401: "未认证"
+      403: "角色不合法"
+    acceptance: "默认必须返回 providers: []，不得预置任何厂商条目；未配置时必须 configured: false 并在 data_gaps 说明来源缺失。"
+
+  - name: put_providers
+    method: PUT
+    path: /api/providers
+    body: "array（逐项至少包含 provider_id 或调用方自带的 id）"
+    query:
+      expected_version: "integer | optional（缺省时不校验 provider 集合 revision）"
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 409
+    schema:
+      response_200:
+        providers: array
+        revision: integer
+        configured: boolean
+        data_status: string
+        data_gaps: array
+    errors:
+      400: "请求体不是数组、缺少可用 provider_id，或含重复 provider_id"
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      409: "VERSION_CONFLICT revision 不一致"
+    acceptance: "保存成功后 provider 集合 revision 递增；凭据类字段（key / secret / token 一类）一律不落库、不回显；revision 不一致必须 409。"
+
+  - name: fetch_provider_models
+    method: POST
+    path: /api/providers/fetch-models
+    body:
+      provider_id: "string | optional"
+      base_url: "string | optional"
+      protocol: "string | optional"
+      image_request_mode: "string | optional"
+      credential_fields: "任意凭据字段一律忽略且不回显"
+    status:
+      - 401
+      - 403
+      - 503
+    schema:
+      response_503:
+        detail:
+          code: PROVIDER_PROBE_NOT_INTEGRATED
+          message: string
+    errors:
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      503: "PROVIDER_PROBE_NOT_INTEGRATED 本阶段无真实出网探测能力"
+    acceptance: "必须 fail-closed 返回 503 + PROVIDER_PROBE_NOT_INTEGRATED；绝不允许返回伪造的模型列表。"
+
+  - name: probe_provider_async
+    method: POST
+    path: /api/providers/probe-async
+    body:
+      provider_id: "string | optional"
+      base_url: "string | optional"
+      protocol: "string | optional"
+      credential_fields: "任意凭据字段一律忽略且不回显"
+    status:
+      - 401
+      - 403
+      - 503
+    schema:
+      response_503:
+        detail:
+          code: PROVIDER_PROBE_NOT_INTEGRATED
+          message: string
+    errors:
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      503: "PROVIDER_PROBE_NOT_INTEGRATED 本阶段无真实出网探测能力"
+    acceptance: "必须 fail-closed 返回 503 + PROVIDER_PROBE_NOT_INTEGRATED；绝不允许返回伪造的协议判定成功。"
+
+  - name: test_provider_connection
+    method: POST
+    path: /api/providers/test-connection
+    body:
+      provider_id: "string | optional"
+      base_url: "string | optional"
+      protocol: "string | optional"
+      credential_fields: "任意凭据字段一律忽略且不回显"
+    status:
+      - 401
+      - 403
+      - 503
+    schema:
+      response_503:
+        detail:
+          code: PROVIDER_PROBE_NOT_INTEGRATED
+          message: string
+    errors:
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      503: "PROVIDER_PROBE_NOT_INTEGRATED 本阶段无真实出网探测能力"
+    acceptance: "必须 fail-closed 返回 503 + PROVIDER_PROBE_NOT_INTEGRATED；绝不允许返回伪造的连通性成功或延迟数字。"
+
+  - name: list_asset_structures
+    method: GET
+    path: /api/asset-registry/asset-structures
+    body: null
+    query:
+      asset_ids: "string 可重复（按成员过滤）"
+    status:
+      - 200
+      - 401
+      - 403
+    schema:
+      response_200:
+        items: array
+        total: integer
+        revision: integer
+        data_status: "string（not_configured | ok）"
+        data_gaps: array
+    errors:
+      401: "未认证"
+      403: "角色不合法"
+    acceptance: "返回真实内存结构集合；无结构时 items: []；成员 asset 元数据来源未接入时必须省略并在 data_gaps 说明，不得编造。"
+
+  - name: create_asset_structure
+    method: POST
+    path: /api/asset-registry/asset-structures
+    body:
+      kind: "string（version | group）"
+      asset_ids: "array（至少 2 个不重复 asset_id）"
+      current_asset_id: "string | optional（必须是成员之一）"
+      expected_version: "integer | optional（缺省时不校验集合 revision）"
+    status:
+      - 201
+      - 400
+      - 401
+      - 403
+      - 409
+    schema:
+      response_201:
+        structure:
+          structure_id: string
+          kind: string
+          current_asset_id: string
+          version: integer
+          created_at: "string(datetime)"
+          updated_at: "string(datetime)"
+          members: array
+    errors:
+      400: "kind 非法、asset_ids 少于 2 个、含重复项，或 current_asset_id 不属于成员"
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      409: "STRUCTURE_VERSION_CONFLICT 集合 revision 不一致"
+    acceptance: "创建成功后返回稳定 structure_id（strc_NNNN）且集合 revision 递增；成员仅登记调用方提供的 asset_id，不得编造 asset 元数据。"
+
+  - name: get_asset_structure
+    method: GET
+    path: /api/asset-registry/asset-structures/{structure_id}
+    body: null
+    status:
+      - 200
+      - 401
+      - 403
+      - 404
+    schema:
+      response_200:
+        structure:
+          structure_id: string
+          kind: string
+          current_asset_id: string
+          version: integer
+          members: array
+    errors:
+      401: "未认证"
+      403: "角色不合法"
+      404: "STRUCTURE_NOT_FOUND 目标结构不存在"
+    acceptance: "返回目标结构真值；不存在必须 404 STRUCTURE_NOT_FOUND。"
+
+  - name: update_asset_structure
+    method: PATCH
+    path: /api/asset-registry/asset-structures/{structure_id}
+    body:
+      asset_ids: "array | optional（至少 2 个不重复 asset_id）"
+      current_asset_id: "string | optional（必须是成员之一）"
+      expected_version: "integer | optional（缺省时不校验目标结构 version）"
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 409
+    schema:
+      response_200:
+        structure:
+          structure_id: string
+          kind: string
+          current_asset_id: string
+          version: integer
+          members: array
+    errors:
+      400: "空请求体、asset_ids 非法或 current_asset_id 不属于成员"
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      404: "STRUCTURE_NOT_FOUND 目标结构不存在"
+      409: "STRUCTURE_VERSION_CONFLICT 目标结构 version 不一致"
+    acceptance: "更新成功后结构 version 递增；目标不存在或 CAS 不一致必须失败关闭，禁止静默覆盖。"
+
+  - name: set_asset_structure_current
+    method: PATCH
+    path: /api/asset-registry/asset-structures/{structure_id}/current
+    body:
+      current_asset_id: "string（必须是成员之一）"
+      expected_version: "integer | optional（缺省时不校验目标结构 version）"
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 409
+    schema:
+      response_200:
+        structure:
+          structure_id: string
+          kind: string
+          current_asset_id: string
+          version: integer
+          members: array
+    errors:
+      400: "current_asset_id 缺失或不属于成员"
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      404: "STRUCTURE_NOT_FOUND 目标结构不存在"
+      409: "STRUCTURE_VERSION_CONFLICT 目标结构 version 不一致"
+    acceptance: "切换成功后 current_asset_id 更新且结构 version 递增；CAS 不一致必须 409 STRUCTURE_VERSION_CONFLICT。"
+
+  - name: delete_asset_structure
+    method: DELETE
+    path: /api/asset-registry/asset-structures/{structure_id}
+    body: null
+    query:
+      expected_version: "integer | optional（缺省时不校验目标结构 version）"
+    status:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 409
+    schema:
+      response_200:
+        deleted_structure_id: string
+        revision: integer
+    errors:
+      400: "expected_version 非法（非正整数）"
+      401: "未认证"
+      403: "无写权限（只读角色）"
+      404: "STRUCTURE_NOT_FOUND 目标结构不存在"
+      409: "STRUCTURE_VERSION_CONFLICT 目标结构 version 不一致"
+    acceptance: "删除成功后集合 revision 递增且结构从集合移除；目标不存在或 CAS 不一致必须失败关闭。"
+
+unimplemented:
+  note: "下列相邻端点未获本阶段契约授权，属 KNOWN_UNIMPLEMENTED；契约测试显式反向断言其保持 404/405。"
+  paths:
+    - "GET /api/asset-registry/assets"
+    - "PATCH /api/asset-registry/assets/{asset_id}"
+    - "GET /api/local-assets"
+    - "GET /api/storage-files"
+    - "POST /api/asset-registry/reindex"
+    - "GET /api/asset-registry/project-directory-templates"

@@ -830,10 +830,28 @@
   本条按「追加更正、不改写历史行」处理。
   **边界**：`orca` 同名子代理属同框架核验，**不等于**第三方独立审计（T36/T40 仍未闭环）。
 
-- [ ] T76 Phase 10B 观测阶段（**进行中**，2026-09-22，承接 T26 顺序第 2 阶段）。
+- [x] T76 Phase 10B 观测阶段（**进行中**，2026-09-22，承接 T26 顺序第 2 阶段）。
   范围：`GET /api/observability` 及其 `overview`、`series`、`events`、`tasks`、
   `health`、`sources`、`asset-volumes` 共 8 个端点。
   硬性约束：**零伪造数据**（无真实来源一律返回空 + `data_status=not_integrated`）、
   稳定 ID、401/只读放行、真实解析查询参数与分页、禁止实现其它未授权端点。
   交付：冻结契约 + `observability/` 领域模块 + 路由 + 黄金夹具 + 契约测试 + 缺口基线更新。
   状态：已派发实现代理；完成后须经独立复核再进行提交与远端 CI 读回。
+
+- [x] T76 收口更正（2026-09-22，追加，不改写上文立项行的原始措辞）：Phase 10B 已提交 `0e89c2c`，
+  R3 三项诚实性缺口修复已提交 `f9d8830`（审计源不可读如实降级；夹具 limit 40→50），
+  远端 CI run `35712038549` conclusion=success、headSha 与 `f9d8830` 逐字一致。
+  独立复核 R4（dispatch `ctx_9b9a8e6defef`）在干净提交视图复算确认 Q1–Q5 成立。
+
+- [x] T77 Phase 10C 提示词库最小闭环（2026-09-22，承接 T26 顺序第 3 阶段）。
+  7 端点、契约 `p10c-frozen-1`、43 条契约测试、夹具清单 17→22。
+  提交 `23c2c47`；远端 CI run `35713264082` conclusion=success、headSha 一致。
+  R4 独立复核确认：items* 仍 404/405、空库逐字 `libraries: []`、CAS/LIBRARY_NOT_EMPTY 409、
+  401 权威字节 `554E415554484F52495A4544`。文档 M1 变异计数已按 R4 更正为 2 failed。
+
+- [x] T78 Phase 10D 设置页最小闭环（2026-09-22，承接 T26 顺序第 4 阶段）。
+  8 条归一化路径 / 13 个方法：storage-settings、providers（含 3 个探测端点 fail-closed）、
+  asset-structures。零伪造、CAS、凭据剥离、未授权相邻端点仍 404/405。
+  本地门禁：`pytest` **438 passed / 7 skipped**；`tests/hygiene` **16 passed**；
+  设置页契约测试 29 passed；变异 3/3 被捕获并还原。
+  边界：内存存储；真实外网探测未接入；前端 E2E 未执行；发布授权未闭环。
