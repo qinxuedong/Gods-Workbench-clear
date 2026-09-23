@@ -1078,3 +1078,51 @@
     不是跨进程/跨实例分布式一致性；并发度 3、单轮，未做压力/长稳。
     截图与探针只落系统临时目录，不入仓。本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权；
     执行主体为主代理，≠ 外部第三方独立审计。
+
+- [x] T90 前进/后退栈完整性 + 连续壳层导航稳定性补测（2026-09-23，推进 HANDOFF-10.md §12）
+  - **触发**：`HANDOFF-10.md` §11.8 与 T89 的「边界（不得越读）」明确登记
+    「**浏览器前进/后退栈完整性**」为未覆盖项。本轮补测该项，并因为改用
+    「同一 context 内**连续**交替导航」而**暴露出第 6 项检查看不见的第三个真实缺陷**。
+  - **前进/后退栈：PASS**（真实浏览器，`projects → production → workshop` 后 back×2 / fwd×2）：
+    `back1`=production、`back2`=projects、`fwd1`=production、`fwd2`=workshop，四者均 true；
+    deck `[id]` 集合与整页加载一致；`back` 时 `<main>` 工作区正确复原。
+    即**历史栈本身的 URL 与工作区复原语义正确**，缺陷出在「每次部分路由的脚本注入方式」。
+  - **⚠️ 第三个新发现（真实缺陷）**：`v2-shell.js` 的 `runRouteScripts()`（`:71-87`）
+    每次部分路由都向 `<body>` **追加**目标页脚本，**从不移除上一次注入的脚本**，
+    故 script 元素数**随导航单调累积**。同一 context 内 5 步交替导航实测（起始 7）：
+    `index.html` 7→33（+26，静默）、`production.html` 7→24（+17）、`workshop.html` 7→21（+14，**2 异常**）、
+    `storyboard.html` 7→27（+20）、`agents.html` 7→27（+20）、`settings.html` 7→33（+26）、
+    `assets.html` 7→24（+17）、`collab.html` 7→33（+26，**6 异常**）。
+  - **抛错边界（实测确定）**：只有含**顶层 `const`/`let`** 的内联脚本会在重复执行时抛
+    `Failed to execute 'appendChild' on 'Node': Identifier 'V2Workshop' has already been declared`
+    ——`workshop.html` 内联 `<script>`（`:493` 起）以 `const V2Workshop = ...` 起头，
+    故第 2 次进入即抛错（script 数 15）。其余页内联脚本未用词法声明，故**静默累积**、无异常，
+    只能靠 script 计数发现。`collab.html` 的 6 次异常来自 module 脚本被反复降级执行（T89 同一根因）。
+  - **未发生整页回退**：`console` 中**无** `v2-shell.js:139` 的
+    `[GW shell] partial route failed, falling back to full navigation` 告警；
+    `framenavigated` 记录为同一 URL 的 SPA `pushState`。
+  - **工具自身缺陷（已修正，非被测站点缺陷）**：`tools/frontend_e2e_smoke.py` 的
+    `start_server()` 原用 `stdout=subprocess.PIPE, stderr=subprocess.STDOUT` 且**从不读取**；
+    服务端持续写访问日志，Windows 管道缓冲（约 4–8KB）写满后子进程阻塞在 `write()`，
+    后续 HTTP 请求全部挂起，表现为 `Page.goto: Timeout`。
+    **对照实验（判定性）**：仅把输出改为重定向到**临时目录日志文件**，同一脚本/浏览器/序列
+    立刻全程通过（连续 8 轮导航 script 13→55 稳定递增、零超时，服务端日志 6116 字节）。
+    **修正**：`start_server()` 返回 `(进程, 日志句柄)`，日志写 `artifacts_dir/server.log`（临时目录，不入仓）。
+  - **检测能力已固化**：`tools/frontend_e2e_smoke.py` 新增**第 7 项「连续壳层导航稳定性」**：
+    同一 context 内每页 5 步交替导航，断言 ① 每步真实到达目标页；② script 元素无未登记累积；
+    ③ 无未登记未捕获异常。配 `KNOWN_REPEAT_NAV_SCRIPT_GROWTH`（8 页累积）与
+    `KNOWN_REPEAT_NAV_PAGE_ERRORS`（workshop 重复声明 / collab module 降级）两张 fail-closed 登记表：
+    未登记 → FAIL；**已登记但不再复现 → 同样 FAIL 并提示移除登记**。
+    **实测 EXIT=0**（8/8 目标页「到达 + 累积已登记 + 无未登记异常」）。
+    **变异自证**：清空两张登记表重跑 → **EXIT=1，共 10 条 FAIL**
+    （8 条累积未登记 + workshop 异常 + collab 异常），证明断言非恒真。
+    变异体只作用于临时副本，正式文件未受影响。
+  - **新证据**：`docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md` §3.7–§3.8、§5 裁决项 1c；
+    `HANDOFF-10.md` §12。门禁实测：`pytest -q` = **487 passed / 7 skipped**；`tests/hygiene` = **16 passed**。
+  - **新增待人工裁决 1 项（编号 1c）**：`runRouteScripts()` 是否改为「注入前先移除本页上次注入的脚本」。
+    建议 **B**——最小改动直接消除累积与重复声明，且与 T89 的 module 修复落在**同一处代码**，
+    建议与裁决项 1 / 1b **合并为一个变更**实施。三项均属 `v2-shell.js` 共享层改动，须人工确认（`AGENTS.md` §5）。
+  - **边界（不得越读）**：仅 1600×1000、headless Chrome、本地单进程；未覆盖响应式断点与真实多用户会话；
+    仅验证部分路由路径（整页加载无此累积）；每页 5 步、单轮，未做长稳/压力。
+    探针与日志只落系统临时目录，不入仓。本机实测 ≠ 远端 CI（第 7 项不入 CI）≠ 生产验收 ≠ 发布授权；
+    执行主体为主代理，≠ 外部第三方独立审计。

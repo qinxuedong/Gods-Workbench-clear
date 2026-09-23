@@ -27,6 +27,11 @@ Phase 10A-10E 的门禁全部建立在 FastAPI 的 TestClient 之上，属于**�
    全程无 JS 异常，属**静默降级**——只能靠 DOM 断言发现）。
    已确认但尚未修复的缺口须登记在 KNOWN_DEFECTS；未登记的新缺口一律判失败；
    已登记缺口若**不再复现**则提示移除登记（防止清单腐化）。
+7. 连续壳层导航稳定性：在**同一个 context** 内对同一页反复做壳层部分路由，
+   检查 (a) `document.querySelectorAll('script').length` 是否随导航**单调累积**，
+   (b) 是否抛出未捕获 JS 异常（如顶层 `const` 重复声明导致的 `Identifier ... has already been declared`）。
+   该维度是第 6 项**看不见**的：第 6 项每个目标页只做一次壳层导航，累积效应不会显形。
+   同样 fail-closed：未登记的累积/异常判失败，已登记者不再复现也判失败。
 
 洁净室边界
 ----------
@@ -113,6 +118,35 @@ KNOWN_SHELL_ROUTE_PAGE_ERRORS: dict[str, frozenset[str]] = {
 # 导航归属别名：某些页面的导航链接不指向同名文件（部分路由仍能正确到达目标页）。
 # projects.html 上的「系统设置」指向 index.html?view=settings，服务端 307 -> settings.html#section=general。
 NAV_HREF_ALIAS: dict[str, str] = {"settings.html": "index.html?view=settings"}
+
+# 第 7 项「连续壳层导航稳定性」的已登记缺陷基线（fail-closed）。
+# 成因：v2-shell.js 的 runRouteScripts() 每次部分路由都向 <body> **追加**脚本，从不移除上一次
+#       注入的脚本，故 script 元素数随导航单调累积；含顶层 const/let 的内联脚本被再次执行时
+#       抛 "Identifier '<X>' has already been declared"。
+# 键 = 目标页；值 = 该页在**连续导航**中被登记允许的缺陷形态（此处仅需登记页名）。
+# 来源：docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md §3.7（待人工裁决）。
+KNOWN_REPEAT_NAV_SCRIPT_GROWTH: frozenset[str] = frozenset({
+    "index.html", "production.html", "workshop.html", "storyboard.html",
+    "agents.html", "settings.html", "assets.html", "collab.html",
+})
+
+# 键 = 目标页；值 = 连续导航期间出现的**已登记**未捕获 JS 异常指纹（原文）。
+# 实测：仅有含顶层 `const V2Workshop` 内联脚本的 workshop.html 抛错；其余页静默累积。
+KNOWN_REPEAT_NAV_PAGE_ERRORS: dict[str, frozenset[str]] = {
+    # workshop.html：内联 <script> 顶层 `const V2Workshop` 被重复注入并执行。
+    "workshop.html": frozenset({
+        "Failed to execute 'appendChild' on 'Node': Identifier 'V2Workshop' has already been declared",
+    }),
+    # collab.html：module 脚本被降级为普通脚本执行（与第 6 项 module 丢失互为因果）。
+    "collab.html": frozenset({
+        "Cannot use import statement outside a module",
+    }),
+}
+
+# 连续导航步序：从 projects.html 出发，交替 target / projects，共 5 步。
+# 第 3 步（第 2 次到达 target）是最早能暴露重复声明缺陷的位置——实测 workshop.html 即在此抛错。
+REPEAT_NAV_SEQUENCE: tuple[str, ...] = ("target", "projects", "target", "projects", "target")
+REPEAT_NAV_TARGETS: tuple[str, ...] = tuple(p for p in PAGES if p != "projects.html")
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +295,13 @@ DECK_ID_JS = (
     "() => Array.from(document.querySelectorAll('.topbar-master-deck [id]'))"
     ".map(el => el.id).sort()"
 )
+# 采集当前文档内的 script 元素总数与 src 清单（用于检测脚本元素单调累积）
+SCRIPT_INVENTORY_JS = (
+    "() => ({ total: document.querySelectorAll('script').length,"
+    " srcs: Array.from(document.querySelectorAll('script[src]'))"
+    ".map(el => el.getAttribute('src')) })"
+)
+
 
 # 采集当前文档内 `type="module"` 脚本的 src（用于检测壳层路由是否丢失 module 语义）
 MODULE_SRC_JS = (
@@ -404,6 +445,124 @@ def run_shell_route_consistency(base_url: str) -> dict:
     }
 
 
+def run_shell_route_repeat_nav(base_url: str) -> dict:
+    """第 7 项：同一 context 内连续壳层导航，检查脚本元素累积与未捕获异常。
+
+    为什么需要：第 6 项每个目标页只做**一次**壳层导航，因此 runRouteScripts() 的
+    「只增不减」追加行为完全不会显形。只有反复导航才能暴露：(a) script 元素单调累积，
+    (b) 含顶层 const/let 的内联脚本被再次执行时抛重复声明错误。
+    """
+    from playwright.sync_api import sync_playwright
+
+    chrome = find_chrome()
+    launch_kwargs = {"executable_path": chrome} if chrome else {}
+
+    results: list[dict] = []
+    failures: list[str] = []
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(**launch_kwargs)
+        try:
+            for target_name in REPEAT_NAV_TARGETS:
+                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                page = context.new_page()
+                errors: list[dict] = []
+                current_step = [0]
+
+                def on_error(exc, _errors=errors, _step=current_step):
+                    _errors.append({"step": _step[0], "message": str(exc)})
+
+                page.on("pageerror", on_error)
+                # 连续导航场景下 networkidle 不稳定（Tailwind CDN 长连接），改为
+                # domcontentloaded + 等待壳层导航按钮就绪，再给脚本绑定留出余量。
+                page.goto(f"{base_url}/static/v2/projects.html", wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_selector(".topbar-master-deck a.nav-pill-btn", timeout=20000)
+                page.wait_for_timeout(1200)
+                initial = page.evaluate(SCRIPT_INVENTORY_JS)["total"]
+
+                steps: list[dict] = []
+                for idx, hop in enumerate(REPEAT_NAV_SEQUENCE, start=1):
+                    wanted = target_name if hop == "target" else "projects.html"
+                    # settings.html 在 projects.html 上的导航链接是 index.html?view=settings，
+                    # 复用第 6 项同一张别名表，避免「未到达」误判。
+                    wanted_href = NAV_HREF_ALIAS.get(wanted, wanted)
+                    current_step[0] = idx
+                    page.evaluate(
+                        """(target) => {
+                          const links = [...document.querySelectorAll('.topbar-master-deck a.nav-pill-btn')];
+                          const hit = links.find(a => (a.getAttribute('href') || '').split('?')[0]
+                                                       === target.split('?')[0]);
+                          if (hit) hit.click();
+                        }""",
+                        wanted_href,
+                    )
+                    page.wait_for_timeout(2000)
+                    inv = page.evaluate(SCRIPT_INVENTORY_JS)
+                    steps.append(
+                        {
+                            "step": idx,
+                            "to": wanted,
+                            "url_tail": page.url.split("/")[-1],
+                            "reached": page.url.split("/")[-1].split("?")[0] == wanted_href.split("?")[0],
+                            "scripts": inv["total"],
+                        }
+                    )
+                context.close()
+
+                final = steps[-1]["scripts"] if steps else initial
+                growth = final - initial
+                unreached = [s["step"] for s in steps if not s["reached"]]
+                growth_registered = target_name in KNOWN_REPEAT_NAV_SCRIPT_GROWTH
+                known_err = set(KNOWN_REPEAT_NAV_PAGE_ERRORS.get(target_name, frozenset()))
+                err_messages = [e["message"] for e in errors]
+                err_unregistered = sorted(set(err_messages) - known_err)
+                err_fixed = sorted(known_err - set(err_messages))
+
+                results.append(
+                    {
+                        "target": target_name,
+                        "initial_scripts": initial,
+                        "steps": steps,
+                        "final_scripts": final,
+                        "script_growth": growth,
+                        "script_growth_registered": growth_registered,
+                        "page_errors": err_messages,
+                        "page_errors_known": sorted(set(err_messages) & known_err),
+                        "page_errors_unregistered": err_unregistered,
+                        "known_page_errors_no_longer_raised": err_fixed,
+                        "unreached_steps": unreached,
+                    }
+                )
+
+                if unreached:
+                    failures.append(
+                        f"连续导航 {target_name}：第 {unreached} 步未到达目标页（路由正确性失败）"
+                    )
+                if growth > 0 and not growth_registered:
+                    failures.append(
+                        f"连续导航 {target_name}：script 元素累积 +{growth}（{initial} -> {final}）未登记"
+                        f"（若为已知缺口须登记 KNOWN_REPEAT_NAV_SCRIPT_GROWTH）"
+                    )
+                if growth <= 0 and growth_registered:
+                    failures.append(
+                        f"连续导航 {target_name}：已登记的 script 累积不再复现（增长 {growth}）——"
+                        f"请从 KNOWN_REPEAT_NAV_SCRIPT_GROWTH 移除登记"
+                    )
+                if err_unregistered:
+                    failures.append(
+                        f"连续导航 {target_name} 出现未登记的未捕获 JS 异常 {err_unregistered}"
+                        f"（若为已知缺口须登记 KNOWN_REPEAT_NAV_PAGE_ERRORS）"
+                    )
+                if err_fixed:
+                    failures.append(
+                        f"连续导航 {target_name} 的已登记异常不再出现 {err_fixed}——"
+                        f"请从 KNOWN_REPEAT_NAV_PAGE_ERRORS 移除登记"
+                    )
+        finally:
+            browser.close()
+
+    return {"repeat_nav": results, "failures": failures}
+
 def _load_guard_baseline() -> tuple[frozenset[str], frozenset[str]]:
     """从冻结缺口守卫导入唯一口径的实现/未实现路径集合。
 
@@ -473,8 +632,14 @@ def wait_for_health(base_url: str, timeout: float = 40.0) -> dict:
     raise SystemExit(f"服务未在 {timeout:.0f}s 内就绪：{base_url}/healthz（最后错误：{last_error}）")
 
 
-def start_server(base_url: str) -> subprocess.Popen:
-    """以 GW_RELOAD=false 启动 run.py，返回进程句柄。"""
+def start_server(base_url: str, log_path: Path | None = None) -> tuple[subprocess.Popen, "object"]:
+    """以 GW_RELOAD=false 启动 run.py，返回 (进程句柄, 日志文件句柄)。
+
+    为什么不用 subprocess.PIPE：本脚本的导航次数多，服务端会持续写访问日志；
+    若用 PIPE 而**从不读取**，缓冲区写满（Windows 约 4-8KB）后服务端进程会阻塞在写日志上，
+    后续 HTTP 请求随即挂起并表现为「Page.goto 超时」——这是工具自身的缺陷，而非被测站点缺陷。
+    故改为把子进程输出重定向到**系统临时目录**下的日志文件（不入仓），并在收尾时关闭。
+    """
     from urllib.parse import urlsplit
 
     parts = urlsplit(base_url)
@@ -482,17 +647,19 @@ def start_server(base_url: str) -> subprocess.Popen:
     env["GW_RELOAD"] = "false"
     env["GW_HOST"] = parts.hostname or "127.0.0.1"
     env["GW_PORT"] = str(parts.port or 2077)
-    print(f"[e2e] 启动本地服务 {base_url} ...")
-    return subprocess.Popen(
+    if log_path is None:
+        log_path = Path(tempfile.mkdtemp(prefix="gw-e2e-server-")) / "server.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = log_path.open("wb")
+    print(f"[e2e] 启动本地服务 {base_url} ...（服务端日志：{log_path}）")
+    proc = subprocess.Popen(
         [sys.executable, "-P", "run.py"],
         cwd=str(REPO_ROOT),
         env=env,
-        stdout=subprocess.PIPE,
+        stdout=handle,
         stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
     )
+    return proc, handle
 
 
 def run_checks(base_url: str, artifacts_dir: Path, implemented, unimplemented) -> dict:
@@ -635,9 +802,10 @@ def main() -> int:
     )
 
     server: subprocess.Popen | None = None
+    server_log = None
     try:
         if args.serve:
-            server = start_server(args.base_url)
+            server, server_log = start_server(args.base_url, Path(artifacts_dir) / "server.log")
         health = wait_for_health(args.base_url)
         print(f"[e2e] /healthz = {json.dumps(health, ensure_ascii=False)}")
 
@@ -650,6 +818,9 @@ def main() -> int:
         result["shell_route_baseline"] = shell_route["shell_route_baseline"]
         result["shell_route_module_baseline"] = shell_route["shell_route_module_baseline"]
         result["failures"].extend(shell_route["failures"])
+        repeat_nav = run_shell_route_repeat_nav(args.base_url)
+        result["repeat_nav"] = repeat_nav["repeat_nav"]
+        result["failures"].extend(repeat_nav["failures"])
     finally:
         if server is not None:
             server.terminate()
@@ -657,6 +828,8 @@ def main() -> int:
                 server.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 server.kill()
+        if server_log is not None:
+            server_log.close()
 
     report = {
         "base_url": args.base_url,
@@ -664,6 +837,7 @@ def main() -> int:
         "shell_route": result.get("shell_route", []),
         "shell_route_baseline": result.get("shell_route_baseline", {}),
         "shell_route_module_baseline": result.get("shell_route_module_baseline", {}),
+        "repeat_nav": result.get("repeat_nav", []),
         "healthz": health,
         "baseline": {
             "guard": GUARD_PATH.relative_to(REPO_ROOT).as_posix(),
@@ -700,6 +874,15 @@ def main() -> int:
                 f"module已知丢失={row['module_missing_known']} module未登记={row['module_missing_unregistered']} "
                 f"异常已知={len(row['page_errors_known'])} 异常未登记={row['page_errors_unregistered']}"
             )
+    repeat_rows = result.get("repeat_nav", [])
+    if repeat_rows:
+        print("[e2e] 连续壳层导航稳定性（同一 context 内 5 步交替导航）：")
+        for row in repeat_rows:
+            print(
+                f"    - {row['target']:16} scripts={row['initial_scripts']}->{row['final_scripts']} "
+                f"growth={row['script_growth']} 增长已登记={row['script_growth_registered']} "
+                f"异常已知={len(row['page_errors_known'])} 异常未登记={row['page_errors_unregistered']}"
+            )
     print(f"[e2e] 报告：{report_path}")
 
     if result["failures"]:
@@ -708,7 +891,7 @@ def main() -> int:
             print("  - " + item)
         return 1
     print(
-        "[e2e] 判定：PASS（零基线外 API 4xx / py-0.5 全部生效 / 壳层路由无未登记缺口）"
+        "[e2e] 判定：PASS（零基线外 API 4xx / py-0.5 全部生效 / 壳层路由与连续导航无未登记缺口）"
     )
     print(
         "      注意：PASS 表示**不存在未登记缺口**；加载期与壳层路由的已登记缺陷"

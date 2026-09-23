@@ -162,6 +162,78 @@ python -P <探针>.py     # 本轮探针均落在 %TEMP%，不入仓
 逐条报出 6 个 deck 缺口的未登记项与 collab 的模块丢失 + 异常。
 （变异体只在临时副本上生效，运行后已逐字节恢复原文件。）
 
+### 3.7 ⚠️ **第三个新发现（真实缺陷）**：壳层部分路由导致脚本元素单调累积与重复声明
+
+**发现路径**：§3.6 的第 6 项检查在每个目标页**只做一次**壳层导航，因此看不到累积效应。
+本轮为闭环「浏览器前进/后退栈完整性」这一 §3.6 明确登记为**未覆盖**的维度，改用
+「同一 context 内**连续**交替导航」做探针，累积效应立刻显形。
+
+**实测（projects.html 出发，同一 context，1600×1000 headless Chrome）**：
+
+| 连续导航序列 | script 元素数 |
+|---|---|
+| 起始（projects.html 整页加载） | 7 |
+| → index.html | 13 |
+| → projects.html | 17 |
+| → index.html | 23 |
+| → projects.html | 27 |
+| → index.html | 33 |
+
+即 **script 元素数只增不减**。全 8 个非 projects 目标页均复现，5 步累积量：
+
+| 目标页 | 起始 → 最终 | 净增 | 未捕获异常数 |
+|---|---|---|---|
+| index.html | 7 → 33 | +26 | 0（静默） |
+| production.html | 7 → 24 | +17 | 0（静默） |
+| workshop.html | 7 → 21 | +14 | **2**（显式抛错） |
+| storyboard.html | 7 → 27 | +20 | 0（静默） |
+| agents.html | 7 → 27 | +20 | 0（静默） |
+| settings.html | 7 → 33 | +26 | 0（静默） |
+| assets.html | 7 → 24 | +17 | 0（静默） |
+| collab.html | 7 → 33 | +26 | **6**（显式抛错） |
+
+**根因**：`v2-shell.js` 的 `runRouteScripts()`（`:71-87`）对每次部分路由都执行
+`document.body.appendChild(script)`，**从不移除上一次注入的脚本**。因此：
+
+- 目标页 `body > script` 每被访问一次，其外链与内联脚本就再被追加一份；
+- 含**顶层 `const`/`let`** 的内联脚本被第二次执行时抛
+  `Failed to execute 'appendChild' on 'Node': Identifier '<X>' has already been declared`；
+- `collab.html` 的两条 module 脚本在被反复降级执行（§3.4 同一根因）时，每次抛
+  `Cannot use import statement outside a module`。
+
+实测确认**只有含顶层 `const` 的内联脚本抛错**：`workshop.html` 的内联 `<script>`（`:493` 起）
+以 `const V2Workshop = (function(){...})();` 起头，故第 2 次进入即抛错（脚本数 15）；
+其余页面的内联脚本未使用顶层 `const`/`let` 词法声明，故**静默累积**、无异常。
+
+**该缺陷不在第 6 项的可见范围内**：第 6 项每页只导航一次，累积量恒为单步增量，
+既不触发重复声明错误，也不产生可比较的「基线 vs 路由后」差异。
+
+**未生成整页回退**：`console` 中除 Tailwind CDN 提示外**无** `v2-shell.js:139` 的
+`[GW shell] partial route failed, falling back to full navigation` 告警；
+`framenavigated` 记录为同一 URL 的 SPA `pushState`，**不是**整页回退。
+
+### 3.8 工具自身缺陷（**已修正，非被测站点缺陷**）：服务端子进程 `stdout=PIPE` 写满阻塞
+
+**症状**：探针与第 7 项检查在连续导航场景下间歇性报
+`Page.goto: Timeout 30000ms exceeded`，而同一服务用 `urllib` 直接请求 `/healthz` 与
+`/static/v2/projects.html` 均 200 且耗时 < 0.1s。即**服务端本身健康，是测试脚手架挂起**。
+
+**根因**：`tools/frontend_e2e_smoke.py` 的 `start_server()` 原用
+`stdout=subprocess.PIPE, stderr=subprocess.STDOUT` 且**从不读取该管道**。
+服务端持续写访问日志，管道缓冲区（Windows 约 4–8KB）写满后子进程阻塞在 `write()`，
+后续 HTTP 请求全部挂起。
+
+**对照实验（判定性）**：仅把子进程输出从 `PIPE` 改为**重定向到系统临时目录的日志文件**，
+同一脚本、同一浏览器、同一导航序列立刻全程通过——连续 8 轮交替导航
+script 计数 13→55 稳定递增、无一次超时（服务端日志 6116 字节）。
+
+**修正**：`start_server()` 改为 `(进程, 日志文件句柄)` 二元组返回，输出写入
+`artifacts_dir/server.log`（**系统临时目录，不入仓**），收尾时关闭句柄。
+`tools/tailwind_snapshot_visual_equiv.py` 原本即用 `DEVNULL`，**不受影响**。
+
+**边界**：此项为**测试脚手架缺陷**，与 `v2-shell.js` 的三项真实缺陷互不影响，也**不**改变前者的判定。
+
+
 ---
 
 ## 4. 多窗口并发（并发层，真实 HTTP 竞争）
@@ -217,9 +289,15 @@ create -> 201 pid=prj-0005 ver=1
 |---|---|---|---|
 | 1 | `v2-shell.js` 部分路由丢失 deck 内页级元素（§3.2） | **A** 维持现状（该标题在壳层导航后不显示）；**B** 让部分路由同时协调 deck 内的页级元素；**C** 把页级元素从 deck 移入工作区（改页面结构） | **B**——A 会让「整页加载 / 壳层导航」两条路径呈现不一致；C 改动面更大且会动已冻结的视觉结构 |
 | 1b | `v2-shell.js` 部分路由丢失 `type="module"` 语义（§3.4） | **A** 维持现状（协作页模块能力在该路径下不可用 + 抛错）；**B** 在 `runRouteScripts()` 中保留 `type="module"`（并保持 `async=false` 的加载序）；**C** 改写协作页不再依赖 module 脚本 | **B**——最小且直接消除抛错；C 会改动已冻结页面结构 |
+| 1c | `runRouteScripts()` 每次部分路由**只追加不替换**脚本，导致 script 元素单调累积；含顶层 `const` 的内联脚本重复声明抛错，module 脚本重复降级执行（§3.7） | **A** 维持现状（连续导航后页面能力退化 + 持续抛错，仅本机探针可见）；**B** 在 `runRouteScripts()` 内**先移除本页上次注入的脚本**再注入（等价于替换而非追加），或给注入脚本加稳定标记以便幂等；**C** 改为每次部分路由对目标页脚本做整组替换 | **B**——最小改动直接消除累积与重复声明，且与 §3.4 的 module 修复同一处代码；C 改动面更大 |
 | 2 | `canvas-list.js` 视图偏好跨窗口实时同步（§4.3） | **A** 维持现状（下次加载生效）；**B** 补 `storage` 监听 | **A**——行为规范无此要求，属锦上添花，不建议为无规范支撑的功能扩大改动面 |
 
-两者均属**共享层改动**（`v2-shell.js` 影响全部 v2 页面），按 `AGENTS.md` §5 须人工确认后实施。
+第 1 / 1b / 1c 三项均属**共享层改动**（`v2-shell.js` 影响全部 v2 页面），
+按 `AGENTS.md` §5 须人工确认后实施；三项的修复落在**同一函数族**
+（`navigate()` + `runRouteScripts()`），建议作为**一个变更**一并裁决与实施。
+
+第 1 与第 1c 项**部分重叠但不等价**：第 1 项是 `navigate()` 不替换 deck；
+第 1c 项是 `runRouteScripts()` 只追加不清理。两者可独立修复，也可一并修复。
 
 ---
 
