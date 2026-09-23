@@ -102,7 +102,7 @@
 4. **真实外部 IdP 生产登录**：需真实 OP + 凭据 + 环境。
 5. **T46 的 140 条未实现端点**：仅统一了口径，实现状态未变，仍全部 fail-closed。
 6. **内存存储**：重启即丢、多 worker 不共享，未接入数据库。
-7. **前端真实浏览器 E2E**：Phase 10 阶段未执行。
+7. **前端真实浏览器 E2E**：**加载期已闭环（见 §6）**；**交互期仍未执行**（点击流、表单提交、CAS 冲突操作、上传、轮询闭环）。
 
 ---
 
@@ -111,3 +111,69 @@
 - 本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权。
 - 本轮 CI success 只证明 `d11aaf2` 在 CI 环境通过测试与卫生检查，**不构成**生产验收或发布授权。
 - 独立复核（同框架代理执行）**不等于**外部第三方独立审计。
+
+
+---
+
+## 6. 本轮追加（提交 `e4fd6afd0c044063352d06fca100ca575afa959f`，CI run `35843842907` = success）
+
+推进 §4 第 7 项「前端真实浏览器 E2E」。此前 Phase 10A–10E 全部门禁都在 FastAPI `TestClient`
+（进程内）之上，能证明 HTML 可返回、状态码正确，但**不能**证明浏览器里没有未捕获 JS 异常、
+没有静态资源 4xx，也不能证明死类修正（O5）在**渲染期**真的生效。本轮用真实 Chromium 补齐。
+
+| 项 | 内容 |
+|---|---|
+| 新增工具 | `tools/frontend_e2e_smoke.py`（中文注释；**未接入 CI**，因 CI 不安装 Playwright，属本地/人工门禁） |
+| 新增证据 | `docs/governance/PHASE-10-FRONTEND-E2E-EVIDENCE-2026-09-23.md` |
+| 台账 | `docs/governance/TASKS.md` 登记 **T85** |
+| 门禁 | `pytest -q` 487 passed / 7 skipped；`tests/hygiene` 16 passed |
+
+### 6.1 判定口径（每页独立，全 fail-closed）
+
+1. `networkidle` 期间**零 `pageerror`**（未捕获 JS 异常）。
+2. 同源 `/static/**` 响应**零 4xx/5xx**。
+3. 每个 API 4xx 的归一化路径**必须已在冻结缺口基线内**。脚本**直接 import 守卫**
+   `tests/contracts/test_phase8_frontend_backend_api_gap.py` 读取
+   `KNOWN_IMPLEMENTED` / `KNOWN_UNIMPLEMENTED`，**不再抄第二份清单**
+   （避免历史「三处各写一遍并实际漂移」的教训）。出现基线外的新 4xx 即 FAIL。
+4. **渲染期 O5 实证**：带 `py-0.5` 的元素其 computed `padding-top`/`padding-bottom`
+   必须均为 `2px`；页面内死类 `py-0.2` 元素必须为 `0`。
+
+### 6.2 实测结果（HEAD `41d232b` 代码基线，本机真实 Chromium，v2 壳层 9 页）
+
+```
+[e2e] 冻结基线已加载：实现 49 / 未实现 140（唯一口径：tests/contracts/test_phase8_frontend_backend_api_gap.py）
+[e2e] /healthz = {"status":"ok","mode":"cleanroom","auth_mode":"local","oidc_ready":false,
+                  "frozen_contracts":false,"release_authorized":false}
+[e2e] index.html       jsError=0 staticFail=0 api4xx=3 py05=21/21
+[e2e] projects.html    jsError=0 staticFail=0 api4xx=0 py05=40/40
+[e2e] production.html  jsError=0 staticFail=0 api4xx=0 py05=28/28
+[e2e] workshop.html    jsError=0 staticFail=0 api4xx=2 py05=14/14
+[e2e] storyboard.html  jsError=0 staticFail=0 api4xx=0 py05=26/26
+[e2e] agents.html      jsError=0 staticFail=0 api4xx=0 py05=9/9
+[e2e] settings.html    jsError=0 staticFail=0 api4xx=6 py05=5/5
+[e2e] assets.html      jsError=0 staticFail=0 api4xx=3 py05=2/2
+[e2e] collab.html      jsError=0 staticFail=0 api4xx=6 py05=2/2
+[e2e] 判定：PASS（零 JS 异常 / 零静态资源失败 / 零基线外 API 4xx / py-0.5 全部生效）
+```
+
+退出码 `0`；`e2e-report.json` 中 `failures = []`；基线外 API 4xx 路径数 = **0**。
+
+**4xx 明细与口径（重要）**：404 全部为契约 `forbidden_neighbors` 明确列为**未授权实现**的端点
+（`/api/asset-registry/*`、`/api/episode-pipelines`、`/api/app-info`、`/api/asset-auth/{users,teams,operation-approvals}` 等）；
+401 全部为**匿名访问已实现端点**的预期认证行为（`/api/providers`、`/api/asset-library`、`/api/storage-settings`、
+`/api/observability/{events,tasks}`）。**两者都不是缺陷**，也**不得**用伪造数据去消除——前端以显式降级标记
+（「未接入」）呈现，属设计行为。
+
+**P10-R-1 联动复核**：真实服务返回的 401 错误码经 `.encode().hex().upper()` 判定均为
+`554E415554484F52495A4544`（纯 ASCII 大写），即**运行时** HTTP 响应与 `core/errors.py`、
+黄金夹具、契约侧更正后口径完全一致。
+
+### 6.3 边界（**不得越读**）
+
+- 本项为本机真实浏览器核验，**不等于**远端 CI（CI 无 Playwright，本脚本不入 CI），
+  更**不等于**生产验收或发布授权。
+- 覆盖范围仅 **v2 壳层 9 页的加载期行为**（导航、静态资源、初始脚本、初始 API 调用）；
+  **不含**交互路径 E2E（点击流、表单提交、CAS 冲突操作、上传、轮询闭环）。
+- 「零 JS 异常」只证明**未捕获异常为 0**；控制台 error 级日志仍存在（即上述预期 4xx），单独计数不伪装为 0。
+- 故 §4 第 7 项状态更新为：**加载期已执行 + 交互期仍未执行**。
