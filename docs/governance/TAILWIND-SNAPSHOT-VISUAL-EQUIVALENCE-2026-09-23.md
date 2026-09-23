@@ -45,33 +45,41 @@
 
 ### 2.1 判定口径（刻意写成机械、可复现）
 
+0. **判别力闸门（fail-closed，第 0 步）**：逐页把快照整体置空后重新加载。
+   若该页 computed 差异仍为 `0`，说明**该页并不消费本地快照**（其 Tailwind 样式来自页面自带的
+   自托管运行时 JIT，或该页根本不引用快照），该页**不纳入分母**。
+   若没有任何页面具备判别力，工具直接退出码 `2`，本次结论作废。
+   （**为什么必须加这一步**：把无判别力的页面计入分母，会把「零差异」放大成虚假可信度。）
 1. 在内存中重新生成快照（等价于 `--force` 会写入的内容），**不写盘**；
 2. 用 Playwright 路由拦截，把该内容注入受检页面对 `tailwind-utilities.css` 的请求；
 3. 逐元素（按 `tagName + className` 配对）比对 **computed style**，覆盖 41 个布局/配色/排版/装饰属性；
 4. **默认排除 CSS 动画采样属性** `transform` / `opacity` / `filter`——它们是时间函数，
    **同一份 CSS** 前后两次加载也会不同，计入即制造假阳性；
 5. **内置对照组（fail-closed）**：先跑「baseline vs baseline」。对照组一旦出现差异，
-   说明本机采样口径不可靠，工具**直接失败并作废实验组结论**。
+   说明本机采样口径不可靠，工具**直接失败并作废实验组结论**；
+6. **变异自证（可选，`--mutation-selftest`）**：在具备判别力的页面上，删掉「该页运行时真实使用」
+   的全部单类规则后重新注入，要求 computed 差异 **> 0**；否则退出码 `2`。
+   这一步证明本口径**不是恒真**（即证明「零差异」是可靠读数，而非工具失效）。
 
 ### 2.2 退出码
 
 | 退出码 | 含义 |
 |---|---|
-| `0` | 对照组零噪声 **且** 实验组零 computed 差异 → **视觉等价**，可安全覆盖（仍需人工授权 `--force`） |
-| `1` | 对照组零噪声，但实验组有 computed 差异 → **可见视觉变更**，须人工裁决 |
-| `2` | 对照组出现噪声 → 本机口径不可靠，**结论作废**（fail-closed） |
+| `0` | 判别力闸门通过 **且** 对照组零噪声 **且** 实验组零 computed 差异 → **视觉等价**，可安全覆盖（仍需人工授权 `--force`） |
+| `1` | 判别力闸门通过、对照组零噪声，但实验组有 computed 差异 → **可见视觉变更**，须人工裁决 |
+| `2` | 无页面具判别力 **/** 对照组出现噪声 **/** 变异自证失败 → **结论作废**（fail-closed） |
 
 ### 2.3 复现命令
 
 ```powershell
 # 全量（12 页：v2 壳层 9 页 + api-settings + canvas-list + episode-pipeline）
-python -P tools/tailwind_snapshot_visual_equiv.py --serve
+python -P tools/tailwind_snapshot_visual_equiv.py --serve --mutation-selftest
 
 # 或用已在运行的 2077 服务
-python -P tools/tailwind_snapshot_visual_equiv.py --base-url http://127.0.0.1:2077
+python -P tools/tailwind_snapshot_visual_equiv.py --base-url http://127.0.0.1:2077 --mutation-selftest
 
 # 复现假阳性（证明动画属性确实是非确定性来源）
-python -P tools/tailwind_snapshot_visual_equiv.py --serve --pages v2/index.html --keep-animation-props
+python -P tools/tailwind_snapshot_visual_equiv.py --serve --pages v2/index.html,api-settings.html,canvas-list.html --keep-animation-props
 ```
 
 产物（JSON 报告）**只落系统临时目录**；脚本对指向仓库静态目录的输出路径直接拒绝（`AGENTS.md` §1.2）。
@@ -80,66 +88,92 @@ python -P tools/tailwind_snapshot_visual_equiv.py --serve --pages v2/index.html 
 
 ## 3. 实测结果（基线 `a81a6eb`，本机真实 Chrome，1600×1000）
 
-### 3.1 对照组（baseline vs baseline，同一份 CSS 加载两次）
+### 3.1 第 0 步：判别力闸门（**这一步推翻了旧版 §3 的分母**）
+
+```
+[equiv] 第 0 步：页面判别力闸门（置空快照，要求出现 computed 差异）
+    v2/index.html            置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    v2/projects.html         置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    v2/production.html       置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    v2/workshop.html         置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    v2/storyboard.html       置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    v2/agents.html           置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    v2/settings.html         置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    v2/assets.html           置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    v2/collab.html           置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+    api-settings.html        置空差异 256    -> 有判别力，纳入判定
+    canvas-list.html         置空差异 122    -> 有判别力，纳入判定
+    episode-pipeline.html    置空差异 0      -> 无判别力，排除（该页不消费本地快照）
+[equiv] 判别力闸门通过：2/12 页纳入判定（api-settings.html，canvas-list.html）
+```
+
+**只有 2 页具备判别力**：`api-settings.html`、`canvas-list.html`。
+这 2 页正是**只依赖静态快照**、不加载自托管 Tailwind 运行时的页面（与 §1.1 的静态扫描结论一致）。
+
+### 3.2 对照组（baseline vs baseline，同一份 CSS 加载两次）
 
 ```
 [equiv] 第 1 步：对照组（baseline vs baseline，同一份 CSS 加载两次）
-    v2/index.html            元素 696   噪声差异 0
-    v2/projects.html         元素 523   噪声差异 0
-    v2/production.html       元素 380   噪声差异 0
-    v2/workshop.html         元素 220   噪声差异 0
-    v2/storyboard.html       元素 283   噪声差异 0
-    v2/agents.html           元素 198   噪声差异 0
-    v2/settings.html         元素 324   噪声差异 0
-    v2/assets.html           元素 144   噪声差异 0
-    v2/collab.html           元素 192   噪声差异 0
-    api-settings.html        元素 264   噪声差异 0
-    canvas-list.html         元素 130   噪声差异 0
-    episode-pipeline.html    元素  54   噪声差异 0
-```
-
-### 3.2 实验组（现有快照 vs 内存重生成）
-
-```
+    12 页全部 噪声差异 0
 [equiv] 对照组零噪声，口径可靠。
-[equiv] 第 2 步：实验组（现有快照 vs 内存重生成）
-    v2/index.html            元素 696   computed 差异 0
-    v2/projects.html         元素 523   computed 差异 0
-    v2/production.html       元素 380   computed 差异 0
-    v2/workshop.html         元素 220   computed 差异 0
-    v2/storyboard.html       元素 283   computed 差异 0
-    v2/agents.html           元素 198   computed 差异 0
-    v2/settings.html         元素 324   computed 差异 0
-    v2/assets.html           元素 144   computed 差异 0
-    v2/collab.html           元素 192   computed 差异 0
-    api-settings.html        元素 264   computed 差异 0
-    canvas-list.html         元素 130   computed 差异 0
-    episode-pipeline.html    元素  54   computed 差异 0
+```
 
-[equiv] 合计：元素 3408 个，computed 差异 0 处
+### 3.3 实验组（现有快照 vs 内存重生成，**仅统计有判别力的页面**）
+
+```
+[equiv] 第 2 步：实验组（现有快照 vs 内存重生成，仅统计有判别力的页面）
+    api-settings.html        元素 264   computed 差异 0
+    canvas-list.html         元素 133   computed 差异 0
+
+[equiv] 合计：元素 397 个，computed 差异 0 处
 [equiv] 判定：重生成为「视觉等价」——可安全覆盖（仍需人工授权 --force）。
 EXIT=0
 ```
 
-**结论**：在 `tags/class 配对 + 排除动画属性` 的口径下，按当前源码重新生成快照，
-**12 页共 3408 个元素的 computed style 零差异**。先前「会造成可见视觉变更」的判断是**规则级差异的误读**，已更正。
+### 3.4 变异自证（证明 §3.3 的零差异不是工具恒真）
 
-### 3.3 假阳性来源的证伪（证明 §3.2 的零差异不是口径太松）
+对 2 个有判别力的页面，分别删掉「该页运行时真实使用」的全部快照单类规则后再注入：
 
-若把动画属性计回比对（`--keep-animation-props`），**同一份 CSS** 的对照组立刻出现噪声：
+```
+        [变异自证] 已删除本页在用规则后 computed 差异 = 50 -> 通过      # api-settings.html
+        [变异自证] 已删除本页在用规则后 computed 差异 = 35 -> 通过      # canvas-list.html
+```
+
+典型差异样本（删除后用 computed 实测，不是推断）：
+
+```json
+{"tag": "svg", "cls": "lucide lucide-plus w-4 h-4",
+ "changes": {"width": ["16px", "24px"], "height": ["16px", "24px"]}}
+```
+
+即删除 `w-4` 后图标从 16px 变回浏览器默认 24px——**本口径对该页确有分辨力**。
+
+### 3.5 假阳性来源的证伪（证明 §3.3 的零差异不是口径太松）
+
+把动画属性（`transform` / `opacity` / `filter`）加回比对（`--keep-animation-props`），
+**同一份 CSS** 的对照组立刻出现噪声，工具按设计退出码 `2`：
 
 ```
 [equiv] 第 1 步：对照组（baseline vs baseline，同一份 CSS 加载两次）
-    v2/index.html            元素 696   噪声差异 7
-[equiv] 判定：口径不可靠 —— 对照组出现 7 处噪声，退出码 2。
+    v2/index.html            元素 740   噪声差异 7
+    api-settings.html        元素 264   噪声差异 1
+[equiv] 判定：口径不可靠 —— 对照组出现 8 处噪声，退出码 2。
 EXIT=2
 ```
 
-逐条核对：这 7 处差异的属性全部是 `transform` 或 `opacity`，元素类名均为动画载体
+逐条核对：这些差异的属性全部是 `transform` 或 `opacity`，元素类名均为动画元素
 （`animate-ping`、`animate-pulse`、`bg-gradient-to-r` 光晕、`hw-avatar-keycap-status` 呼吸灯）。
-即——**在 CSS 完全相同的条件下也会出现**，属采样噪声，与快照内容无关。
+即——**在 CSS 完全相同的条件下也会出现**，属采样噪声，与本项对照内容无关。
 
-这同时构成**变异自证**：本工具的对照组守卫**确实能失败**，§3.2 的 `EXIT=0` 不是恒真产物。
+这同时构成一道**独立**的自证：本工具的对照组守卫**确实能失败**。
+
+### 3.6 与旧版结论的差异（**必须如实登记**）
+
+旧版本文件登记为「12 页 / 3408 元素 / computed 差异 0」。该读数**方向正确但不具判别力**：
+12 页中有 10 页并不消费本地快照，把它们计入分母会稀释结论。
+**更正后的权威口径为：2 页 / 397 元素 / computed 差异 0，且 2 页均通过变异自证。**
+
+定性结论不变（重生成为视觉等价），但**证据强度与覆盖范围以本节为准**。
 
 ---
 
@@ -157,7 +191,7 @@ EXIT=2
 
 ## 5. 对本项裁决的建议
 
-基于 §3.2：**重新生成为视觉等价**（该判定仅在此口径与视口下成立，见 §4 边界）。
+基于 §3.3 与 §3.4：**重新生成为视觉等价**（该判定仅在此口径与视口下成立，见 §4 边界）。
 可选处置（须人工裁决其一）：
 
 | 选项 | 效果 | 代价 |
@@ -166,4 +200,4 @@ EXIT=2
 | **B. 执行 `--force` 重生成** | 快照与源码对齐；`--check` 转为 `0`；已实测视觉等价 | 覆盖既有制品，事后不可从仓库内容直接追溯「删了什么」 |
 
 若选 **B**，建议在同一提交内一并落入：重生成后的新 SHA-256、
-`--diff`（规则级前后计数）、本文件 §3.2 的 computed 零差异读数，作为该次视觉变更的证据链。
+`--diff`（规则级前后计数）、本文件 §3.3 的 computed 零差异读数 + §3.4 变异自证读数，作为该次视觉变更的证据链。

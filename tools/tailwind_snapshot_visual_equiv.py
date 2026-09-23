@@ -14,6 +14,9 @@ tools/build_static_tailwind_utilities.py 的 --diff 只能给出**规则级**差
 
 判定口径（刻意写成机械、可复现）
 --------------------------------
+0. **判别力闸门（fail-closed）**：逐页把快照整体置空，若 computed 差异仍为 0，说明该页并不
+   消费本地快照（样式由自托管 Tailwind 运行时 JIT 提供），该页**不纳入分母**。若没有任何页面
+   具备判别力，直接退出码 2，结论作废。
 1. 在内存中重新生成快照（等价于 --force 会写入的内容），**不写盘**；
 2. 用 Playwright 路由拦截，把该内容注入受检页面对 tailwind-utilities.css 的请求；
 3. 逐元素（按 tagName + className 配对）比对 **computed style**；
@@ -37,6 +40,7 @@ tools/build_static_tailwind_utilities.py 的 --diff 只能给出**规则级**差
     python -P tools/tailwind_snapshot_visual_equiv.py --base-url http://127.0.0.1:2077
     python -P tools/tailwind_snapshot_visual_equiv.py --serve --pages v2/index.html,api-settings.html
     python -P tools/tailwind_snapshot_visual_equiv.py --serve --keep-animation-props   # 复现假阳性
+    python -P tools/tailwind_snapshot_visual_equiv.py --serve --mutation-selftest      # 变异自证（证明非恒真）
 
 清洁室边界
 ----------
@@ -49,6 +53,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import pathlib
 import subprocess
 import sys
@@ -210,6 +215,27 @@ def compare(base: list, other: list, props: tuple[str, ...]) -> list:
     return diffs
 
 
+# 快照中的单类规则：.类名{ ... }（类名里的 CSS 转义反斜杠需还原后才能与 DOM class 比对）
+SINGLE_RULE_RE = re.compile(r"\.((?:[A-Za-z0-9_-]|\\.)*)\{([^}]*)\}")
+
+
+def kill_used_rules(css: str, page) -> str | None:
+    """删除「该页运行时真实使用」的全部单类规则；无可删规则时返回 None（变异自证用）。"""
+    used = set(page.evaluate("() => Array.from(new Set(Array.from(document.querySelectorAll('[class]'))"
+                             ".flatMap(el => Array.from(el.classList))))"))
+    hit = []
+    for selector, body in SINGLE_RULE_RE.findall(css):
+        name = selector.replace("\\", "")
+        if name in used and ":" not in name:
+            hit.append("." + selector + "{" + body + "}")
+    if not hit:
+        return None
+    out = css
+    for chunk in hit:
+        out = out.replace(chunk, "")
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="判定按当前源码重新生成 Tailwind 快照是否会改变真实渲染结果。"
@@ -218,6 +244,11 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:2077", help="已运行服务的基础地址")
     parser.add_argument("--pages", default=None, help="逗号分隔的受检页面（相对 static/）")
     parser.add_argument("--artifacts-dir", default=None, help="报告输出目录（默认系统临时目录）")
+    parser.add_argument(
+        "--mutation-selftest",
+        action="store_true",
+        help="追加变异自证：删除本页在用的快照规则后必须出现 computed 差异，否则退出码 2",
+    )
     parser.add_argument(
         "--keep-animation-props",
         action="store_true",
@@ -261,7 +292,7 @@ def main() -> int:
 
     chrome = find_chrome()
     exit_code = 0
-    report = {"base_url": args.base_url, "pages": list(pages), "control": {}, "experiment": {}}
+    report = {"base_url": args.base_url, "pages": list(pages), "discriminative": {}, "control": {}, "experiment": {}, "mutation_selftest": {}}
 
     try:
         if not wait_for_health(args.base_url):
@@ -275,6 +306,51 @@ def main() -> int:
             browser = pw.chromium.launch(**launch)
             page = browser.new_context(viewport={"width": 1600, "height": 1000}).new_page()
             js = sample_js(props)
+
+            # 第 0 步（判别力闸门，fail-closed）：
+            # 并非所有受检页面都真正消费本地快照。经实测，v2 壳层页面样式由自托管
+            # Tailwind 运行时 JIT 提供，对它们注入任何快照内容都不会产生 computed 差异；
+            # 把这类页面计入分母会稀释结论、放大「零差异」的虚假可信度。
+            # 判据：把快照整体置空；若 computed 差异仍为 0，则该页对本次判定无判别力，必须排除。
+            print("")
+            print("[equiv] 第 0 步：页面判别力闸门（置空快照，要求出现 computed 差异）")
+
+            def blank_css(route, request):
+                route.fulfill(status=200, content_type="text/css", body="")
+
+            discriminative = []
+            for name in pages:
+                url = args.base_url + "/static/" + name
+                page.goto(url, wait_until="load", timeout=30000)
+                page.wait_for_timeout(2200)
+                before = page.evaluate(js)
+                page.route("**/css/tailwind-utilities.css*", blank_css)
+                page.goto("about:blank")
+                page.goto(url, wait_until="load", timeout=30000)
+                page.wait_for_timeout(2200)
+                after = page.evaluate(js)
+                page.unroute("**/css/tailwind-utilities.css*")
+                blank_diff = len(compare(before, after, props))
+                report["discriminative"][name] = {"elements": len(before), "blank_diff": blank_diff}
+                if blank_diff:
+                    discriminative.append(name)
+                    print("    %-24s 置空差异 %-6d -> 有判别力，纳入判定" % (name, blank_diff))
+                else:
+                    print("    %-24s 置空差异 0      -> 无判别力，排除（该页不消费本地快照）" % name)
+
+            if not discriminative:
+                print(
+                    "\n[equiv] 判定：没有任何页面消费本地快照，本次判定无判别力，退出码 2。",
+                    file=sys.stderr,
+                )
+                browser.close()
+                return 2
+
+            report["discriminative_pages"] = list(discriminative)
+            print(
+                "[equiv] 判别力闸门通过：%d/%d 页纳入判定（%s）"
+                % (len(discriminative), len(report["discriminative"]), "，".join(discriminative))
+            )
 
             control_noise = 0
             print("")
@@ -304,14 +380,14 @@ def main() -> int:
             else:
                 print("")
                 print("[equiv] 对照组零噪声，口径可靠。")
-                print("[equiv] 第 2 步：实验组（现有快照 vs 内存重生成）")
+                print("[equiv] 第 2 步：实验组（现有快照 vs 内存重生成，仅统计有判别力的页面）")
                 total_diff = 0
                 total_el = 0
 
-                def fulfill(route):
+                def fulfill(route, request):
                     route.fulfill(status=200, content_type="text/css", body=regenerated)
 
-                for name in pages:
+                for name in discriminative:
                     url = args.base_url + "/static/" + name
                     page.goto(url, wait_until="load", timeout=30000)
                     page.wait_for_timeout(2200)
@@ -333,6 +409,39 @@ def main() -> int:
                     print("    %-24s 元素 %-5d computed 差异 %d" % (name, len(base), len(diffs)))
                     for item in diffs[:3]:
                         print("        " + json.dumps(item, ensure_ascii=False)[:220])
+
+                    # 第 3 步（可选，变异自证）：证明本口径对本页确有分辨力。
+                    # 做法：删掉重生成结果中「该页运行时真实使用」的全部单类规则，再注入。
+                    # 若此时 computed 差异仍为 0，说明本页对该 CSS 不敏感，自证失败（退出码 2）。
+                    if args.mutation_selftest:
+                        mutated = kill_used_rules(regenerated, page)
+                        if mutated is None:
+                            print("        [变异自证] 未找到可删除的已用规则 -> 自证失败", file=sys.stderr)
+                            selftest_ok = False
+                        else:
+                            def fulfill_mutated(route, request):
+                                route.fulfill(status=200, content_type="text/css", body=mutated)
+
+                            page.route("**/css/tailwind-utilities.css*", fulfill_mutated)
+                            page.goto("about:blank")
+                            page.goto(url, wait_until="load", timeout=30000)
+                            page.wait_for_timeout(2200)
+                            mutated_snapshot = page.evaluate(js)
+                            page.unroute("**/css/tailwind-utilities.css*")
+                            mutation_diffs = len(compare(base, mutated_snapshot, props))
+                            report["mutation_selftest"][name] = mutation_diffs
+                            selftest_ok = mutation_diffs > 0
+                            print(
+                                "        [变异自证] 已删除本页在用规则后 computed 差异 = %d -> %s"
+                                % (mutation_diffs, "通过" if selftest_ok else "失败")
+                            )
+                        if not selftest_ok:
+                            print(
+                                "\n[equiv] 判定：变异自证失败，本口径对该页无分辨力，退出码 2。",
+                                file=sys.stderr,
+                            )
+                            browser.close()
+                            return 2
 
                 print("")
                 print("[equiv] 合计：元素 %d 个，computed 差异 %d 处" % (total_el, total_diff))
