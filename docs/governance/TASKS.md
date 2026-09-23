@@ -887,7 +887,7 @@
     3) 洁净室红线与 AppSec：全仓 378 tracked 文件仅含白名单 3 个思源黑体，二进制违规为 0；同形字混淆扫描 0 命中；凭据脱敏零回显；排除项零运行时依赖。
     4) 自动化与变异测试：全量 `pytest` 487 passed, 7 skipped；`hygiene` 16 passed；`node --check` 57/0 failed；33 件黄金夹具与 16 条输入 SHA-256 100% 吻合；现场执行 CAS 破坏性变异测试证实守卫非恒真，并逐字节还原。
     5) 审核代理人终审：正式出具 `docs/governance/PHASE-10-INDEPENDENT-AUDIT-REPORT-2026-09-23.md`，终审裁决为 **TECHNICALLY APPROVED (CLEANROOM COMPLIANT)**。
-  - **边界**：仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**（技术合规审计通过 ≠ 法律发布授权，发布需人工确认）；内存存储、未实现端点保持 fail-closed。 另有两条主代理复核更正：①**独立性口径**——本项执行主体为**同框架多角色代理**，按本仓既有纪律**同框架内代理复核 ≠ 外部第三方独立审计**，T36/T40 的外部第三方审计与发布授权**仍未闭环**；②**API 引用数**——以守卫 `tests/contracts/test_phase8_frontend_backend_api_gap.py` 为唯一权威口径（实测 189 引用 / 49 已实现 / 140 未实现），本条目原写的「188」为笔误，已更正为 **189**，更正明细见 `docs/governance/PHASE-10-INDEPENDENT-AUDIT-REPORT-2026-09-23.md` §6。
+  - **边界**：仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**（技术合规审计通过 ≠ 法律发布授权，发布需人工确认）；内存存储、未实现端点保持 fail-closed。 另有三条主代理复核更正：①**独立性口径**——本项执行主体为**同框架多角色代理**，按本仓既有纪律**同框架内代理复核 ≠ 外部第三方独立审计**，T36/T40 的外部第三方审计与发布授权**仍未闭环**；②**API 引用数**——以守卫 `tests/contracts/test_phase8_frontend_backend_api_gap.py` 为唯一权威口径（实测 189 引用 / 49 已实现 / 140 未实现），本条目原写的「188」为笔误，已更正为 **189**，更正明细见 `docs/governance/PHASE-10-INDEPENDENT-AUDIT-REPORT-2026-09-23.md` §6；③**OpenAPI 路由基数**——报告 §3.1 原写「73 条路由」，主代理实测 `app.openapi()` 为 **method+path 操作数 72**（unique path 54），已更正为 **72**（51 个契约方法条目仍为其子集，核心结论「缺失数 = 0」不变）。
 - [x] T82 T46 口径终局统一（2026-09-23，用户裁决：**以守卫为唯一口径**；追加更正，不改写历史行）。
   - **唯一权威口径**：`tests/contracts/test_phase8_frontend_backend_api_gap.py`（该守卫的冻结常量与断言）。
   - **本次实测读数**（直接调用守卫 helper 复算，非人工抄录）：
