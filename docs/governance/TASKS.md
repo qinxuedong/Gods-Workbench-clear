@@ -991,3 +991,28 @@
     伪元素、`:hover`/`:focus`/`:active` 交互态、Canvas/WebGL/SVG 内部渲染。**快照重生成动作本轮未执行**——
     写盘覆盖既有视觉基线属破坏性操作，按 AGENTS.md §5 须人工明确确认（待裁决：保持现状 / `--force` 重生成）。
     本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权；执行主体为主代理，≠ 外部第三方独立审计。
+
+- [x] T87 Phase 10 完整交互矩阵补测（2026-09-23，推进 HANDOFF-10.md §4 第 7 项）。
+  - **范围**：此前仅完成加载期 + 7 项交互 smoke；本轮补测 ①表单写入 ②CAS 409 ③202+poll_hint 轮询
+    ④403 只读降级 ⑤401 未认证语义，共 5 项，区分「契约层真实 HTTP」与「呈现层真实浏览器」。
+  - **契约层（真实 HTTP，端口 2077，全 PASS）**：
+    POST projects → 201 / version 1；PATCH 正确版本 → 200 / version 2；
+    陈旧 expected_version → **409 VERSION_CONFLICT** 且返回 expected_version + current_version；
+    readonly 角色治理操作 → **403 FORBIDDEN**；无凭据 / 伪造 Bearer → **401 UNAUTHORIZED**；
+    POST /api/canvases/cv-0001/tasks → **202** + `job_id=job-0002` + `poll_hint=/api/jobs/job-0002`（与 job_id 一致），
+    轮询该 poll_hint → 200 且 job_id 稳定。
+  - **呈现层（真实 Chrome）**：
+    ①前端全部 /api 请求**不带 Authorization 头**（实测 0 条）——与 CLEANROOM-STATUS.md:209、HANDOFF-7.md:241、
+    TASK-NOTES-2026-09-18.md:1096 既有登记**一致**，属既有缺口**复现**，不重复计为新缺陷；
+    ②真实 UI 归档写入 → DELETE 401、toast「归档失败：请求失败（HTTP 401）」，根因是认证头缺失而非后端缺陷；
+    ③**新发现（规范偏离）**：`degradation.js:21/45-52` 的 `statusKind()` 仅把 404/501 归 `not_integrated`、
+    503 归 `service_unavailable`，**其余一律 `error`**，故 401/403/409 的用户可见提示均退化为
+    「请求失败（HTTP N）」，与 `BEHAVIOR-SPEC-PRODUCTION-PROJECTS-HUB.md` §5 要求的
+    「401 提示重新登录 / 403 提示权限不足 / 409 提示刷新并重试」**不符**。
+  - **新证据**：`docs/governance/PHASE-10-INTERACTION-MATRIX-EVIDENCE-2026-09-23.md`。
+  - **待人工裁决（§6.3）**：`degradation.js` 是否为 401/403/409 补语义化映射——
+    选项 A 维持现状并把规范提示降级为「未实现」；选项 B 补映射使实现向已冻结规范收敛（建议 B，但属共享层改动，
+    影响全部消费页面，按 AGENTS.md §5 须人工确认后实施）。
+  - **边界（不得越读）**：契约层全部 PASS **不等于**呈现层闭环；409 提示路径依赖 Playwright 路由拦截注入，
+    真实环境下因认证头缺失会先返回 401，**未端到端触达**。未覆盖跨页状态、多窗口并发、响应式断点、交互态。
+    本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权；执行主体为主代理，≠ 外部第三方独立审计。
