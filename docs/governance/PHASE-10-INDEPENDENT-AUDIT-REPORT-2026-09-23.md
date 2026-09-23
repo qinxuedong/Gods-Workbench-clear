@@ -160,3 +160,63 @@ Phase 10A–10E 五段切片的实现与测试证据经各专项负责人对抗�
 **本节证据边界**：以上 51 个契约方法条目、（189/49/140）计数、16 个 HTML 外部脚本引用 = 0、
 tracked = 378、黄金夹具 33 件、输入登记 16 条，均为主代理在本机当前工作树实测所得；
 **本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权**。
+
+---
+
+## 7. 审计后新增发现（**时间边界声明，2026-09-23 追加**）
+
+### 7.1 为什么必须追加本节
+
+本报告 §5 的终审裁决 **TECHNICALLY APPROVED (CLEANROOM COMPLIANT)** 的**审计时点**是
+Phase 10A–10E 五段切片收口当时的工作树与证据集。**该时点之后**，主代理继续推进
+`HANDOFF-10.md` §4 第 7 项（前端真实浏览器 E2E 的未覆盖维度），并在**同一个 `v2-shell.js`
+壳层路由**上**新发现三个真实缺陷**与**一处工具自身缺陷**。
+
+按洁净室「不作虚假陈述」原则，必须显式声明：**§5 的裁决不覆盖 §7 的新增发现**。
+两者**不矛盾**——§5 是对其审计范围内证据的判定；§7 是审计范围之外、后续新增的真实缺口。
+
+### 7.2 三个新增真实缺陷（均在 `src/gods_workbench/static/v2/js/v2-shell.js`）
+
+| # | 缺陷 | 表现 | 证据 |
+|---|---|---|---|
+| 1 | `navigate()` 部分路由**不替换 deck**，只替换 deck 之后的 `<main>` | 只在某页存在于 `.topbar-master-deck` 内的 `id` 经壳层导航后丢失（`production.html` 的 `currentProjectDisplayTitle`、`workshop.html` 的 `workshopProjectTitle`、`storyboard.html` 的 `storyboardNavCanvas`、`index.html` 的 `navPillDashboard`/`navPillSettings`/`uvNeedleGradCPU`）；控制器有空值保护故**无 JS 异常**（静默降级） | 跨页证据文档 §3.2；`HANDOFF-10.md` §11.2 |
+| 2 | `runRouteScripts()` **不保留 `type="module"`** | `collab.html` 两条模块脚本被当普通脚本执行 → `Cannot use import statement outside a module`；模块能力不可用 | 同文档 §3.4；`HANDOFF-10.md` §11.4 |
+| 3 | `runRouteScripts()` **只追加不替换**脚本 | `document.querySelectorAll('script').length` 随连续导航**单调累积**（5 步交替导航实测 7→21…33）；含顶层 `const` 的内联脚本重复执行抛 `Identifier 'V2Workshop' has already been declared`（`workshop.html`）；`collab.html` 反复抛 module 降级错误 | 同文档 §3.7；`HANDOFF-10.md` §12.3 |
+
+**共同点**：三者都在 `v2-shell.js` 的**部分路由**路径上，且都**只在「反复到达 / 非首次到达」时**
+才显形或升级——这正是原先每页只导航一次的检查**看不见**的原因。
+
+### 7.3 一处工具自身缺陷（已修正，非被测站点缺陷）
+
+`tools/frontend_e2e_smoke.py` 的 `start_server()` 原用 `stdout=subprocess.PIPE` 且**从不读取**：
+服务端持续写访问日志，Windows 管道缓冲（约 4–8 KB）写满后子进程阻塞在 `write()`，
+后续 HTTP 请求全部挂起，表现为 `Page.goto: Timeout`。已改为写**系统临时目录日志文件**。
+对照实验（判定性）：仅此一项改动即让原本超时的连续导航序列全程通过。
+详见 `docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md` §3.8。
+
+### 7.4 检测能力已固化（防回归）
+
+`tools/frontend_e2e_smoke.py` 已把上述缺陷固化为 **fail-closed** 检查：
+
+- 第 6 项「壳层路由一致性」：deck `[id]` 集合 / `type="module"` 脚本集合 / `pageerror` 集合；
+- 第 7 项「连续壳层导航稳定性」：同一 context 内 5 步交替导航，断言每步真实到达、
+  script 元素无未登记累积、无未登记未捕获异常。
+
+未登记的新缺口 → FAIL；**已登记但不再复现 → 同样 FAIL 并提示移除登记**（防清单腐化）。
+两项均做过**变异自证**（清空登记表后必须 FAIL），证明断言非恒真。
+
+### 7.5 对发布与裁决的影响
+
+- **不改变** §5 的技术结论在**其审计范围内**的效力；
+- **新增 4 项待人工裁决**（`HANDOFF-10.md` §11.7 的 3 项 + §12.6 的 1c），
+  三项修复点均在 `v2-shell.js` 共享层，按 `AGENTS.md` §5 须人工确认后实施；
+- **仓库对外发布状态不变**：仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**；
+- **T36 / T40 外部第三方独立审计仍未闭环**——本报告执行主体仍是**同框架代理**，
+  新增发现同样**不构成**外部第三方审计。
+
+### 7.6 本节证据边界
+
+- 新增发现均为主代理在**本机真实 Chrome（1600×1000 headless）+ 真实 HTTP** 实测所得；
+- **本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权**；
+- 本节由**主代理**追加，**未经**本报告原审核角色重新签发——该限制如实登记。
+
