@@ -51,7 +51,7 @@ decisions:
     rationale: "父库与目录均可被并发结构操作修改，必须同步递增才能让 CAS 生效。"
   error_codes:
     decision: "错误码表：401 UNAUTHORIZED；403 FORBIDDEN；404 LIBRARY_NOT_FOUND / CATEGORY_NOT_FOUND；409 VERSION_CONFLICT / DUPLICATE_LIBRARY_NAME / DUPLICATE_CATEGORY_NAME / LIBRARY_NOT_EMPTY；400 INVALID_REQUEST"
-    rationale: "401 复用 core.errors.UnauthorizedException（错误码为纯 ASCII UNAUTHORIZED，小写后即 unauthorized，与既有 core/errors.py 完全一致），其余错误经统一错误包外层 detail.code/message 返回。"
+    rationale: "401 复用 core.errors.UnauthorizedException，错误码为纯 ASCII **全大写** UNAUTHORIZED（12 字节），与既有 core/errors.py 及 docs/fixtures/canvas-auth-401.json 逐字一致；P10-R-1 已按用户 2026-09-23 裁决 A（以实现为准）收口——真实差异为纯 ASCII 大小写，非同形字，此前「含同形字的小写」表述系终端渲染伪影导致的误判。其余错误经统一错误包外层 detail.code/message 返回。"
 
 interfaces:
   - name: get_prompt_libraries

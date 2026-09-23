@@ -41,10 +41,10 @@ decisions:
     decision: "409 错误码：存储设置与 provider 集合使用 VERSION_CONFLICT；结构体使用 STRUCTURE_VERSION_CONFLICT"
     rationale: "结构体冲突需与项目/画布 CAS 冲突区分，故在契约中写死独立错误码，但外层仍是标准错误包。"
   auth_and_permissions:
-    decision: "认证与权限：读端点需认证（401 unauthorized / 403 FORBIDDEN）；写端点需写权限（401 / 403）"
+    decision: "认证与权限：读端点需认证（401 UNAUTHORIZED / 403 FORBIDDEN）；写端点需写权限（401 / 403）"
     rationale: "复用 core/auth.py 的 require_authenticated / require_edit_access，不自造权限体系；401 码沿用 core/errors.py 既有权威值。"
   error_codes:
-    decision: "错误码表：400 INVALID_REQUEST；401 unauthorized；403 FORBIDDEN；404 STRUCTURE_NOT_FOUND；409 VERSION_CONFLICT / STRUCTURE_VERSION_CONFLICT；503 PROVIDER_PROBE_NOT_INTEGRATED"
+    decision: "错误码表：400 INVALID_REQUEST；401 UNAUTHORIZED；403 FORBIDDEN；404 STRUCTURE_NOT_FOUND；409 VERSION_CONFLICT / STRUCTURE_VERSION_CONFLICT；503 PROVIDER_PROBE_NOT_INTEGRATED"
     rationale: "外层结构统一为标准错误包：detail 内至少含 code 与 message。"
   forbidden_neighbors:
     decision: "禁止实现清单之外的相邻端点"
