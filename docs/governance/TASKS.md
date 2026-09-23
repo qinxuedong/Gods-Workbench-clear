@@ -1152,3 +1152,26 @@
     该独立性缺陷如实登记，**不得写成「已独立复核」**。
   - **边界**：§7 与 T90 的实测均为**本机**证据（1600×1000 headless Chrome + 真实 HTTP）；
     本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权；同框架代理复核 ≠ 外部第三方独立审计。
+
+- [x] T92 T35 / T61 五项阻塞项的**当前状态复算**（2026-09-23，仅追加登记，不改写历史行）
+  - **触发**：`TASKS.md` 中 T35（第 195 行）与 T61（第 596 行）仍为未勾选的「待用户裁决」项，
+    且历史行内多处写「O4 / O5 / O6 / R6-7 / `static/js/canvas/http.js` **仍未处置，不得写 PASS**」。
+    本轮按「不改写历史行、仅追加现值」的既有口径，逐项**复算当前真实状态**，避免清理时误判。
+  - **复算结果（本机 HEAD `50d6b7d`，逐项亲跑）**：
+
+    | 历史项 | T35/T61 原表述 | **当前真实状态** | 判定 |
+    |---|---|---|---|
+    | O4 | 生成器不存在、路径不可复现 | `tools/build_static_tailwind_utilities.py` **已存在**（T83，提交 `fd67e06`/`a81a6eb`）；`git log --all` 有记录；生成配方已确证为纯净 Tailwind Play CDN 3.4.17 | **已闭环（生成器部分）**；「是否执行 `--force` 重生成」仍待裁决 |
+    | O5 | 死类未修正，修正有视觉变更待授权 | `py-0.2` 在 `src/` 残留 **0** 处（T84 已改 70 处为 `py-0.5`）；`tailwind-utilities.css` 中 `py-0.2` / `backdrop-blur-xs` / `h-4.5` / `w-4.5` 规则数均为 **0** | **已闭环（死类修正部分）** |
+    | O6 | 「tracked 269 → 275」口径更正 | `git ls-files \| Measure-Object -Line` = **387**（较历史 293 增长，因 T81–T91 新增证据/工具文档） | **口径已登记**；历史行保持原样，此项**无待办动作** |
+    | R6-7 | 会话绝对过期上限未闭环 | `src/gods_workbench/core/session.py` 含 `SESSION_ABSOLUTE_MAX_SECONDS` 与 `absolute_expires_at`；`tests/contracts/test_phase9i_session_absolute_expiry.py` 存在且通过 | **已闭环**（T47，2026-09-22） |
+    | `static/js/canvas/http.js` 删除 | 破坏性、待人工裁决 | 该文件已在 **`cdf78a1`（2026-09-22 Phase 9U）删除**；`git ls-files` 无此路径；`src/` 内对 `js/canvas/` 的引用 **0** 处 | **已执行并闭环** |
+
+  - **门禁复核**：`pytest -q` = **487 passed / 7 skipped**；`tests/hygiene` = **16 passed**；
+    `tests/contracts/test_phase9i_session_absolute_expiry.py` + `test_phase8_frontend_backend_api_gap.py` = **12 passed**。
+  - **本质澄清（防止误读）**：历史行的「仍未处置，不得写 PASS」是**当时时点**的判定，**不是**对当前工作树的判定。
+    本轮复算证明其中 **4 项已实际闭环、1 项（O6）无待办动作**；由此，T35/T61 的**可选动作**收敛为
+    **仅剩「是否授权 `--force` 重生成 Tailwind 快照」这一项**（与 `HANDOFF-10.md` §4 第 3 项同一件事）。
+  - **未擅自改动的部分**：历史行原文**一律保留**；T35/T61 的勾选状态**不擅自翻转**——
+    翻转属治理状态变更，须人工确认（`AGENTS.md` §5）。
+  - **边界**：均为本机只读复算；本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权。
