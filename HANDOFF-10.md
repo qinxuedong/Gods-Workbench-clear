@@ -102,7 +102,7 @@
 4. **真实外部 IdP 生产登录**：需真实 OP + 凭据 + 环境。
 5. **T46 的 140 条未实现端点**：仅统一了口径，实现状态未变，仍全部 fail-closed。
 6. **内存存储**：重启即丢、多 worker 不共享，未接入数据库。
-7. **前端真实浏览器 E2E**：**加载期已闭环（见 §6）**；**交互期仍未执行**（点击流、表单提交、CAS 冲突操作、上传、轮询闭环）。
+7. **前端真实浏览器 E2E**：**加载期已闭环（§6）**；**交互期已闭环确定性 smoke 7 项（§8）**；**完整交互矩阵仍未执行**（表单写入、CAS 409 用户可见提示、202 轮询收敛、403 只读降级、跨页状态、多窗口并发）。
 
 ---
 
@@ -176,4 +176,43 @@
 - 覆盖范围仅 **v2 壳层 9 页的加载期行为**（导航、静态资源、初始脚本、初始 API 调用）；
   **不含**交互路径 E2E（点击流、表单提交、CAS 冲突操作、上传、轮询闭环）。
 - 「零 JS 异常」只证明**未捕获异常为 0**；控制台 error 级日志仍存在（即上述预期 4xx），单独计数不伪装为 0。
-- 故 §4 第 7 项状态更新为：**加载期已执行 + 交互期仍未执行**。
+- 故 §4 第 7 项状态更新为：**加载期已执行 + 交互期已执行确定性 smoke**。
+  交互期的完整矩阵（表单写入、CAS 409 用户可见提示、202 轮询收敛、403 只读降级）**仍未执行**，见 §8。
+
+---
+
+## 8. 交互期 E2E（提交 `e5fd4cc02a2daa165938143b84582cdeffd4f540`，CI run `35846070233` = success）
+
+### 8.1 新增 7 项确定性交互断言（全部断言真实 DOM 变化）
+
+| # | id | 页面 | 断言要点 |
+|---|---|---|---|
+| 1 | `projects-view-table` | projects | 列表容器去 `hidden`、网格容器加 `hidden` |
+| 2 | `projects-view-grid-restore` | projects | 反向复原（可逆性） |
+| 3 | `projects-search-empty-state` | projects | `.project-card-item` 归零且文案含「未检索到」 |
+| 4 | `projects-search-restore` | projects | 清空后项目卡恢复 > 0 |
+| 5 | `index-settings-view-and-theme-toggle` | index | 切设置视图后 `#themeToggle` 已绑定，连点两次 `on` 类往返复原 |
+| 6 | `settings-section-switch` | settings | 按钮与 panel 同步 `active`，panel computed `display !== none` |
+| 7 | `nav-projects-to-workshop` | projects | 真实跳转且路径以 `/static/v2/workshop.html` 结尾（忽略 query） |
+
+实测 **7/7 通过**，交互全程 `pageerror = 0`，基线外 API 4xx = **0**，退出码 `0`。
+
+### 8.2 变异测试（证明断言非恒真）
+
+把搜索空态断言改成 `cards === 999`（必然为假）后，该守卫确实 **FAIL**、退出码 **1**，
+证明 7/7 的通过不是恒真产物。变异体已删除，`git status` 无残留。
+
+### 8.3 自我纠错（如实登记）
+
+首轮交互断言实测仅 **4/7** 通过，暴露的是**我的断言口径错误**而非产品缺陷：
+
+- `#topbarToggle` **不存在**——真实控件是 `#themeToggle`，且它位于 `#v2MainSettings`（默认 `hidden`），
+  其绑定 `initSettingsModule()` 只在切到设置视图时执行；正确前置是**先切视图再点**。
+- 设置分区按钮**不写** `aria-pressed`（实测 `null`），原断言必然失败；改为断言 `active` 类 + computed `display`。
+- 导航真实 URL **带 query**（`workshop.html?project_id=prj-0001`），原 `endswith('.html')` 失败；改为按路径比较。
+
+### 8.4 边界（**不得越读**）
+
+本项是**确定性交互 smoke**，不是完整交互矩阵。**未覆盖**：表单写入（新建/编辑项目、上传素材）、
+CAS 409 冲突的用户可见提示、`202 Accepted` + `poll_hint` 的轮询收敛、403 只读降级、跨页状态保持、多窗口并发。
+上述仍需独立用例 + 真实后端状态；不得宣称交互期全部闭环。
