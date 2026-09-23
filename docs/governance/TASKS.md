@@ -1196,3 +1196,32 @@
     子项 4（统一改为显式降级）属**行为变更**，仍待人工裁决。
   - **边界**：子项 1 为本机实测（≠ 远端 CI ≠ 生产验收）；子项 3 只统一口径，不改变任何端点实现状态；
     历史行原文与 T26 勾选状态**一律保留**，不擅自翻转（治理状态变更须人工确认）。
+
+- [x] T94 第 8 项 E2E「顶栏可达性」检查入库 + 新发现顶栏控件在大范围视口下被静默裁剪（2026-09-23）
+  - **触发**：T90 登记「前 7 项 E2E 无法覆盖顶栏被 `overflow: hidden` 静默裁剪」的结构性盲区。
+  - **交付**：`tools/frontend_e2e_smoke.py` 新增第 8 项 `run_topbar_accessibility()`；
+    证据文档 `docs/governance/PHASE-10-TOPBAR-OVERFLOW-EVIDENCE-2026-09-23.md`。
+  - **判定口径（机械可复算）**：3 个视口（1920x1080 / 1600x1000 / 1366x768）× 9 页，
+    对 `#topbarUnifiedTrashBtn` 与 `#masterDeckDate` 取「可见交集中心点命中测试（hit-test）」，
+    并叠加**判别力闸门** `visibleWidth >= max(24px, 控件自身宽度 x 60%)`
+    （24px 锚定 WCAG 2.2 SC 2.5.8）。登记表 fail-closed：未登记判 FAIL，
+    已登记但全部视口均不再复现也判 FAIL（防清单腐化）。
+  - **新发现（本机实测，未修复）**：顶栏横向溢出在 27 个「页面-视口」组合中 **25 个存在**
+    （1920 下 7 个、1600 下 9 个、1366 下 9 个）；`#topbarUnifiedTrashBtn`
+    在 27 个组合中 **23 个不可用**（仅 `workshop.html` / `settings.html` 在 1920 与 1600 下共 4 个组合可用）；
+    `#masterDeckDate` 在 1366x768 下 4 页不可用。即**统一回收站入口在 1920x1080 下 9 页有 7 页点不到**。
+    成因证据：`hardware-design-system.css:74` 以 `!important` 钉死 header 高度，9 页 header 均带 `overflow-hidden`。
+  - **判别力闸门实测必要性**：1920 下 `index.html` 回收站仅剩 **4px** 可见（36px 控件的 11%），
+    hit-test 仍命中自身——只做 hit-test 会误判 PASS，叠加闸门后如实判为不可用。
+  - **变异自证**：`--mutation-selftest`（清空两张登记表重跑）报出 **23 条 FAIL**，证明判定非恒真；
+    主运行（含登记表）退出码 **0**（无未登记缺口、无登记腐化）。
+  - **本轮修正的工具自身缺陷（2 处）**：
+    ① 「已登记但不再复现」初版按**逐视口**做差集，而登记表按**页面**聚合，产生 23 条假 FAIL；
+    改为跑完该页全部视口后用三视口观测**并集**比较；
+    ② 变异自证结果初版未落盘，改为写入 `e2e-report.json` 的 `topbar_mutation_selftest`。
+  - **门禁复核**：`pytest -q` = **487 passed / 7 skipped**；`tests/hygiene` = **16 passed**。
+  - **待人工裁决（未擅自修复）**：是否修复顶栏布局（属视觉设计变更，`AGENTS.md` §5）；
+    修复后须从 `KNOWN_TOPBAR_OVERFLOW` / `KNOWN_TOPBAR_UNREACHABLE` 移除对应条目。
+  - **边界**：本机实测（headless Chromium + 真实 HTTP）；该工具依赖 Playwright，**不接入 CI**；
+    本机实测 != 远端 CI != 生产验收 != 发布授权。本项仅覆盖 2 个控件 × 3 个视口，
+    不得据此断言「顶栏整体只有这些问题」，亦未测键盘可达性。

@@ -32,6 +32,12 @@ Phase 10A-10E 的门禁全部建立在 FastAPI 的 TestClient 之上，属于**�
    (b) 是否抛出未捕获 JS 异常（如顶层 `const` 重复声明导致的 `Identifier ... has already been declared`）。
    该维度是第 6 项**看不见**的：第 6 项每个目标页只做一次壳层导航，累积效应不会显形。
    同样 fail-closed：未登记的累积/异常判失败，已登记者不再复现也判失败。
+8. 顶栏可达性（第 8 项）：在 1920x1080 / 1600x1000 / 1366x768 三个视口下，
+   用「可见交集中心点命中测试（hit-test）」判定 `#topbarUnifiedTrashBtn` 与 `#masterDeckDate`
+   是否真的能被鼠标点到，并叠加**判别力闸门**（可见宽度须 >= max(24px, 自身宽度 60%)）。
+   顶栏 header 为 `overflow: hidden` 且尺寸被 `!important` 钉死，控件被裁掉时**不抛异常、
+   不出现滚动条**，前 7 项完全看不见；实测该缺口在大范围视口下真实存在（见证据文档）。
+   同样 fail-closed：未登记判失败，已登记但不再复现也判失败。
 
 洁净室边界
 ----------
@@ -148,6 +154,74 @@ KNOWN_REPEAT_NAV_PAGE_ERRORS: dict[str, frozenset[str]] = {
 REPEAT_NAV_SEQUENCE: tuple[str, ...] = ("target", "projects", "target", "projects", "target")
 REPEAT_NAV_TARGETS: tuple[str, ...] = tuple(p for p in PAGES if p != "projects.html")
 
+# 第 8 项「顶栏可达性」的检查视口与必达控件。
+# 为什么需要：顶层 header 为 overflow:hidden 且尺寸被 !important 钉死，一旦内部控件总宽超过
+# 可视宽度，超出的部分会被**静默裁掉**——不抛异常、不出现滚动条，pageerror 与静态资源检查都看不见。
+# 本项用「可见交集中心点命中测试（hit-test）」判定控件是否真的能被鼠标点到。
+TOPBAR_VIEWPORTS: tuple[tuple[int, int], ...] = ((1920, 1080), (1600, 1000), (1366, 768))
+TOPBAR_TARGETS: tuple[str, ...] = ("#topbarUnifiedTrashBtn", "#masterDeckDate")
+
+# 键 = 视口 "宽x高"；值 = 该视口下**已登记**顶栏横向溢出（scrollWidth > clientWidth）的页面集合。
+# 来源：docs/governance/PHASE-10-TOPBAR-OVERFLOW-EVIDENCE-2026-09-23.md（待人工裁决，修复后请从此表移除）
+KNOWN_TOPBAR_OVERFLOW: dict[str, frozenset[str]] = {
+    "1920x1080": frozenset({
+        "index.html", "projects.html", "production.html",
+        "storyboard.html", "agents.html", "assets.html", "collab.html",
+    }),
+    "1600x1000": frozenset({
+        "index.html", "projects.html", "production.html", "workshop.html",
+        "storyboard.html", "agents.html", "settings.html", "assets.html", "collab.html",
+    }),
+    "1366x768": frozenset({
+        "index.html", "projects.html", "production.html", "workshop.html",
+        "storyboard.html", "agents.html", "settings.html", "assets.html", "collab.html",
+    }),
+}
+
+# 判别力闸门（防止「控件只剩几个像素仍判可达」造成漏判）：
+# 一个控件即使 hit-test 命中的是自身，若可见宽度已被裁到不足
+# max(24px, 元素自身宽度 60%)，在其上点击已不具备可用性（WCAG 2.2 SC 2.5.8 目标尺寸 24x24
+# 作为下限锚点），因此本项一并判为「不可用」。实测 1920 下 index.html 的顶栏回收站
+# 仅剩 4px 可见（36px 宽的 11%），旧口径曾把它误判为 PASS——该误判已由本闸门堵住。
+TOPBAR_MIN_VISIBLE_PX: int = 24
+TOPBAR_MIN_VISIBLE_RATIO: float = 0.6
+
+# 键 = 页面；值 = 已登记的「视口|选择器」顶栏控件不可用组合（fail-closed）。
+# 未登记 -> FAIL；已登记但不再复现 -> 同样 FAIL 并提示移除登记（防清单腐化）。
+KNOWN_TOPBAR_UNREACHABLE: dict[str, frozenset[str]] = {
+    "index.html": frozenset({
+        "1366x768|#topbarUnifiedTrashBtn", "1600x1000|#topbarUnifiedTrashBtn",
+        "1920x1080|#topbarUnifiedTrashBtn",
+    }),
+    "projects.html": frozenset({
+        "1366x768|#topbarUnifiedTrashBtn", "1600x1000|#topbarUnifiedTrashBtn",
+        "1920x1080|#topbarUnifiedTrashBtn",
+    }),
+    "production.html": frozenset({
+        "1366x768|#topbarUnifiedTrashBtn", "1600x1000|#topbarUnifiedTrashBtn",
+        "1920x1080|#topbarUnifiedTrashBtn",
+    }),
+    "workshop.html": frozenset({"1366x768|#topbarUnifiedTrashBtn"}),
+    "storyboard.html": frozenset({
+        "1366x768|#topbarUnifiedTrashBtn", "1600x1000|#topbarUnifiedTrashBtn",
+        "1920x1080|#topbarUnifiedTrashBtn",
+    }),
+    "agents.html": frozenset({
+        "1366x768|#masterDeckDate", "1366x768|#topbarUnifiedTrashBtn",
+        "1600x1000|#topbarUnifiedTrashBtn", "1920x1080|#topbarUnifiedTrashBtn",
+    }),
+    "settings.html": frozenset({
+        "1366x768|#masterDeckDate", "1366x768|#topbarUnifiedTrashBtn",
+    }),
+    "assets.html": frozenset({
+        "1366x768|#masterDeckDate", "1366x768|#topbarUnifiedTrashBtn",
+        "1600x1000|#topbarUnifiedTrashBtn", "1920x1080|#topbarUnifiedTrashBtn",
+    }),
+    "collab.html": frozenset({
+        "1366x768|#masterDeckDate", "1366x768|#topbarUnifiedTrashBtn",
+        "1600x1000|#topbarUnifiedTrashBtn", "1920x1080|#topbarUnifiedTrashBtn",
+    }),
+}
 
 # ---------------------------------------------------------------------------
 # 交互期检查（加载期之上的补充）
@@ -311,6 +385,163 @@ MODULE_SRC_JS = (
     " try { return new URL(s, document.baseURI).pathname + new URL(s, document.baseURI).search; }"
     " catch (e) { return s; } })"
 )
+
+
+# 采集顶栏几何与命中测试结果（第 8 项）。
+TOPBAR_PROBE_JS_TEMPLATE = (
+    "() => {"
+    "  const de = document.documentElement;"
+    "  const header = document.querySelector('.topbar-master-deck');"
+    "  if (!header) return { missing_header: true };"
+    "  const cs = getComputedStyle(header);"
+    "  const hb = header.getBoundingClientRect();"
+    "  const clipLeft = hb.left + parseFloat(cs.paddingLeft || '0');"
+    "  const clipRight = hb.right - parseFloat(cs.paddingRight || '0');"
+    "  const targets = {};"
+    "  for (const sel of __TARGETS__) {"
+    "    const el = document.querySelector(sel);"
+    "    if (!el) { targets[sel] = { present: false }; continue; }"
+    "    const r = el.getBoundingClientRect();"
+    "    const left = Math.max(r.left, clipLeft), right = Math.min(r.right, clipRight);"
+    "    const visibleWidth = Math.max(0, right - left);"
+    "    let reachable = false, hitLabel = null;"
+    "    if (visibleWidth > 0 && r.height > 0) {"
+    "      const x = Math.min(Math.max((left + right) / 2, 1), de.clientWidth - 1);"
+    "      const y = r.top + r.height / 2;"
+    "      const hit = document.elementFromPoint(x, y);"
+    "      hitLabel = hit ? (hit.id || hit.tagName) : null;"
+    "      reachable = !!(hit && (hit === el || el.contains(hit)));"
+    "    }"
+    "    const needW = Math.max(__MIN_PX__, r.width * __MIN_RATIO__);"
+    "    targets[sel] = { present: true, left: Math.round(r.left), right: Math.round(r.right),"
+    "                     width: Math.round(r.width), height: Math.round(r.height),"
+    "                     visibleWidth: Math.round(visibleWidth), visibleNeed: Math.round(needW),"
+    "                     usable: !!(reachable && visibleWidth >= needW),"
+    "                     mouseReachable: reachable, hit: hitLabel };"
+    "  }"
+    "  return { viewportW: de.clientWidth,"
+    "           headerClientW: header.clientWidth, headerScrollW: header.scrollWidth,"
+    "           headerOverflow: header.scrollWidth - header.clientWidth,"
+    "           overflowX: cs.overflowX,"
+    "           clipLeft: Math.round(clipLeft), clipRight: Math.round(clipRight), targets };"
+    "}"
+)
+
+
+def run_topbar_accessibility(base_url: str, ignore_registry: bool = False) -> dict:
+    """第 8 项：顶栏可达性——溢出是否被静默裁剪、必达控件是否真的能用鼠标点到。
+
+    为什么需要：顶栏 header 为 overflow:hidden 且尺寸被 !important 钉死，内部控件总宽超过可视
+    宽度时，超出部分被**静默裁掉**：不抛异常、不出现滚动条，pageerror 与静态资源检查都看不见。
+    第 1-7 项因此完全无法发现该缺陷（实测 9 页中 7 页的顶栏回收站入口在 1920/1600 下鼠标不可达）。
+
+    ignore_registry=True 用于变异自证：忽略登记表必须仍能报出失败，否则说明判定恒真。
+    """
+    from playwright.sync_api import sync_playwright
+
+    chrome = find_chrome()
+    launch_kwargs = {"executable_path": chrome} if chrome else {}
+    probe_js = (
+        TOPBAR_PROBE_JS_TEMPLATE
+        .replace("__TARGETS__", json.dumps(list(TOPBAR_TARGETS)))
+        .replace("__MIN_PX__", str(TOPBAR_MIN_VISIBLE_PX))
+        .replace("__MIN_RATIO__", repr(TOPBAR_MIN_VISIBLE_RATIO))
+    )
+    results: list[dict] = []
+    failures: list[str] = []
+    # 登记表按「页面」聚合（一条记录覆盖三个视口），因此「已登记但不再复现」必须
+    # 在**跑完该页全部视口**后用整页观测并集比较；逐视口做差集会误报。
+    observed_by_page: dict[str, set[str]] = {}
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(**launch_kwargs)
+        try:
+            for width, height in TOPBAR_VIEWPORTS:
+                key = f"{width}x{height}"
+                registered_overflow = KNOWN_TOPBAR_OVERFLOW.get(key, frozenset())
+                for page_name in PAGES:
+                    context = browser.new_context(viewport={"width": width, "height": height})
+                    page = context.new_page()
+                    page.goto(
+                        f"{base_url}/static/v2/{page_name}",
+                        wait_until="domcontentloaded",
+                        timeout=60000,
+                    )
+                    page.wait_for_timeout(1200)
+                    measured = page.evaluate(probe_js)
+                    context.close()
+
+                    overflow = int(measured.get("headerOverflow") or 0)
+                    # 判别力闸门：只有「命中自身」且「可见宽度达标」才算可用；
+                    # 其余（不存在 / 不可命中 / 只剩几个像素）一律计入不可用。
+                    observed = sorted(
+                        key + "|" + sel
+                        for sel, info in (measured.get("targets") or {}).items()
+                        if not (info.get("present") and info.get("usable"))
+                    )
+                    registered = (
+                        frozenset() if ignore_registry
+                        else frozenset(KNOWN_TOPBAR_UNREACHABLE.get(page_name, ()))
+                    )
+                    observed_by_page.setdefault(page_name, set()).update(observed)
+                    overflow_registered = (
+                        True if ignore_registry else page_name in registered_overflow
+                    )
+                    unreachable_unregistered = sorted(set(observed) - set(registered))
+                    results.append(
+                        {
+                            "viewport": key,
+                            "page": page_name,
+                            "header_client_w": measured.get("headerClientW"),
+                            "header_scroll_w": measured.get("headerScrollW"),
+                            "header_overflow": overflow,
+                            "overflow_x": measured.get("overflowX"),
+                            "overflow_registered": overflow_registered,
+                            "unreachable_observed": observed,
+                            "unreachable_unregistered": unreachable_unregistered,
+                            "targets": measured.get("targets"),
+                            "min_visible_px": TOPBAR_MIN_VISIBLE_PX,
+                            "min_visible_ratio": TOPBAR_MIN_VISIBLE_RATIO,
+                        }
+                    )
+
+                    if overflow > 1 and not overflow_registered:
+                        failures.append(
+                            "顶栏溢出 " + page_name + "@" + key
+                            + "：scrollWidth-clientWidth = " + str(overflow) + " 未登记"
+                            + "（若为已知缺口须登记 KNOWN_TOPBAR_OVERFLOW）"
+                        )
+                    if overflow <= 1 and not ignore_registry and page_name in registered_overflow:
+                        failures.append(
+                            "顶栏溢出 " + page_name + "@" + key
+                            + "：已登记溢出不再复现（实测 " + str(overflow) + "）——"
+                            + "请从 KNOWN_TOPBAR_OVERFLOW 移除登记"
+                        )
+                    if unreachable_unregistered:
+                        failures.append(
+                            "顶栏控件不可用（鼠标不可达或可见宽度不足） "
+                            + page_name + "@" + key + "："
+                            + str(unreachable_unregistered) + " 未登记"
+                            + "（若为已知缺口须登记 KNOWN_TOPBAR_UNREACHABLE）"
+                        )
+        finally:
+            browser.close()
+
+    # 整页维度（三个视口并集）判定「已登记但不再复现」，防止登记表腐化又避免逐视口误报。
+    if not ignore_registry:
+        for page_name in PAGES:
+            registered = frozenset(KNOWN_TOPBAR_UNREACHABLE.get(page_name, ()))
+            if not registered:
+                continue
+            fixed = sorted(set(registered) - observed_by_page.get(page_name, set()))
+            if fixed:
+                failures.append(
+                    "顶栏控件不可用 " + page_name
+                    + "：已登记项在全部视口均不再复现 " + str(fixed) + "——"
+                    + "请从 KNOWN_TOPBAR_UNREACHABLE 移除登记"
+                )
+
+    return {"topbar": results, "failures": failures}
 
 
 def run_shell_route_consistency(base_url: str) -> dict:
@@ -786,6 +1017,11 @@ def main() -> int:
         help="截图与 JSON 报告输出目录（默认系统临时目录，严禁指向仓库）",
     )
     parser.add_argument("--report-json", default=None, help="汇总报告 JSON 路径")
+    parser.add_argument(
+        "--mutation-selftest",
+        action="store_true",
+        help="变异自证：忽略第 8 项登记表重跑，必须报出失败（证明判定非恒真）",
+    )
     args = parser.parse_args()
 
     artifacts_dir = (
@@ -821,6 +1057,16 @@ def main() -> int:
         repeat_nav = run_shell_route_repeat_nav(args.base_url)
         result["repeat_nav"] = repeat_nav["repeat_nav"]
         result["failures"].extend(repeat_nav["failures"])
+        topbar = run_topbar_accessibility(args.base_url)
+        result["topbar"] = topbar["topbar"]
+        result["failures"].extend(topbar["failures"])
+        if args.mutation_selftest:
+            # 变异自证：忽略登记表后必须仍报出失败，否则该判定恒真、结论作废。
+            mutant = run_topbar_accessibility(args.base_url, ignore_registry=True)
+            result["topbar_mutation_selftest"] = {
+                "failures": mutant["failures"],
+                "failure_count": len(mutant["failures"]),
+            }
     finally:
         if server is not None:
             server.terminate()
@@ -838,6 +1084,8 @@ def main() -> int:
         "shell_route_baseline": result.get("shell_route_baseline", {}),
         "shell_route_module_baseline": result.get("shell_route_module_baseline", {}),
         "repeat_nav": result.get("repeat_nav", []),
+        "topbar": result.get("topbar", []),
+        "topbar_mutation_selftest": result.get("topbar_mutation_selftest"),
         "healthz": health,
         "baseline": {
             "guard": GUARD_PATH.relative_to(REPO_ROOT).as_posix(),
@@ -883,7 +1131,31 @@ def main() -> int:
                 f"growth={row['script_growth']} 增长已登记={row['script_growth_registered']} "
                 f"异常已知={len(row['page_errors_known'])} 异常未登记={row['page_errors_unregistered']}"
             )
+    topbar_rows = result.get("topbar", [])
+    if topbar_rows:
+        worst = sorted(topbar_rows, key=lambda r: -int(r["header_overflow"] or 0))[:5]
+        print("[e2e] 顶栏可达性（第 8 项；hit-test 判定鼠标是否真的点得到）：")
+        for row in worst:
+            print(
+                "    - " + row["page"].ljust(16) + "@" + row["viewport"].ljust(10)
+                + " header " + str(row["header_client_w"]) + "->" + str(row["header_scroll_w"])
+                + " 溢出=" + str(row["header_overflow"])
+                + " 已登记=" + str(row["overflow_registered"])
+                + " 不可达=" + str(row["unreachable_observed"])
+            )
     print(f"[e2e] 报告：{report_path}")
+
+    if args.mutation_selftest:
+        mutant_failures = (
+            result.get("topbar_mutation_selftest", {}) or {}
+        ).get("failures", []) or result.get("topbar_mutation_selftest_failures", [])
+        if not mutant_failures:
+            print("[e2e] 变异自证：FAIL——忽略登记表后仍未报出任何失败，判定恒真。")
+            return 2
+        print(
+            "[e2e] 变异自证：PASS——忽略第 8 项登记表后报出 "
+            + str(len(mutant_failures)) + " 条 FAIL（证明该判定非恒真）。"
+        )
 
     if result["failures"]:
         print("[e2e] 判定：FAIL")
