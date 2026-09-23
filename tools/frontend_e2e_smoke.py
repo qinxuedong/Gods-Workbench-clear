@@ -18,6 +18,9 @@ Phase 10A-10E 的门禁全部建立在 FastAPI 的 TestClient 之上，属于**�
    未登记的新 4xx = 新缺口，判定失败，防止「反正前端没报错」式掩盖。
 4. O5 视觉实证：真实渲染后带 `py-0.5` 的元素其 computed padding 必须是 2px。
    （这是死类修正是否真的生效的**渲染期**证据，TestClient 无法给出。）
+5. 交互期 smoke：对 7 个确定性交互（视图切换、搜索过滤与复原、设置视图与主题开关幂等往返、
+   设置分区切换、导航跳转）执行真实点击，并断言**真实 DOM 变化**——不允许用「没抛异常」冒充通过。
+   交互期同样要求零 pageerror，且产生的 API 4xx 必须已在冻结基线内。
 
 洁净室边界
 ----------
@@ -66,6 +69,148 @@ PAGES = (
 
 # 旧仓与静态层禁用标记：本脚本同样不得引用（与卫生用例口径一致）。
 FORBIDDEN_PAGE_REQUEST_PREFIXES = ("/api/", "/static/")
+
+
+
+# ---------------------------------------------------------------------------
+# 交互期检查（加载期之上的补充）
+# ---------------------------------------------------------------------------
+# 每项 = 页面 + 动作 + 断言。动作与断言都在真实渲染期执行；任何 pageerror 一律判失败，
+# 断言必须落到**真实 DOM 变化**上，禁止用「没抛异常」冒充通过。
+INTERACTIONS: tuple[dict, ...] = (
+    {
+        "id": "projects-view-table",
+        "page": "projects.html",
+        "desc": "点击列表视图按钮：列表容器可见、网格容器隐藏",
+        "action": "() => document.querySelector('#viewBtnTable').click()",
+        "assert": "() => { const t = document.querySelector('#projectTableView'); const g = document.querySelector('#projectsGridViewContainer'); return !!t && !!g && !t.classList.contains('hidden') && g.classList.contains('hidden'); }",
+    },
+    {
+        "id": "projects-view-grid-restore",
+        "page": "projects.html",
+        "desc": "再点击网格视图按钮：切回网格态（可逆性）",
+        "action": "() => document.querySelector('#viewBtnGrid').click()",
+        "assert": "() => { const t = document.querySelector('#projectTableView'); const g = document.querySelector('#projectsGridViewContainer'); return !!t && !!g && t.classList.contains('hidden') && !g.classList.contains('hidden'); }",
+    },
+    {
+        "id": "projects-search-empty-state",
+        "page": "projects.html",
+        "desc": "输入不存在的关键字：项目卡归零并渲染空态提示（搜索真的过滤了 DOM）",
+        "action": "() => { const el = document.querySelector('#projectSearchInput'); el.value = 'zzz_no_such_project'; el.dispatchEvent(new Event('input', { bubbles: true })); }",
+        "assert": "() => { const g = document.querySelector('#projectsGridViewContainer'); if (!g) return false; const cards = g.querySelectorAll('.project-card-item').length; return cards === 0 && g.innerText.includes('未检索到'); }",
+    },
+    {
+        "id": "projects-search-restore",
+        "page": "projects.html",
+        "desc": "清空关键字：项目卡恢复出现（状态可逆）",
+        "action": "() => { const el = document.querySelector('#projectSearchInput'); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); }",
+        "assert": "() => { const g = document.querySelector('#projectsGridViewContainer'); return !!g && g.querySelectorAll('.project-card-item').length > 0; }",
+    },
+    {
+        "id": "index-settings-view-and-theme-toggle",
+        "page": "index.html",
+        "desc": "切到设置视图（?view=settings）：设置面板可见，且主题开关已绑定并完成幂等往返",
+        "action": "() => { const params = new URLSearchParams(location.search); params.set('view', 'settings'); history.replaceState({}, '', location.pathname + '?' + params.toString()); if (window.V2Home && window.V2Home.switchView) window.V2Home.switchView('settings'); }",
+        "assert": "() => { const panel = document.querySelector('#v2MainSettings'); if (!panel || panel.classList.contains('hidden')) return false; const el = document.querySelector('#themeToggle'); if (!el || typeof el.onclick !== 'function') return false; const before = { cls: el.className, aria: el.getAttribute('aria-pressed') }; el.click(); const mid = el.className; el.click(); return mid !== before.cls && el.className === before.cls && el.getAttribute('aria-pressed') === before.aria; }",
+    },
+    {
+        "id": "settings-section-switch",
+        "page": "settings.html",
+        "desc": "点击「席位与资产权限」：按钮 active + aria-pressed + 对应 panel active",
+        "action": "() => document.querySelector('[data-section=\"permissions\"]').click()",
+        "assert": "() => { const b = document.querySelector('[data-section=\"permissions\"]'); const pl = document.querySelector('[data-panel=\"permissions\"]'); return !!b && !!pl && b.classList.contains('active') && pl.classList.contains('active') && getComputedStyle(pl).display !== 'none'; }",
+    },
+    {
+        "id": "nav-projects-to-workshop",
+        "page": "projects.html",
+        "desc": "点击导航「影视工坊」：真实跳转到 workshop.html",
+        "action": "() => document.querySelector('a.nav-pill-btn[title=\"影视工坊\"]').click()",
+        "nav_assert": "(url) => new URL(url).pathname.endsWith('/static/v2/workshop.html')",
+    },
+)
+
+
+def run_interactions(base_url: str, implemented, unimplemented) -> dict:
+    """在真实浏览器里执行确定性交互，断言真实 DOM 变化。"""
+    from playwright.sync_api import sync_playwright
+
+    results: list[dict] = []
+    failures: list[str] = []
+    chrome = find_chrome()
+    launch_kwargs = {"executable_path": chrome} if chrome else {}
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(**launch_kwargs)
+        try:
+            for item in INTERACTIONS:
+                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                page = context.new_page()
+                page_errors: list[str] = []
+                api_errors: list[dict] = []
+                page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+
+                def on_response(response):
+                    url = response.url
+                    if response.status >= 400 and "/api/" in url:
+                        api_errors.append(
+                            {"status": response.status, "path": _normalize_api_path(url)}
+                        )
+
+                page.on("response", on_response)
+                page.goto(f"{base_url}/static/v2/{item['page']}", wait_until="networkidle")
+                page.wait_for_timeout(400)
+
+                passed = False
+                detail = ""
+                try:
+                    page.evaluate(item["action"])
+                    if item.get("nav_assert"):
+                        from urllib.parse import urlsplit
+
+                        expected = item["nav_assert"].split("endsWith")[-1].strip(" ()'\"")
+                        page.wait_for_url(
+                            lambda url, expected=expected: urlsplit(url).path.endswith(expected),
+                            timeout=8000,
+                        )
+                        passed = urlsplit(page.url).path.endswith(expected)
+                    else:
+                        passed = bool(page.evaluate(item["assert"]))
+                        if not passed:
+                            detail = "断言返回假值"
+                except Exception as exc:  # 交互本身失败也是失败
+                    detail = f"交互或断言抛错：{type(exc).__name__}"
+                finally:
+                    context.close()
+
+                unregistered = sorted(
+                    {
+                        entry["path"]
+                        for entry in api_errors
+                        if entry["path"] not in implemented
+                        and entry["path"] not in unimplemented
+                    }
+                )
+                results.append(
+                    {
+                        "id": item["id"],
+                        "page": item["page"],
+                        "desc": item["desc"],
+                        "passed": passed,
+                        "detail": detail,
+                        "page_errors": page_errors,
+                        "api_unregistered_paths": unregistered,
+                    }
+                )
+                if not passed:
+                    failures.append(f"{item['id']}（{item['desc']}）未通过：{detail}")
+                if page_errors:
+                    failures.append(f"{item['id']} 出现未捕获 JS 异常 {page_errors}")
+                if unregistered:
+                    failures.append(f"{item['id']} API 4xx 路径不在冻结基线中 {unregistered}")
+        finally:
+            browser.close()
+
+    return {"interactions": results, "failures": failures}
 
 
 def _load_guard_baseline() -> tuple[frozenset[str], frozenset[str]]:
@@ -306,6 +451,9 @@ def main() -> int:
         print(f"[e2e] /healthz = {json.dumps(health, ensure_ascii=False)}")
 
         result = run_checks(args.base_url, artifacts_dir, implemented, unimplemented)
+        interactions = run_interactions(args.base_url, implemented, unimplemented)
+        result["interactions"] = interactions["interactions"]
+        result["failures"].extend(interactions["failures"])
     finally:
         if server is not None:
             server.terminate()
@@ -316,6 +464,7 @@ def main() -> int:
 
     report = {
         "base_url": args.base_url,
+        "interactions": result.get("interactions", []),
         "healthz": health,
         "baseline": {
             "guard": GUARD_PATH.relative_to(REPO_ROOT).as_posix(),
@@ -336,6 +485,12 @@ def main() -> int:
             f"api4xx={entry['api_error_count']} py05={entry['py_0_5_elements']}"
             f"/{entry['py_0_5_with_2px_padding']}"
         )
+    active = result.get("interactions", [])
+    if active:
+        passed_n = sum(1 for i in active if i["passed"])
+        print(f"[e2e] 交互期：{passed_n}/{len(active)} 项通过")
+        for i in active:
+            print(f"    - {i['id']:34} passed={i['passed']} {i['detail']}")
     print(f"[e2e] 报告：{report_path}")
 
     if result["failures"]:

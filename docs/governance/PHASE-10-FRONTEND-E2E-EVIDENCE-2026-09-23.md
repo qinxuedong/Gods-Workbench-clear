@@ -125,3 +125,74 @@ python -P tools/frontend_e2e_smoke.py --base-url http://127.0.0.1:2077
    脚本单独计数但**不**把它们伪装成 0。
 4. 未闭环项以 `HANDOFF-10.md` §4 为准，本文件只把其中的「前端真实浏览器 E2E」由**未执行**推进为
    「**加载期已执行 + 交互期仍未执行**」。
+---
+
+---
+
+## 7. 交互期 E2E（本轮追加，已实测）
+
+§6 只覆盖**加载期**。本节把覆盖推进到**交互期**：在真实 Chromium 里执行确定的用户动作，
+断言**真实 DOM 变化**（而非「没抛异常」），并沿用同样的 fail-closed 口径。
+
+### 7.1 受测交互与断言（7 项）
+
+| # | id | 页面 | 动作 | 断言（真实渲染期） |
+|---|---|---|---|---|
+| 1 | `projects-view-table` | projects | 点 `#viewBtnTable` | `#projectTableView` 去掉 `hidden` 且 `#projectsGridViewContainer` 带上 `hidden` |
+| 2 | `projects-view-grid-restore` | projects | 点 `#viewBtnGrid` | 反向复原（可逆性） |
+| 3 | `projects-search-empty-state` | projects | 输入不存在的关键字并派发 `input` | `.project-card-item` 归零**且**容器文案含「未检索到」（搜索真的过滤了 DOM） |
+| 4 | `projects-search-restore` | projects | 清空关键字 | `.project-card-item` 恢复 > 0 |
+| 5 | `index-settings-view-and-theme-toggle` | index | 调 `V2Home.switchView('settings')` | `#v2MainSettings` 可见、`#themeToggle.onclick` 已绑定，且**连点两次** `on` 类先变后回到初值 |
+| 6 | `settings-section-switch` | settings | 点 `[data-section="permissions"]` | 按钮与 `[data-panel="permissions"]` 同时 `active`，且 panel 的 computed `display !== none` |
+| 7 | `nav-projects-to-workshop` | projects | 点导航 `a.nav-pill-btn[title="影视工坊"]` | 真实跳转，且路径以 `/static/v2/workshop.html` 结尾（含 query 一并容错） |
+
+### 7.2 实测结果（HEAD `41d232b` 代码基线）
+
+```
+[e2e] 交互期：7/7 项通过
+    - projects-view-table                passed=True
+    - projects-view-grid-restore         passed=True
+    - projects-search-empty-state        passed=True
+    - projects-search-restore            passed=True
+    - index-settings-view-and-theme-toggle passed=True
+    - settings-section-switch            passed=True
+    - nav-projects-to-workshop           passed=True
+[e2e] 判定：PASS（零 JS 异常 / 零静态资源失败 / 零基线外 API 4xx / py-0.5 全部生效）
+```
+
+交互期 7 项全程 `pageerror = 0`，且未产生任何基线外的 API 4xx。退出码 `0`。
+
+### 7.3 变异测试（证明断言非恒真）
+
+把 `projects-search-empty-state` 的断言改成 `cards === 999`（必然为假），复制为仓内临时变异体后执行：
+
+```
+    - projects-search-empty-state        passed=False 断言返回假值
+[e2e] 判定：FAIL
+MUTANT_EXIT=1
+```
+
+即**断言确实能失败**，7/7 的通过不是恒真产物。变异体已删除（`git status` 无残留），仓库未受影响。
+
+### 7.4 过程中的自我纠错记录（如实登记）
+
+首轮编写本节时，我（主代理）先写了 7 项断言，实测**只有 4/7 通过**，暴露的是**断言写错**而非产品缺陷：
+
+1. `#topbarToggle` **不存在**——真实控件是 `#themeToggle`。且它位于 `#v2MainSettings`（默认
+   `hidden`），其绑定代码 `initSettingsModule()` 仅在切到设置视图时执行。故正确前置条件是
+   「先切设置视图再点」，而非「在仪表盘直接点」。
+2. 设置分区按钮**不写** `aria-pressed`（实测为 `null`），原断言用 `aria-pressed === 'true'` 必然失败；
+   改为断言 `active` 类 + panel 的 computed `display`。
+3. 导航真实 URL 带 query（`workshop.html?project_id=prj-0001`），原 `url.endswith('.html')` 断言失败；
+   改为按**路径**比较。
+
+这三处都是**我的断言口径错误**，产品行为本身正确。已按真实 DOM 改写断言并全量复跑。
+
+### 7.5 边界（**不得越读**）
+
+- 本节是**确定性交互的 smoke**，不是完整交互测试矩阵。**未覆盖**：
+  表单写入（新建/编辑项目、上传素材）、CAS 冲突交互（409 版本冲突的用户可见提示）、
+  轮询闭环（`202 Accepted` + `poll_hint` 后的任务状态收敛）、权限降级（403 只读态）、
+  跨页状态保持、多窗口并发。
+- 上述未覆盖项仍需**独立用例 + 真实后端状态**，不得因本节通过而宣称交互期全部闭环。
+- 本机实测 ≠ 远端 CI（本脚本不入 CI）≠ 生产验收 ≠ 发布授权。
