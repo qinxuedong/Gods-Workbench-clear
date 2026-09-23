@@ -29,7 +29,14 @@ Tailwind CLI 3.4.17 直出格式不同（:before + -o-tab-size + 未压缩），
     python -P tools/build_static_tailwind_utilities.py            # 重新生成快照
     python -P tools/build_static_tailwind_utilities.py --check    # 只校验，不写文件
     python -P tools/build_static_tailwind_utilities.py --report   # 打印统计与哈希
+    python -P tools/build_static_tailwind_utilities.py --diff     # 只打印「现有快照 vs 重新生成」规则级差异
     python -P tools/build_static_tailwind_utilities.py --runtime <纯净 3.4.17 运行时路径>
+
+规则级差异口径
+--------------
+`--diff` 使用本脚本内的 `extract_rule_selectors()`：按花括号深度扫描，取每个 `{` 之前、
+最后一个 `}` 或 `{` 之后的候选文本，排除以 `@` 开头的 at-rule 前奏，去重成**选择器集合**。
+该口径刻意写得机械、可离线复算，避免「换一个解析器就换一个数字」。
 
 依赖
 ----
@@ -286,6 +293,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report", action="store_true", help="打印统计与哈希")
     parser.add_argument("--runtime", default=None, help="纯净 Tailwind 3.4.17 运行时路径")
     parser.add_argument("--force", action="store_true", help="允许覆盖与既有快照不一致的生成结果")
+    parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="只打印「现有快照 vs 重新生成结果」的规则级差异（不写盘），用于人工裁决是否重生成",
+    )
     args = parser.parse_args(argv)
 
     classes = collect_all_classes()
@@ -297,6 +309,9 @@ def main(argv: list[str] | None = None) -> int:
     css_body = render_with_runtime(runtime, classes)
     content = compose(css_body)
     generated_sha = hashlib.sha256(content.encode("utf-8")).hexdigest().upper()
+
+    if args.diff:
+        return _diff(css_body, content)
 
     if args.report:
         _report(classes, css_body, content)
@@ -335,6 +350,67 @@ def main(argv: list[str] | None = None) -> int:
     OUTPUT_CSS.write_bytes(content.encode("utf-8"))
     print(f"已写入：{OUTPUT_CSS}")
     print(f"新 SHA-256：{generated_sha}")
+    return 0
+
+
+def extract_rule_selectors(css: str) -> set[str]:
+    """从 CSS 文本里抽取**规则选择器**集合（本仓唯一口径，可复算）。
+
+    口径定义（刻意写得机械、可复现，避免「换个解析器就换个数字」）：
+      * 逐个扫描字符，维护花括号深度；
+      * 遇到 `{` 时，取其前面的「最后一个 `}` 或 `{` 之后的文本」作为选择器候选；
+      * 候选里**排除**以 `@` 开头的 at-rule 前奏（`@media`、`@keyframes` 等）与空串；
+      * 其余候选去除首尾空白后构成集合。
+    返回的是**去重后的选择器字符串集合**，不是规则条数之和；因此嵌套 at-rule 内部的选择器
+    会计入，且同一选择器出现多次只算一次。
+    """
+    selectors: set[str] = set()
+    buf: list[str] = []
+    for ch in css:
+        if ch == "{":
+            candidate = "".join(buf).strip()
+            if candidate and not candidate.startswith("@"):
+                selectors.add(candidate)
+            buf = []
+        elif ch == "}":
+            buf = []
+        else:
+            buf.append(ch)
+    return selectors
+
+
+def _diff(css_body: str, content: str) -> int:
+    """打印现有快照与新生成结果的规则级差异；不写盘。"""
+    if not OUTPUT_CSS.is_file():
+        print(f"现有快照不存在：{OUTPUT_CSS}", file=sys.stderr)
+        return 1
+    current_raw = OUTPUT_CSS.read_bytes().decode("utf-8", errors="replace").replace("\r\n", "\n")
+    # 去掉首行注释头（与生成结果同构），只比对正文
+    current_body = current_raw.split("\n\n", 1)[-1].strip()
+    generated_body = css_body.strip()
+
+    current_selectors = extract_rule_selectors(current_body)
+    generated_selectors = extract_rule_selectors(generated_body)
+    removed = current_selectors - generated_selectors
+    added = generated_selectors - current_selectors
+    unchanged = current_selectors & generated_selectors
+
+    print("=== Tailwind 快照规则级 diff（口径：extract_rule_selectors，见脚本注释）===")
+    print(f"现有快照选择器数：{len(current_selectors)}")
+    print(f"重新生成选择器数：{len(generated_selectors)}")
+    print(f"共有（不变）：{len(unchanged)}")
+    print(f"移除（仅存在于现有快照）：{len(removed)}")
+    print(f"新增（仅存在于重新生成）：{len(added)}")
+    print(f"正文逐字节一致：{current_body == generated_body}")
+    print("变更即为可复现性缺口 → 重新生成会造成可见视觉变更，须人工确认后再 --force。")
+    if removed:
+        print("\n移除示例（最多 10 条）：")
+        for item in sorted(removed)[:10]:
+            print("  - " + item)
+    if added:
+        print("\n新增示例（最多 10 条）：")
+        for item in sorted(added)[:10]:
+            print("  + " + item)
     return 0
 
 
