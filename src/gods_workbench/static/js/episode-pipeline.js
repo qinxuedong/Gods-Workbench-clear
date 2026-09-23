@@ -657,13 +657,13 @@
         if (isActive) {
           return `<button class="relative px-3.5 py-1.5 rounded-lg bg-[#181c26] text-primary font-mono text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.15)] flex items-center gap-2 border border-primary/30 cursor-pointer" type="button" role="tab" aria-selected="true" data-asset-group="${esc(grp.key)}" data-pipeline-id="${esc(pipeline.pipeline_id)}">
             <span>${esc(grp.label)}</span>
-            <span class="px-1.5 py-0.2 rounded-full bg-primary text-[#1a1308] text-[10px] font-bold">${grp.count}</span>
+            <span class="px-1.5 py-0.5 rounded-full bg-primary text-[#1a1308] text-[10px] font-bold">${grp.count}</span>
             <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-primary rounded-full blur-[1px]"></span>
           </button>`;
         } else {
           return `<button class="px-3.5 py-1.5 rounded-lg text-[#888173] hover:text-[#d3cbbe] font-mono text-xs transition-all flex items-center gap-2 cursor-pointer hover:bg-white/5" type="button" role="tab" aria-selected="false" data-asset-group="${esc(grp.key)}" data-pipeline-id="${esc(pipeline.pipeline_id)}">
             <span>${esc(grp.label)}</span>
-            <span class="px-1.5 py-0.2 rounded-full bg-[#101218] text-[#71695b] text-[10px]">${grp.count}</span>
+            <span class="px-1.5 py-0.5 rounded-full bg-[#101218] text-[#71695b] text-[10px]">${grp.count}</span>
           </button>`;
         }
       }).join('')}
@@ -1125,7 +1125,7 @@
         <div class="flex items-center gap-2">
           <span class="w-2 h-2 rounded-full bg-gold-primary shadow-[0_0_6px_#dfc384]"></span>
           <span class="font-mono text-xs font-bold text-gold-light">分镜 #${String(index + 1).padStart(2, '0')}</span>
-          <span class="font-mono text-[10px] px-1.5 py-0.2 bg-[#1b1e2a] text-[#a0a5b8] border border-[#2b3042] rounded">${esc(shot.shotType || 'A')} 类镜头</span>
+          <span class="font-mono text-[10px] px-1.5 py-0.5 bg-[#1b1e2a] text-[#a0a5b8] border border-[#2b3042] rounded">${esc(shot.shotType || 'A')} 类镜头</span>
         </div>
         <div class="flex items-center gap-1.5 bg-[#090a0e] px-2.5 py-0.5 rounded border border-[#1f222e]">
           ${iconSvg('timer', 'w-3.5 h-3.5 text-gold-dim')}
@@ -1275,7 +1275,7 @@
           <div class="flex flex-col">
             <div class="flex items-center gap-2">
               <h3 class="font-outfit text-base font-bold text-white tracking-wide">步骤 2 / 具体镜头节拍拆解</h3>
-              <span class="font-mono text-[10px] px-2 py-0.2 bg-gold-primary/20 text-gold-light border border-gold-primary/40 rounded font-bold">${shots.length} 镜已拆分</span>
+              <span class="font-mono text-[10px] px-2 py-0.5 bg-gold-primary/20 text-gold-light border border-gold-primary/40 rounded font-bold">${shots.length} 镜已拆分</span>
             </div>
             <span class="font-mono text-[11px] text-[#787d8e]">根据步骤1大纲，拆分具体机位、景别、运动、转场与关键节拍</span>
           </div>
@@ -1484,7 +1484,7 @@
                   <span class="font-outfit text-[15px] text-gold-light font-bold uppercase tracking-wider">步骤 03 / 分镜脚本</span>
                   <span class="text-gold-dim">·</span>
                   <span class="font-mono text-[11px] text-[#8e93a4]">SHOT-PLANNING ENGINE v4.2 PRO</span>
-                  <span class="font-mono text-[9px] px-1.5 py-0.2 bg-gold-primary/20 text-gold-light border border-gold-primary/30 rounded">${ready ? 'PARSED' : 'STANDBY'}</span>
+                  <span class="font-mono text-[9px] px-1.5 py-0.5 bg-gold-primary/20 text-gold-light border border-gold-primary/30 rounded">${ready ? 'PARSED' : 'STANDBY'}</span>
                 </div>
                 <div class="flex items-center gap-2 mt-0.5 text-[12px] text-[#9a9da8]">
                   <span>提示词链路锁定：</span>
@@ -1520,21 +1520,21 @@
               <button class="flex items-center gap-2 px-3 py-1 rounded transition-all cursor-pointer ${subStep === 1 ? 'bg-gradient-to-r from-gold-primary/25 to-gold-primary/10 border border-gold-primary/50 text-gold-light shadow-[0_0_10px_rgba(223,195,132,0.2)]' : 'bg-[#0c0d12] hover:bg-[#141620] border border-[#1f222e] text-[#808595]'}" type="button" data-storyboard-substep="1">
                 ${iconSvg('check_circle', `w-3.5 h-3.5 ${ready ? 'text-gold-primary' : 'text-[#616677]'}`)}
                 <span class="font-mono text-[11px] font-bold uppercase tracking-wider">步骤 1 大纲规划</span>
-                ${ready ? '<span class="font-mono text-[9px] bg-gold-primary text-black font-extrabold px-1.5 py-0.2 rounded">DONE</span>' : ''}
+                ${ready ? '<span class="font-mono text-[9px] bg-gold-primary text-black font-extrabold px-1.5 py-0.5 rounded">DONE</span>' : ''}
               </button>
 
               <!-- Step 2 Capsule -->
               <button class="flex items-center gap-2 px-3 py-1 rounded transition-all cursor-pointer ${subStep === 2 ? 'bg-gradient-to-r from-gold-primary/25 to-gold-primary/10 border border-gold-primary/50 text-gold-light shadow-[0_0_10px_rgba(223,195,132,0.2)]' : 'bg-[#0c0d12] hover:bg-[#141620] border border-[#1f222e] text-[#808595]'}" type="button" data-storyboard-substep="2">
                 ${iconSvg('movie_edit', 'w-3.5 h-3.5 text-current')}
                 <span class="font-mono text-[11px] uppercase tracking-wider">步骤 2 分镜节拍拆解</span>
-                ${shots.length ? `<span class="font-mono text-[9px] bg-[#1e2230] text-gold-light px-1.5 py-0.2 rounded font-bold">${shots.length} 镜</span>` : ''}
+                ${shots.length ? `<span class="font-mono text-[9px] bg-[#1e2230] text-gold-light px-1.5 py-0.5 rounded font-bold">${shots.length} 镜</span>` : ''}
               </button>
 
               <!-- Step 3 Capsule -->
               <button class="flex items-center gap-2 px-3 py-1 rounded transition-all cursor-pointer ${subStep === 3 ? 'bg-gradient-to-r from-gold-primary/25 to-gold-primary/10 border border-gold-primary/50 text-gold-light shadow-[0_0_10px_rgba(223,195,132,0.2)]' : 'bg-[#0c0d12] hover:bg-[#141620] border border-[#1f222e] text-[#808595]'}" type="button" data-storyboard-substep="3">
                 ${iconSvg('rate_review', 'w-3.5 h-3.5 text-current')}
                 <span class="font-mono text-[11px] uppercase tracking-wider">步骤 3 镜头机位与审片</span>
-                ${review ? `<span class="font-mono text-[9px] ${review.status === 'passed' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'} px-1.5 py-0.2 rounded font-bold">${review.score}分</span>` : ''}
+                ${review ? `<span class="font-mono text-[9px] ${review.status === 'passed' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'} px-1.5 py-0.5 rounded font-bold">${review.score}分</span>` : ''}
               </button>
             </div>
 

@@ -291,7 +291,7 @@ window.V2Production = (function () {
                     <span class="text-[8.5px] font-mono font-bold ${isShotActive ? 'text-[#dfc384]' : 'text-slate-400'} shrink-0">${esc(sh.code)}</span>
                     <span class="text-[9.5px] text-slate-300 truncate">${esc(sh.type)} ${esc(sh.desc)}</span>
                   </div>
-                  <span class="text-[8px] font-mono px-1.5 py-0.2 rounded border shrink-0 ${badgeColor}">${esc(sh.status)}</span>
+                  <span class="text-[8px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${badgeColor}">${esc(sh.status)}</span>
                 </div>
               `;
             }).join('')}
@@ -305,10 +305,10 @@ window.V2Production = (function () {
              onclick="V2Production.toggleSceneCard('${sc.id}')">
           <div class="flex items-start justify-between">
             <div class="flex items-center space-x-1.5 min-w-0">
-              <span class="text-[8px] font-mono font-bold px-1.5 py-0.2 rounded bg-black/60 border border-white/10 text-slate-300 shrink-0">${esc(sc.code)}</span>
+              <span class="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/60 border border-white/10 text-slate-300 shrink-0">${esc(sc.code)}</span>
               <h4 class="text-xs font-bold text-slate-100 truncate">${esc(sc.name)}</h4>
             </div>
-            <span class="text-[8px] font-mono px-1.5 py-0.2 rounded shrink-0 ${statusBadgeClass}">${esc(sc.status)}</span>
+            <span class="text-[8px] font-mono px-1.5 py-0.5 rounded shrink-0 ${statusBadgeClass}">${esc(sc.status)}</span>
           </div>
 
           <!-- 场次属性元数据 -->

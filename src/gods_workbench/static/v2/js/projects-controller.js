@@ -361,21 +361,21 @@ window.V2Projects = (function () {
 
     // 状态徽章
     let statusBadgeHtml = `
-      <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center space-x-0.5 shrink-0">
+      <span class="text-[7.5px] font-mono px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center space-x-0.5 shrink-0">
         <span class="w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399] animate-pulse"></span>
         <span>${stageBadge}</span>
       </span>
     `;
     if (isDeleted) {
       statusBadgeHtml = `
-        <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 flex items-center space-x-0.5 shrink-0">
+        <span class="text-[7.5px] font-mono px-1 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 flex items-center space-x-0.5 shrink-0">
           <span class="w-1 h-1 rounded-full bg-red-400 shadow-[0_0_4px_#ef4444]"></span>
           <span>统一回收站</span>
         </span>
       `;
     } else if (isArchived) {
       statusBadgeHtml = `
-        <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center space-x-0.5 shrink-0">
+        <span class="text-[7.5px] font-mono px-1 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center space-x-0.5 shrink-0">
           <span class="w-1 h-1 rounded-full bg-amber-400 shadow-[0_0_4px_#f59e0b]"></span>
           <span>已归档只读</span>
         </span>
@@ -400,7 +400,7 @@ window.V2Projects = (function () {
             <div class="flex items-center space-x-1 flex-wrap gap-y-0.5">
               <h3 class="text-xs font-bold text-slate-100 group-hover:text-[#eddab3] tracking-wide truncate max-w-[150px]">${esc(p.name)}</h3>
               ${statusBadgeHtml}
-              <span class="text-[7.5px] font-mono px-1 py-0.2 rounded bg-black/60 border border-white/10 text-[#fae2c8] shrink-0">ACEScg</span>
+              <span class="text-[7.5px] font-mono px-1 py-0.5 rounded bg-black/60 border border-white/10 text-[#fae2c8] shrink-0">ACEScg</span>
             </div>
 
             <!-- 故事描述（1行截断以适应240px高度） -->
@@ -479,10 +479,10 @@ window.V2Projects = (function () {
       <div class="pt-0.5 border-t border-white/5 flex items-center justify-between shrink-0">
         <div class="flex items-center space-x-1">
           <span class="text-[7.5px] font-mono text-slate-400 font-semibold">主创:</span>
-          <span class="text-[7.5px] font-mono px-1 py-0.2 rounded bg-[#0a0c10] border border-white/10 text-slate-200">
+          <span class="text-[7.5px] font-mono px-1 py-0.5 rounded bg-[#0a0c10] border border-white/10 text-slate-200">
             ${esc(p.owner || 'admin')}
           </span>
-          <span class="text-[7.5px] font-mono px-1 py-0.2 rounded bg-[#0a0c10] border border-white/10 text-[#eddab3]">
+          <span class="text-[7.5px] font-mono px-1 py-0.5 rounded bg-[#0a0c10] border border-white/10 text-[#eddab3]">
             AURA
           </span>
         </div>
@@ -1278,7 +1278,7 @@ window.V2Projects = (function () {
                 <div class="flex items-center space-x-2">
                   <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
                   <h4 class="text-xs font-bold text-slate-100 truncate">${esc(p.name)}</h4>
-                  <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-red-500/15 text-red-400 border border-red-500/30">工程隔离</span>
+                  <span class="text-[8px] font-mono px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">工程隔离</span>
                   <span class="text-[8px] font-mono text-slate-400">${typeMeta.label}</span>
                 </div>
                 <div class="text-[9px] font-mono text-slate-400 mt-1 flex items-center space-x-3">
@@ -1313,7 +1313,7 @@ window.V2Projects = (function () {
               <div class="flex items-center space-x-2">
                 <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
                 <h4 class="text-xs font-bold text-slate-100 truncate">${esc(a.name)}</h4>
-                <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">${esc(a.type || 'RAW')}</span>
+                <span class="text-[8px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">${esc(a.type || 'RAW')}</span>
               </div>
               <div class="text-[9px] font-mono text-slate-400 mt-1 flex items-center space-x-3">
                 <span>大小: ${esc(a.size || '未知')}</span>
@@ -1346,7 +1346,7 @@ window.V2Projects = (function () {
               <div class="flex items-center space-x-2">
                 <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
                 <h4 class="text-xs font-bold text-slate-100 truncate">${esc(c.name)}</h4>
-                <span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">画布节点</span>
+                <span class="text-[8px] font-mono px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">画布节点</span>
               </div>
               <div class="text-[9px] font-mono text-slate-400 mt-1 flex items-center space-x-3">
                 <span>节点规模: ${rawNumber(c.nodes_count) === null ? '未接入' : `${rawNumber(c.nodes_count)} Nodes`}</span>

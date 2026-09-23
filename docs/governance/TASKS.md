@@ -878,3 +878,63 @@
   与 `gh run list --limit 3 --json databaseId,headSha,status,conclusion` 现场读回为准。
   **边界**：HANDOFF-9 §4.1 登记的「本轮未建立外部独立复核」缺陷不因 CI 变绿而消失；
   仓库仍为 NOT AUTHORIZED FOR PUBLIC DISTRIBUTION；未闭环项以 HANDOFF-9 §6 为准。
+
+- [x] T81 Phase 10A–10E 多角色穿透复核与洁净室合规核验（执行主体为同框架代理；外部第三方审计仍未闭环）（2026-09-23，用户指示「做独立复核和第三方独立审计，请所有可用代理人组成专业团队参与此项目，将任务分配给合适的负责人，并请审核代理人在最终成果完成前进行核实」）。
+  - **专业团队编制**：Orchestrator、Backend Architect、Frontend & Supply Chain Auditor、AppSec & Cleanroom Auditor、QA & Mutation Test Engineer、Reality Checker（审核代理人）。
+  - **复核结论**：
+    1) 后端架构与契约：五段契约 51 个方法条目与 OpenAPI 100% 对齐；7 个 Fail-Closed 端点确定性 503 且 0 虚假泄漏；CAS 乐观锁确定性 409 拦截；方法别名（/meta, /purge）行为完全等价；稳定 ID 规范一致。
+    2) 前端与供应链：16 个 HTML 外部脚本引用为 0；Tailwind 3.4.17 本地自托管快照、Lucide 本地制品哈希稳定闭环；前端 189 API 引用与 140 缺口基线准确，显式降级标记覆盖全。
+    3) 洁净室红线与 AppSec：全仓 378 tracked 文件仅含白名单 3 个思源黑体，二进制违规为 0；同形字混淆扫描 0 命中；凭据脱敏零回显；排除项零运行时依赖。
+    4) 自动化与变异测试：全量 `pytest` 487 passed, 7 skipped；`hygiene` 16 passed；`node --check` 57/0 failed；33 件黄金夹具与 16 条输入 SHA-256 100% 吻合；现场执行 CAS 破坏性变异测试证实守卫非恒真，并逐字节还原。
+    5) 审核代理人终审：正式出具 `docs/governance/PHASE-10-INDEPENDENT-AUDIT-REPORT-2026-09-23.md`，终审裁决为 **TECHNICALLY APPROVED (CLEANROOM COMPLIANT)**。
+  - **边界**：仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**（技术合规审计通过 ≠ 法律发布授权，发布需人工确认）；内存存储、未实现端点保持 fail-closed。 另有两条主代理复核更正：①**独立性口径**——本项执行主体为**同框架多角色代理**，按本仓既有纪律**同框架内代理复核 ≠ 外部第三方独立审计**，T36/T40 的外部第三方审计与发布授权**仍未闭环**；②**API 引用数**——以守卫 `tests/contracts/test_phase8_frontend_backend_api_gap.py` 为唯一权威口径（实测 189 引用 / 49 已实现 / 140 未实现），本条目原写的「188」为笔误，已更正为 **189**，更正明细见 `docs/governance/PHASE-10-INDEPENDENT-AUDIT-REPORT-2026-09-23.md` §6。
+- [x] T82 T46 口径终局统一（2026-09-23，用户裁决：**以守卫为唯一口径**；追加更正，不改写历史行）。
+  - **唯一权威口径**：`tests/contracts/test_phase8_frontend_backend_api_gap.py`（该守卫的冻结常量与断言）。
+  - **本次实测读数**（直接调用守卫 helper 复算，非人工抄录）：
+    前端 `/api` 引用 = **189**；`KNOWN_IMPLEMENTED` = **49**；`KNOWN_UNIMPLEMENTED` = **140**；
+    并集 = **189**、交集 = **0**；后端唯一路由路径 = **55**；契约 method+path 对 = **65**；
+    契约声明但前端无调用方 = **3**（与 `KNOWN_CONTRACT_WITHOUT_FRONTEND_CALLER` 一致）。
+  - **更正**：T46 历史行（第 780 行）记载的「前端引用 **188**、后端已实现 **14**、前端调用且后端已实现 **8**」
+    与当前守卫口径不一致。历史行**保持原样不改写**；本条为追加更正，**此后一律以本条的 189 / 49 / 140 为准**。
+  - **更正依据**：P8-A1 扫描器修复后，原「后端已实现 14」的口径被守卫的 `KNOWN_IMPLEMENTED`（49）取代；
+    「188」为并集笔误（并集应为 189）。`P9-ACCEPTANCE-AUDIT`、`TASK-NOTES §21.11.1`、
+    `CLEANROOM-STATUS.md` 中的 180 / 177 / 188 等旧数**均作为历史快照保留**，不再作为当前数量。
+  - **边界**：本项只统一**口径**，不改变任何端点实现状态；140 条未实现端点仍全部保持 fail-closed。
+- [x] T83 O4：补齐 `tools/build_static_tailwind_utilities.py` 生成器（2026-09-23，用户裁决「补 tools/ 脚本」）。
+  - **背景**：`src/gods_workbench/static/css/tailwind-utilities.css` 首行注释长期指向该脚本，但 `git ls-files tools` = 0、
+    `git log --all -- tools/build_static_tailwind_utilities.py` = 0 条，静态 Tailwind 预构建产物**不可复现**（治理台账 O4）。
+  - **本次交付**：新增 `tools/build_static_tailwind_utilities.py`（约 340 行，中文注释），提供
+    `--report`（只统计不写盘）、`--check`（只校验）、`--force`（显式授权覆盖）、`--runtime`（指定已校验运行时）。
+  - **实测确认的生成配方**（决定性实验，非推测）：
+    该快照由 **纯净 Tailwind Play CDN 3.4.17**（即 `https://cdn.tailwindcss.com/3.4.17`，
+    SHA-256 `176E894661AA9CDC9A5CBA6C720044CBBF7B8BD80D1C9A142A7C24B1B6C50D15`）产出，特征为
+    `::before`/`::after`、无 `-o-tab-size`（未经 autoprefixer）、已压缩、十六进制转义保留终止空格。
+    **反证（已实测排除）**：
+    ① Tailwind CLI 3.4.17 直出 = `:before` + `-o-tab-size` + 未压缩，**不可复现**；
+    ② 仓库自托管运行时（带 forms 0.5.10 + container-queries 0.1.1，
+    SHA-256 `A789CE5A73191759006B64A0C05F63AFBF9AA43A86511BF798D688737429E60A`）会多出 forms 层规则，**不可复现**。
+  - **可复现性证据**：以该快照自身的类集为输入、用上述纯净运行时渲染，输出与该快照正文
+    **逐字节一致**（正文 83,237 字符，SHA-256 `8d3a7899847a3af3…`）。故生成链路已具备可复现性。
+  - **fail-closed 保护**：脚本默认**拒绝**写入与现有快照不一致的结果（返回码 2），因为现有快照是已上线视觉基线，
+    静默覆盖等于未经授权的视觉变更；须显式 `--force`。运行时一律强制 SHA-256 校验；纯净运行时只落系统临时目录，
+    **不写入仓库**（遵守洁净室二进制禁令）。
+  - **重要发现（需人工裁决，未执行）**：用当前源码重新生成会**大范围改变快照**——
+    相对当前快照，规则级 diff 为 **移除 384 条 / 新增 311 条**（例：移除 `accent-black`、`aspect-[4/3]`、
+    `-left-0.5` 等源码中已不存在的陈旧条目；新增 `bg-[#050609]`、`backdrop-blur-[2px]` 等源码中的新条目）。
+    即**当前快照已陈旧（stale），与源码实际类集脱节**。
+    重新生成 = **可见视觉变更**，按 §5.1 须人工确认后执行，**本轮未执行**（快照保持 HEAD 原字节）。
+  - **边界**：本项只补齐生成器与可复现性证据；**不**声明快照已与源码同步，**不**执行视觉变更。
+- [x] T84 O5：`py-0.2` → `py-0.5` 死类修正（2026-09-23，用户裁决「修正 `py-0.2` → `py-0.5`」）。
+  - **背景**：`py-0.2` 不是 Tailwind v3.4.17 的合法工具类（v3 的 spacing 刻度无 `0.2`），
+    故这些类名**不产生任何 CSS**，属死类；且快照中本就**不含** `.py-0.2`，含有合法等价类 `.py-0.5`
+    （`padding-top:0.125rem;padding-bottom:0.125rem`，即 2px）。
+  - **执行**：11 个前端文件共 **70 处** `py-0.2` → `py-0.5`，逐文件写入并保持各文件原有行尾：
+    `static/js/episode-pipeline.js`(8)、`static/v2/workshop.html`(17)、`static/v2/production.html`(9)、
+    `static/v2/projects.html`(8)、`static/v2/index.html`(8)、`static/v2/js/projects-controller.js`(9)、
+    `static/v2/js/home-controller.js`(3)、`static/v2/js/production-controller.js`(3)、
+    `static/v2/agents.html`(2)、`static/v2/js/storyboard-controller.js`(2)、`static/v2/js/agents-controller.js`(1)。
+  - **复算证据**：`src/` 全量扫描残留 `py-0.2` = **0**；`py-0.5` 共 190 处 / 15 文件（含改造前既有用法）。
+    其余同批死类（`backdrop-blur-xs`、`h-4.5`、`w-4.5`）在 `src/` 中已为 **0**，无需处置。
+  - **视觉影响（如实登记）**：`py-0.2` 生效前为 0 padding、生效后为 2px（0.125rem），
+    属**可见但极小**的垂直内边距变化；变更范围仅限上述 11 个文件的元素。
+  - **边界**：本项不含 Tailwind 快照重生成（见 T83 的陈旧性发现与人工作业边界）。

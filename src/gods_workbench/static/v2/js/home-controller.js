@@ -293,7 +293,7 @@ window.V2Home = (function () {
                 <div class="flex items-center space-x-2">
                   ${progressHtml}
                   <a href="/static/v2/workshop.html?project_id=${encodeURIComponent(p.id)}"
-                     class="tactile-keycap px-1.5 py-0.2 rounded text-[8px] text-[#eddab3] hover:text-white flex items-center space-x-0.5"
+                     class="tactile-keycap px-1.5 py-0.5 rounded text-[8px] text-[#eddab3] hover:text-white flex items-center space-x-0.5"
                      onclick="event.stopPropagation(); localStorage.setItem('workspace_project_id', '${esc(p.id)}'); localStorage.setItem('workspace_project_name', '${esc(p.name)}');"
                      title="进入该项目的影视工坊（剧本/资产/分镜/视频）">
                     <i data-lucide="film" class="w-2.5 h-2.5 text-[#dfc384]"></i>
@@ -773,7 +773,7 @@ window.V2Home = (function () {
     const attachmentsSnippet = attachedCount > 0 ? `
       <div class="flex flex-wrap gap-1 mt-1 mb-1">
         ${currentAttachments.map(a => `
-          <span class="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded bg-black/40 border border-white/10 text-[8px] text-cyan-300">
+          <span class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-black/40 border border-white/10 text-[8px] text-cyan-300">
             <i data-lucide="paperclip" class="w-2 h-2"></i>
             <span class="truncate max-w-[80px]">${esc(a.name)}</span>
           </span>
@@ -1289,7 +1289,7 @@ window.V2Home = (function () {
                   </div>
                 </div>
                 <div class="flex items-center space-x-1 shrink-0 text-[8px] font-mono text-slate-400">
-                  <span class="px-1.5 py-0.2 rounded bg-black/50 border border-white/5 text-[#dfc384] group-hover:bg-[#dfc384]/20 transition">检视</span>
+                  <span class="px-1.5 py-0.5 rounded bg-black/50 border border-white/5 text-[#dfc384] group-hover:bg-[#dfc384]/20 transition">检视</span>
                 </div>
               </div>
             `;

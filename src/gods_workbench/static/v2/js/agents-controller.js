@@ -29,7 +29,7 @@ window.V2Agents = (function () {
         <div class="flex items-center justify-between mb-1">
           <div class="font-bold text-slate-100 text-xs truncate">${esc(ag.name)}</div>
           ${ag.route ? `<a href="${esc(ag.route)}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-[#dfc384] shrink-0" title="打开剧本架构师路由" aria-label="打开剧本架构师路由" onclick="event.stopPropagation()"><i data-lucide="external-link" class="w-3 h-3"></i></a>` : ''}
-          <span class="text-[7.5px] font-mono px-1 py-0.2 rounded-full ${ag.status === 'online' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}"${ag.status === 'not_integrated' ? ' data-gw-degradation="not_integrated"' : ''}>
+          <span class="text-[7.5px] font-mono px-1 py-0.5 rounded-full ${ag.status === 'online' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}"${ag.status === 'not_integrated' ? ' data-gw-degradation="not_integrated"' : ''}>
             ${ag.status === 'not_integrated' ? '未接入' : ag.status}
           </span>
         </div>

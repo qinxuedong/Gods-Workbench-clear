@@ -82,7 +82,7 @@ window.V2Storyboard = (function () {
           <!-- 头部编号与景别标签 -->
           <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/5 text-xs">
             <div class="flex items-center space-x-1.5">
-              <span class="text-[8.5px] font-mono px-1.5 py-0.2 rounded bg-black/60 border border-[#dfc384]/30 text-[#eddab3] font-bold">
+              <span class="text-[8.5px] font-mono px-1.5 py-0.5 rounded bg-black/60 border border-[#dfc384]/30 text-[#eddab3] font-bold">
                 #${idx + 1} · ${sh.code}
               </span>
               <span class="text-[8.5px] font-mono text-cyan-300">${sh.shotType}</span>
@@ -98,7 +98,7 @@ window.V2Storyboard = (function () {
           <!-- 分镜构图画面 (16:9 画幅) -->
           <div class="aspect-video w-full rounded-lg overflow-hidden bg-black relative border border-white/10 mb-2">
             <img src="${sh.img}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="${esc(sh.title)}">
-            <div class="absolute top-1 right-1 px-1.5 py-0.2 rounded bg-black/70 text-[8px] font-mono text-[#eddab3]">
+            <div class="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[8px] font-mono text-[#eddab3]">
               2.39:1
             </div>
           </div>
