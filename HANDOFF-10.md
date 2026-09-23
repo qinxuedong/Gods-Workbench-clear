@@ -117,7 +117,10 @@
 7. **前端真实浏览器 E2E**：**加载期已闭环（§6）**；**交互期已闭环确定性 smoke 7 项（§7）**；
    **完整交互矩阵所辖 5 项已补测（§10）**：表单写入、CAS 409、202+poll_hint 轮询、403 只读降级、401 未认证——
    **契约层 5/5 PASS**，但**呈现层发现规范偏离**（401/403/409 的用户可见提示退化为「请求失败」，见 §10.3），
-   且真实 UI 写入因**前端不发认证头**（既有缺口）返回 401。**跨页状态保持、多窗口并发仍未被任何用例覆盖。**
+   且真实 UI 写入因**前端不发认证头**（既有缺口）返回 401。
+   **跨页状态保持与多窗口并发已补测（§11）**：跨页状态载体 4 项 PASS、真实并发 CAS 1×200 + 2×409 PASS；
+   **但新发现壳层部分路由丢失 deck 内页级元素的真实缺陷（§11.2，新增待裁决）**，
+   故第 7 项**仍不得写为全部闭环**——状态已从「未覆盖」转为「已覆盖并发现待裁决缺陷」。
 
 ---
 
@@ -320,6 +323,83 @@ v2 壳层 9 页与 `episode-pipeline.html` 置空差异均为 **0**，**不消�
 |---|---|---|
 | **A. 保持现状** | 快照继续含死规则；`--check` 持续返回 `1`（预期，非回归） | 快照与源码长期脱节 |
 | **B. 执行 `--force` 重生成** | 快照与源码对齐，`--check` 转为 `0`；2 页实测视觉等价 | 覆盖既有制品；建议同提交附新 SHA-256 + `--diff` + §9.3 读数作证据链 |
+
+
+---
+
+## 11. 跨页状态保持 + 多窗口并发（第 4 版；证据见 `docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md`）
+
+推进 §4 第 7 项**最后未覆盖的两块**：跨页状态保持、多窗口并发。
+
+### 11.1 跨页状态保持（呈现层，真实浏览器）：**已测载体 PASS**
+
+| 检查 | 结果 |
+|---|---|
+| `canvas_overview_density` 点击「紧凑」→ 写入 + 挂 `canvas-overview-compact`；reload 后回显 | PASS |
+| `canvas_overview_sort` 页 A 设为 `name` → 新开窗口 B 读到 `name` | PASS |
+| `studio_theme` 页 A 置 `light` → **已打开的**页 B 实时同步（未 reload），改回亦跟随 | PASS |
+| 项目上下文载体：选 `prj-0002` → `production.html` URL 带 `?project_id=prj-0002`、`localStorage` 一致、导航链接全部重写 | PASS（**仅载体**） |
+
+### 11.2 ⚠️ **新发现（真实缺陷）**：壳层部分路由丢失 deck 内页级元素
+
+`v2-shell.js` 的部分路由只替换 `.topbar-master-deck` 的**下一个兄弟节点**（`<main>` 工作区），
+**不替换 deck 本身**。故任何**只在某一页存在于 deck 内**的 `id`，经壳层路由进入该页后**不会出现**：
+
+| 目标页 | 缺失的 deck 内 id |
+|---|---|
+| `production.html` | `currentProjectDisplayTitle` |
+| `workshop.html` | `workshopProjectTitle` |
+| `storyboard.html` | `storyboardNavCanvas` |
+| `index.html` | `navPillDashboard`、`navPillSettings`、`uvNeedleGradCPU` |
+| `projects/agents/assets/collab.html` | 无（这些页无独有 deck id） |
+
+**截图交叉确证**（`production.html`）：整页加载 topbar 显示 `prj-0002 · 剧集制片工坊` 且 deck 含
+`STAGE 未接入` 段；壳层导航进入后 topbar 变为 `PROJECT ASSET MASTER DECK` 且 **`STAGE` 段消失**。
+`production-controller.js:184` 有空值保护，故**不抛异常**（全程 `pageerror = 0`），属**静默降级**。
+
+### 11.3 多窗口并发（并发层，真实 HTTP 竞争）
+
+**服务端 CAS 成立（PASS）**：`threading.Barrier` 让 3 线程同时以 `expected_version=1` 发 PATCH：
+
+```
+3x concurrent PATCH same expected_version=1 -> {409: 2, 200: 1}
+    {"worker": 0, "status": 409, "code": "VERSION_CONFLICT", "current_version": 2}
+    {"worker": 1, "status": 409, "code": "VERSION_CONFLICT", "current_version": 2}
+    {"worker": 2, "status": 200, "new_version": 2}
+```
+
+恰好 1 成功 + 2 冲突，409 携带 `current_version`，符合 `AGENTS.md` §3.2（禁止静默覆盖）。
+
+**浏览器跨窗口语义**：`localStorage` 读跨窗口可见；**实时**跟随取决于各页是否监听 `storage` 事件。
+`theme.js:278` 有监听（实测同步）；`canvas-list.js` 仅在初始加载读取（**无**监听），
+故 `canvas_overview_*` 在已打开窗口内**不实时跟随**。`docs/behavior/` 未检索到该实时性要求，
+故**不判定为规范偏离**，仅登记为能力缺口。
+
+### 11.4 待人工裁决（**新增 2 项**）
+
+| # | 裁决项 | 选项 | 建议 |
+|---|---|---|---|
+| 1 | 壳层部分路由丢失 deck 内页级元素（§11.2） | **A** 维持现状（该标题在壳层导航后不显示）；**B** 让部分路由同时协调 deck 内的页级元素；**C** 把页级元素从 deck 移入工作区 | **B**——A 会让「整页加载 / 壳层导航」两条路径呈现不一致；C 会动已冻结的视觉结构 |
+| 2 | `canvas-list.js` 视图偏好跨窗口实时同步（§11.3） | **A** 维持现状（下次加载生效）；**B** 补 `storage` 监听 | **A**——无规范支撑，不建议扩大改动面 |
+
+两项均属**共享层改动**（`v2-shell.js` 影响全部 v2 页面），按 `AGENTS.md` §5 须人工确认后实施。
+
+### 11.5 边界（**不得越读**）
+
+- 仅 1600x1000 视口、headless Chrome、本地单进程 `python run.py`。
+- 未覆盖：响应式断点、`:hover`/`:focus` 交互态、浏览器前进/后退栈完整性、真实多用户会话。
+- 并发测试为**单进程 in-memory 存储**（重启即丢、多 worker 不共享，属既有登记项）；
+  验证的是 **CAS 语义**，**不是**跨进程/跨实例的分布式一致性。
+- 未做压力/长稳测试（并发度 3、单轮）；未验证「多窗口 + 服务端并发」组合下的 UI 呈现。
+- 截图与探针仅落系统临时目录，**不入仓**。
+- 本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权；执行主体为主代理，≠ 外部第三方独立审计。
+
+### 11.6 对 §4 第 7 项的更新
+
+- 原状态：契约层 5/5 PASS；加载期 + 7 项交互 smoke 已闭环；**跨页状态保持、多窗口并发未覆盖**。
+- 现状态：**跨页状态保持（载体已测）** 与 **多窗口并发（CAS 语义）** 已补测；
+  但**新发现 §11.2 的壳层路由缺陷**，故第 7 项**仍不得写为全部闭环**——
+  已从「未覆盖」转为「已覆盖并发现待裁决缺陷」。
 
 ---
 

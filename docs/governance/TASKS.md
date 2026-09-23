@@ -1041,3 +1041,28 @@
   - **边界（不得越读）**：仅覆盖 2 页、单一视口 1600×1000、不含像素级比对/伪元素/交互态/响应式断点；
     **快照重生成动作仍未执行**（写盘属破坏性操作，须人工授权 `--force`）。
     本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权；执行主体为主代理，≠ 外部第三方独立审计。
+
+- [x] T89 跨页状态保持 + 多窗口并发补测（2026-09-23，推进 HANDOFF-10.md §4 第 7 项最后未覆盖的两块）。
+  - **触发**：此前登记「跨页状态保持、多窗口并发仍未被任何用例覆盖」。
+  - **跨页状态载体（真实浏览器，全部 PASS）**：`canvas_overview_density` 点击后写入并在 reload 后回显；
+    `canvas_overview_sort` 页 A 设置后新开窗口 B 读到同值；`studio_theme` 页 A 修改后**已打开的**页 B 实时同步；
+    项目上下文选 `prj-0002` 后 `production.html` URL 带 `?project_id=prj-0002`、`localStorage` 一致、导航链接被重写。
+  - **⚠️ 新发现（真实缺陷，新增待裁决）**：`v2-shell.js` 部分路由**只替换** `.topbar-master-deck` 的下一个兄弟节点
+    （`<main>` 工作区），**不替换 deck 本身**，故任何**只在某页存在于 deck 内**的 `id` 经壳层路由后丢失：
+    `production.html` 缺 `currentProjectDisplayTitle`；`workshop.html` 缺 `workshopProjectTitle`；
+    `storyboard.html` 缺 `storyboardNavCanvas`；`index.html` 缺 `navPillDashboard`/`navPillSettings`/`uvNeedleGradCPU`。
+    截图交叉确证：整页加载 topbar 显示 `prj-0002 · 剧集制片工坊` + `STAGE 未接入` 段；
+    壳层导航后变为 `PROJECT ASSET MASTER DECK` 且 `STAGE` 段消失。因控制器有空值保护，**全程 pageerror = 0**，属**静默降级**。
+  - **服务端 CAS 在真实并发下成立（PASS）**：3 线程以同一 `expected_version=1` 并发 PATCH
+    → **1×200（new_version=2）+ 2×409（`VERSION_CONFLICT`，带 `current_version=2`）**，无静默覆盖。
+  - **登记（能力缺口，非规范偏离）**：`canvas-list.js` 仅在初始加载读取 `canvas_overview_*`，**未监听 `storage`**，
+    故已打开窗口不实时跟随；`docs/behavior/` 未检索到该实时性要求，故不判为偏离。
+    （对照：`theme.js:278` 有监听，实测实时同步。）
+  - **新证据**：`docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md`；`HANDOFF-10.md` §11。
+  - **未新增回归用例的原因**：缺陷尚未修复（待人工裁决），此时加入失败断言会破坏 CI 门禁；
+    修复落地后再补 DOM 断言回归。
+  - **边界（不得越读）**：仅 1600x1000、headless Chrome、本地单进程；未覆盖响应式断点、交互态、
+    前进/后退栈完整性、真实多用户会话。并发为**单进程 in-memory** 存储，验证的是 **CAS 语义**，
+    不是跨进程/跨实例分布式一致性；并发度 3、单轮，未做压力/长稳。
+    截图与探针只落系统临时目录，不入仓。本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权；
+    执行主体为主代理，≠ 外部第三方独立审计。
