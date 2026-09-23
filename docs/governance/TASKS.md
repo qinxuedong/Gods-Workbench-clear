@@ -938,3 +938,24 @@
   - **视觉影响（如实登记）**：`py-0.2` 生效前为 0 padding、生效后为 2px（0.125rem），
     属**可见但极小**的垂直内边距变化；变更范围仅限上述 11 个文件的元素。
   - **边界**：本项不含 Tailwind 快照重生成（见 T83 的陈旧性发现与人工作业边界）。
+
+- [x] T85 前端真实浏览器 E2E（加载期）闭环（2026-09-23，推进 HANDOFF-9.md §6 / HANDOFF-10.md §4 第 7 项「前端真实浏览器 E2E 未执行」）。
+  - **背景**：此前 Phase 10A-10E 全部门禁建立在 FastAPI TestClient 之上，属进程内验证；它能证明 HTML 可返回、状态码正确，
+    但不能证明浏览器里没有未捕获 JS 异常、没有静态资源 4xx，也不能证明死类修正（O5）在渲染期真的生效。本项把它闭环。
+  - **新增工具**：`tools/frontend_e2e_smoke.py`（中文注释；未接入 CI，因 CI 不安装 Playwright，属本地/人工门禁）。
+  - **判定口径（每页独立，全 fail-closed）**：
+    ① networkidle 期间零 pageerror（未捕获 JS 异常）；
+    ② 同源 /static/** 零 4xx/5xx；
+    ③ 每个 API 4xx 的归一化路径必须在冻结缺口基线内——脚本直接 import 守卫
+    `tests/contracts/test_phase8_frontend_backend_api_gap.py` 读取 KNOWN_IMPLEMENTED / KNOWN_UNIMPLEMENTED，
+    不再抄第二份清单（避免历史「三处各写一遍并漂移」教训）；
+    ④ 渲染期 O5 实证：带 py-0.5 的元素 computed padding-top / padding-bottom 必须均为 2px，且页面内死类 py-0.2 元素为 0。
+  - **实测结果（HEAD 41d232b，本机真实 Chromium，9 页 v2 壳层）**：jsError=0、staticFail=0、基线外 API 4xx = 0、
+    py-0.5 命中数 = 生效数（21/40/28/14/26/9/5/2/2）；判定 PASS，退出码 0，e2e-report.json 中 failures = []。
+    API 4xx 明细：404 全部为契约 forbidden_neighbors 明确未授权端点，401 全部为匿名访问已实现端点的预期认证行为，均非缺陷。
+  - **产物落盘**：截图与 JSON 报告默认写系统临时目录，绝不写入仓库（AGENTS.md §1.2 禁止仓库内二进制资产；
+    脚本对指向仓库静态目录的输出直接拒绝）。
+  - **证据文档**：`docs/governance/PHASE-10-FRONTEND-E2E-EVIDENCE-2026-09-23.md`。
+  - **边界（不得越读）**：本项只覆盖 v2 壳层 9 页的加载期行为，不含交互路径 E2E（点击流、表单提交、CAS 冲突操作、
+    上传、轮询闭环）；本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权。故「前端真实浏览器 E2E」由未执行推进为
+    「加载期已执行 + 交互期仍未执行」，不得写为全部闭环。
