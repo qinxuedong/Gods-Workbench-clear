@@ -970,3 +970,24 @@
     403 只读降级、跨页状态保持、多窗口并发）；本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权。
     故「前端真实浏览器 E2E」状态为「加载期已闭环 + 交互期确定性 smoke 已闭环，完整交互矩阵未执行」，
     不得写为全部闭环。
+
+- [x] T86 Tailwind 静态快照「重生成是否造成可见视觉变更」判定（2026-09-23，回应 HANDOFF-10.md §2.4 / §4 第 3 项）。
+  - **触发**：§2.4 记录规则级 diff「1014 → 945，移除 390 / 新增 321，逐字节一致=False」，并据此推断
+    「重新生成 = 可见视觉变更」。该推断**不成立**——规则级差异 ≠ 视觉变更。
+  - **新增工具**：`tools/tailwind_snapshot_visual_equiv.py`（中文注释；未接入 CI，CI 不装 Playwright）。
+    口径：内存重生成（不写盘）+ Playwright 路由注入 + 逐元素（tagName+className 配对）比对 41 个
+    computed style 属性；默认排除动画属性 `transform`/`opacity`/`filter`；内置 `baseline vs baseline`
+    对照组，对照组有噪声即退出码 `2`、实验结论作废（fail-closed）。退出码 0=视觉等价 / 1=可见变更 / 2=口径不可靠。
+  - **实测（基线 a81a6eb，本机真实 Chrome，1600×1000，12 页）**：对照组噪声 0；实验组 computed 差异 0；
+    合计 **3408 个元素 / 0 处差异**，退出码 `0` → 判定**视觉等价**。
+  - **变异自证**：`--keep-animation-props` 下同一份 CSS 的对照组即出现 7 处噪声（全为 transform/opacity，
+    元素均为 animate-ping / animate-pulse / 光晕 / 呼吸灯），工具返回 `2`；证明对照组守卫确实能失败。
+  - **附带证伪**：源码 371 个 arbitrary 类中 251 个不在快照内，但均非缺陷——`v2/*.html` 与
+    `episode-pipeline.html` 加载自托管 Tailwind 运行时（JIT）；唯二纯静态快照页 `api-settings.html` /
+    `canvas-list.html` 实际未使用任何 arbitrary 工具类，浏览器侧交叉验证这两页 DOM 中会被删除的类 = 0。
+  - **证据文档**：`docs/governance/TAILWIND-SNAPSHOT-VISUAL-EQUIVALENCE-2026-09-23.md`；HANDOFF-10.md §9。
+  - **更正 §2.4**：删去「重新生成 = 可见视觉变更」的过度推断，改为「视觉等价，但**动作未执行**」。
+  - **边界（不得越读）**：本项是**计算样式等价**，不是像素级截图比对、不是视觉回归基线；未覆盖响应式断点、
+    伪元素、`:hover`/`:focus`/`:active` 交互态、Canvas/WebGL/SVG 内部渲染。**快照重生成动作本轮未执行**——
+    写盘覆盖既有视觉基线属破坏性操作，按 AGENTS.md §5 须人工明确确认（待裁决：保持现状 / `--force` 重生成）。
+    本机实测 ≠ 远端 CI ≠ 生产验收 ≠ 发布授权；执行主体为主代理，≠ 外部第三方独立审计。
