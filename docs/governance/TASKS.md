@@ -1059,8 +1059,20 @@
     故已打开窗口不实时跟随；`docs/behavior/` 未检索到该实时性要求，故不判为偏离。
     （对照：`theme.js:278` 有监听，实测实时同步。）
   - **新证据**：`docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md`；`HANDOFF-10.md` §11。
-  - **未新增回归用例的原因**：缺陷尚未修复（待人工裁决），此时加入失败断言会破坏 CI 门禁；
-    修复落地后再补 DOM 断言回归。
+  - **⚠️ 第二个新发现（真实缺陷，新增待裁决）**：`v2-shell.js:71-87` 的 `runRouteScripts()` 用
+    `createElement('script')`+`src`+`async=false` 重建脚本，**不保留 `type="module"`**，故 `collab.html`
+    的两个模块脚本被当普通脚本执行。对照实测：整页加载 = 2 个 module 脚本 / 0 异常；
+    壳层导航后 = **0 个 module 脚本 / 2 × `Cannot use import statement outside a module`**。
+    与 deck 缺口不同，本项**显式抛错**（非静默）。
+  - **归类修正（非缺陷）**：首轮曾记 `settings.html`「未到达」；再核查为 `projects.html` 的「系统设置」
+    指向 `index.html?view=settings`（经 307 落到 `settings.html#section=general`），属正常导航，
+    实为探针目标匹配写错，已登记 `NAV_HREF_ALIAS`。不影响上述两项缺陷结论。
+  - **检测能力已固化**：`tools/frontend_e2e_smoke.py` 新增第 6 项「壳层路由一致性」（deck id 集合 /
+    module 脚本集合 / pageerror 集合），配三类 `KNOWN_*` 登记表做 **fail-closed** 判定：
+    未登记新缺口判 FAIL；已登记缺口不再复现也判 FAIL 并提示移除登记（防清单腐化）。
+    **实测 EXIT=0**（区分「已知丢失 / 未登记」），PASS 措辞修正为「不存在**未登记**缺口」。
+    **变异自证**：清空三类登记表重跑 → **EXIT=1**，报出 6 个 deck 缺口 + module 丢失 + 异常
+    （变异体仅临时副本，运行后逐字节恢复）。
   - **边界（不得越读）**：仅 1600x1000、headless Chrome、本地单进程；未覆盖响应式断点、交互态、
     前进/后退栈完整性、真实多用户会话。并发为**单进程 in-memory** 存储，验证的是 **CAS 语义**，
     不是跨进程/跨实例分布式一致性；并发度 3、单轮，未做压力/长稳。

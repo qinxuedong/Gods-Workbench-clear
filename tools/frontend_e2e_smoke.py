@@ -21,6 +21,12 @@ Phase 10A-10E 的门禁全部建立在 FastAPI 的 TestClient 之上，属于**�
 5. 交互期 smoke：对 7 个确定性交互（视图切换、搜索过滤与复原、设置视图与主题开关幂等往返、
    设置分区切换、导航跳转）执行真实点击，并断言**真实 DOM 变化**——不允许用「没抛异常」冒充通过。
    交互期同样要求零 pageerror，且产生的 API 4xx 必须已在冻结基线内。
+6. 壳层路由一致性：对比「整页加载」与「壳层部分路由」两种到达方式下
+   `.topbar-master-deck [id]` 集合是否一致。部分路由只替换 deck 之后的 `<main>` 工作区，
+   不替换 deck 本身，故任何**只在某页存在于 deck 内**的 id 会丢失（且因控制器有空值保护，
+   全程无 JS 异常，属**静默降级**——只能靠 DOM 断言发现）。
+   已确认但尚未修复的缺口须登记在 KNOWN_DEFECTS；未登记的新缺口一律判失败；
+   已登记缺口若**不再复现**则提示移除登记（防止清单腐化）。
 
 洁净室边界
 ----------
@@ -70,6 +76,43 @@ PAGES = (
 # 旧仓与静态层禁用标记：本脚本同样不得引用（与卫生用例口径一致）。
 FORBIDDEN_PAGE_REQUEST_PREFIXES = ("/api/", "/static/")
 
+
+
+# ---------------------------------------------------------------------------
+# 已登记缺陷基线（fail-closed：未登记的新缺陷判失败；已修复者提示移除登记）
+# ---------------------------------------------------------------------------
+# 键 = 目标页；值 = 该页在“整页加载”时存在于 .topbar-master-deck 内、
+#      但在“壳层部分路由”到达后丢失的 id 集合。
+# 来源：docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md §3.2
+#       （HANDOFF-10.md §11.2 / TASKS.md T89；待人工裁决，修复后请从此表移除）
+KNOWN_SHELL_ROUTE_DECK_LOSS: dict[str, frozenset[str]] = {
+    "production.html": frozenset({"currentProjectDisplayTitle"}),
+    "workshop.html": frozenset({"workshopProjectTitle"}),
+    "storyboard.html": frozenset({"storyboardNavCanvas"}),
+    "index.html": frozenset({"navPillDashboard", "navPillSettings", "uvNeedleGradCPU"}),
+}
+
+# 键 = 目标页；值 = 该页在整页加载时存在、但经壳层部分路由后**消失**的 `type="module"` 脚本 src。
+# 成因：v2-shell.js 的 runRouteScripts() 用 createElement('script') + src + async=false 重建脚本，
+#       **不保留 type="module"**，故模块脚本被当普通脚本执行 -> "Cannot use import statement outside a module"。
+# 来源：同上证据文档 §4；由 net::ERR_ABORTED 暴露，属真实缺口，待人工裁决修复。
+KNOWN_SHELL_ROUTE_MODULE_LOSS: dict[str, frozenset[str]] = {
+    "collab.html": frozenset({
+        "/static/js/asset-review/api.js?v=20260916-collab-team",
+        "/static/js/asset-auth/api.js?v=20260916-collab-team",
+    }),
+}
+
+# 键 = 目标页；值 = 壳层部分路由期间出现的**已登记**未捕获 JS 异常指纹（原文）。
+# 上表中 collab.html 的 module 脚本被降级执行，因而抛出该异常——两条登记互为因果。
+# 未在本表登记、也未被上面 module 表解释的异常一律判失败（fail-closed）。
+KNOWN_SHELL_ROUTE_PAGE_ERRORS: dict[str, frozenset[str]] = {
+    "collab.html": frozenset({"Cannot use import statement outside a module"}),
+}
+
+# 导航归属别名：某些页面的导航链接不指向同名文件（部分路由仍能正确到达目标页）。
+# projects.html 上的「系统设置」指向 index.html?view=settings，服务端 307 -> settings.html#section=general。
+NAV_HREF_ALIAS: dict[str, str] = {"settings.html": "index.html?view=settings"}
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +254,154 @@ def run_interactions(base_url: str, implemented, unimplemented) -> dict:
             browser.close()
 
     return {"interactions": results, "failures": failures}
+
+
+# 采集 `.topbar-master-deck` 内全部 id（排序后便于集合差比较）
+DECK_ID_JS = (
+    "() => Array.from(document.querySelectorAll('.topbar-master-deck [id]'))"
+    ".map(el => el.id).sort()"
+)
+
+# 采集当前文档内 `type="module"` 脚本的 src（用于检测壳层路由是否丢失 module 语义）
+MODULE_SRC_JS = (
+    "() => Array.from(document.querySelectorAll('script[type=\"module\"]'))"
+    ".map(el => { const s = el.getAttribute('src');"
+    " if (!s) return '(inline)';"
+    " try { return new URL(s, document.baseURI).pathname + new URL(s, document.baseURI).search; }"
+    " catch (e) { return s; } })"
+)
+
+
+def run_shell_route_consistency(base_url: str) -> dict:
+    """对比整页加载 vs 壳层部分路由，检查 deck 内页级元素是否丢失。
+
+    为什么需要：v2 壳层的部分路由只替换 `.topbar-master-deck` 之后的 `<main>` 工作区，
+    不替换 deck 本身；因此「只在某一页存在于 deck 内」的 id 经壳层导航后会消失。
+    这类缺陷因控制器普遍有空值保护而**不抛 JS 异常**，加载期检查（pageerror/静态资源/API 4xx）
+    完全看不见它，只能靠 DOM 集合差暴露。
+    """
+    from playwright.sync_api import sync_playwright
+
+    chrome = find_chrome()
+    launch_kwargs = {"executable_path": chrome} if chrome else {}
+
+    # 每页「整页加载」的 deck id 基线（同时作为壳层导航入口页的基线）
+    baselines: dict[str, list[str]] = {}
+    results: list[dict] = []
+    failures: list[str] = []
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(**launch_kwargs)
+        try:
+            module_baselines: dict[str, list[str]] = {}
+            for page_name in PAGES:
+                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                page = context.new_page()
+                page.goto(f"{base_url}/static/v2/{page_name}", wait_until="networkidle")
+                page.wait_for_timeout(900)
+                baselines[page_name] = page.evaluate(DECK_ID_JS)
+                module_baselines[page_name] = page.evaluate(MODULE_SRC_JS)
+                context.close()
+
+            for page_name in PAGES:
+                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                page = context.new_page()
+                page_errors: list[str] = []
+                page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+                # 统一从 projects.html 出发（该页 deck 内无独有 id，不会污染对比）
+                page.goto(f"{base_url}/static/v2/projects.html", wait_until="networkidle")
+                page.wait_for_timeout(900)
+                href = NAV_HREF_ALIAS.get(page_name, page_name)
+                page.evaluate(
+                    """(target) => {
+                      const links = [...document.querySelectorAll('.topbar-master-deck a.nav-pill-btn')];
+                      const hit = links.find(a => (a.getAttribute('href') || '').split('?')[0]
+                                                   === target.split('?')[0]
+                                                 && (!target.includes('?')
+                                                     || (a.getAttribute('href') || '').includes('view=settings')));
+                      if (hit) hit.click();
+                    }""",
+                    href,
+                )
+                page.wait_for_timeout(2200)
+                reached = page_name in page.url or NAV_HREF_ALIAS.get(page_name, "@@") in page.url
+                after = set(page.evaluate(DECK_ID_JS))
+                expected = set(baselines[page_name])
+                # 只看“丢失”（missing）；extra 多为 v2-shell 运行时注入的元素，不作失败判据。
+                missing = sorted(expected - after)
+                module_after = set(page.evaluate(MODULE_SRC_JS))
+                module_missing = sorted(set(module_baselines[page_name]) - module_after)
+                context.close()
+
+                known = set(KNOWN_SHELL_ROUTE_DECK_LOSS.get(page_name, frozenset()))
+                unregistered = sorted(set(missing) - known)
+                fixed = sorted(known - set(missing))
+                known_mod = set(KNOWN_SHELL_ROUTE_MODULE_LOSS.get(page_name, frozenset()))
+                module_unregistered = sorted(set(module_missing) - known_mod)
+                module_fixed = sorted(known_mod - set(module_missing))
+                known_err = set(KNOWN_SHELL_ROUTE_PAGE_ERRORS.get(page_name, frozenset()))
+                err_unregistered = sorted(set(page_errors) - known_err)
+                err_fixed = sorted(known_err - set(page_errors))
+
+                results.append(
+                    {
+                        "target": page_name,
+                        "reached": reached,
+                        "missing_deck_ids": missing,
+                        "missing_known": sorted(set(missing) & known),
+                        "missing_unregistered": unregistered,
+                        "module_missing": module_missing,
+                        "module_missing_known": sorted(set(module_missing) & known_mod),
+                        "module_missing_unregistered": module_unregistered,
+                        "page_errors": page_errors,
+                        "page_errors_known": sorted(set(page_errors) & known_err),
+                        "page_errors_unregistered": err_unregistered,
+                        "known_deck_no_longer_missing": fixed,
+                        "known_module_no_longer_missing": module_fixed,
+                        "known_page_errors_no_longer_raised": err_fixed,
+                    }
+                )
+                if not reached:
+                    failures.append(f"壳层路由未到达 {page_name}（最终 URL {page.url}）")
+                if unregistered:
+                    failures.append(
+                        f"壳层路由 {page_name} 丢失未登记的 deck 元素 {unregistered}"
+                        f"（若为新缺口请修复；确认为已知缺口须登记 KNOWN_SHELL_ROUTE_DECK_LOSS）"
+                    )
+                if fixed:
+                    failures.append(
+                        f"壳层路由 {page_name} 的已登记 deck 缺口不再复现 {fixed}——"
+                        f"请从 KNOWN_SHELL_ROUTE_DECK_LOSS 移除登记"
+                    )
+                if module_unregistered:
+                    failures.append(
+                        f"壳层路由 {page_name} 丢失未登记的 module 脚本 {module_unregistered}"
+                        f"（若为新缺口请修复；确认为已知缺口须登记 KNOWN_SHELL_ROUTE_MODULE_LOSS）"
+                    )
+                if module_fixed:
+                    failures.append(
+                        f"壳层路由 {page_name} 的已登记 module 缺口不再复现 {module_fixed}——"
+                        f"请从 KNOWN_SHELL_ROUTE_MODULE_LOSS 移除登记"
+                    )
+                if err_unregistered:
+                    failures.append(
+                        f"壳层路由 {page_name} 出现未登记的未捕获 JS 异常 {err_unregistered}"
+                        f"（若为新缺口请修复；确认为已知缺口须登记 KNOWN_SHELL_ROUTE_PAGE_ERRORS）"
+                    )
+                if err_fixed:
+                    failures.append(
+                        f"壳层路由 {page_name} 的已登记异常不再出现 {err_fixed}——"
+                        f"请从 KNOWN_SHELL_ROUTE_PAGE_ERRORS 移除登记"
+                    )
+        finally:
+            browser.close()
+
+    return {
+        "shell_route_baseline": baselines,
+        "shell_route_module_baseline": module_baselines,
+        "shell_route": results,
+        "failures": failures,
+    }
 
 
 def _load_guard_baseline() -> tuple[frozenset[str], frozenset[str]]:
@@ -454,6 +645,11 @@ def main() -> int:
         interactions = run_interactions(args.base_url, implemented, unimplemented)
         result["interactions"] = interactions["interactions"]
         result["failures"].extend(interactions["failures"])
+        shell_route = run_shell_route_consistency(args.base_url)
+        result["shell_route"] = shell_route["shell_route"]
+        result["shell_route_baseline"] = shell_route["shell_route_baseline"]
+        result["shell_route_module_baseline"] = shell_route["shell_route_module_baseline"]
+        result["failures"].extend(shell_route["failures"])
     finally:
         if server is not None:
             server.terminate()
@@ -465,6 +661,9 @@ def main() -> int:
     report = {
         "base_url": args.base_url,
         "interactions": result.get("interactions", []),
+        "shell_route": result.get("shell_route", []),
+        "shell_route_baseline": result.get("shell_route_baseline", {}),
+        "shell_route_module_baseline": result.get("shell_route_module_baseline", {}),
         "healthz": health,
         "baseline": {
             "guard": GUARD_PATH.relative_to(REPO_ROOT).as_posix(),
@@ -491,6 +690,16 @@ def main() -> int:
         print(f"[e2e] 交互期：{passed_n}/{len(active)} 项通过")
         for i in active:
             print(f"    - {i['id']:34} passed={i['passed']} {i['detail']}")
+    shell_rows = result.get("shell_route", [])
+    if shell_rows:
+        print("[e2e] 壳层路由一致性（整页加载 vs 部分路由，deck 内 id 集合差）：")
+        for row in shell_rows:
+            print(
+                f"    - {row['target']:16} reached={row['reached']} "
+                f"deck已知丢失={row['missing_known']} deck未登记={row['missing_unregistered']} "
+                f"module已知丢失={row['module_missing_known']} module未登记={row['module_missing_unregistered']} "
+                f"异常已知={len(row['page_errors_known'])} 异常未登记={row['page_errors_unregistered']}"
+            )
     print(f"[e2e] 报告：{report_path}")
 
     if result["failures"]:
@@ -498,7 +707,13 @@ def main() -> int:
         for item in result["failures"]:
             print("  - " + item)
         return 1
-    print("[e2e] 判定：PASS（零 JS 异常 / 零静态资源失败 / 零基线外 API 4xx / py-0.5 全部生效）")
+    print(
+        "[e2e] 判定：PASS（零基线外 API 4xx / py-0.5 全部生效 / 壳层路由无未登记缺口）"
+    )
+    print(
+        "      注意：PASS 表示**不存在未登记缺口**；加载期与壳层路由的已登记缺陷"
+        "（见 KNOWN_* 表与证据文档）仍然存在。"
+    )
     return 0
 
 

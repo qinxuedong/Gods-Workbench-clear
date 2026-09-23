@@ -103,6 +103,65 @@ python -P <探针>.py     # 本轮探针均落在 %TEMP%，不入仓
 - 未覆盖：`:hover`/`:focus` 交互态、响应式断点、真实多用户会话、浏览器前进/后退栈完整性。
 - §3.1 的 PASS 仅证明**已测的 6 项**状态载体（localStorage / URL 参数）在两条导航路径下一致。
 
+
+### 3.4 ⚠️ **第二个新发现（真实缺陷）**：壳层部分路由丢失 `type="module"` 语义
+
+**现象**：`v2-shell.js` 的 `runRouteScripts()`（`v2-shell.js:71-87`）用
+`document.createElement('script')` + `script.src` + `async=false` 重建页面脚本，
+**不保留 `type="module"`**。于是 `collab.html` 的两个模块脚本被当普通脚本执行，
+抛出 `Cannot use import statement outside a module`。
+
+**实测（整页加载 vs 壳层路由，对照）**：
+
+| 项 | 整页加载 `/static/v2/collab.html` | 从 `projects.html` 壳层导航进入 |
+|---|---|---|
+| `type="module"` 脚本数 | **2** | **0** |
+| 未捕获 JS 异常 | **0** | **2 × `Cannot use import statement outside a module`** |
+| `window.AssetReviewApi` | 未定义（该切片的正常状态） | **未定义** |
+| `window.V2Collab` | `object` | `object` |
+
+缺失的模块脚本：
+`/static/js/asset-review/api.js?v=20260916-collab-team`、
+`/static/js/asset-auth/api.js?v=20260916-collab-team`。
+
+**影响面（仅陈述实测，不外推）**：这两个模块脚本定义协作页所需的模块级 API；
+在壳层路由路径下它们**未被执行**，故相关能力在该路径下不可用。
+**注意此处与 §3.2 的危害等级不同**：§3.2 是**静默**降级（无异常），
+本项是**显式抛错**（`pageerror` 非零）。
+
+**归属**：同属 `v2-shell.js` 部分路由机制的结构性缺口。修复需人工裁决（选项见 §5）。
+
+### 3.5 附带登记（**归类修正，非新缺陷**）：`settings.html` 的导航归属
+
+首轮矩阵曾把 `settings.html` 记为「壳层路由未到达」（final URL 停在 `projects.html`）。
+
+**再核查后更正**：`projects.html` 上的「系统设置」导航链接指向
+`index.html?view=settings`（**并非** `settings.html`），点击后经服务端 `307` 落到
+`settings.html#section=general`，属**正常导航**。
+
+因此该行**不是导航失败**，而是本轮探针的**目标匹配写错**。
+已更正为「导航归属别名」并在探针中登记
+（`NAV_HREF_ALIAS = {"settings.html": "index.html?view=settings"}`）。
+**这不改变 §3.2/§3.4 两项结论**（它们各自有截图与对照实测支撑）。
+
+### 3.6 检测能力已固化进工具 + 变异自证
+
+`tools/frontend_e2e_smoke.py` 新增第 6 项检查「壳层路由一致性」：
+逐页对比整页加载 vs 壳层路由的
+① `.topbar-master-deck [id]` 集合、② `type="module"` 脚本集合、③ `pageerror` 集合，
+**按三类已登记缺陷基线（`KNOWN_SHELL_ROUTE_DECK_LOSS` / `KNOWN_SHELL_ROUTE_MODULE_LOSS` /
+`KNOWN_SHELL_ROUTE_PAGE_ERRORS`）做 fail-closed 判定**：
+
+- 未登记的新缺口 → **FAIL**；
+- 已登记缺口**不再复现** → **FAIL 并提示移除登记**（防止清单腐化）。
+
+**实测**：该工具现返回 **EXIT=0**，输出明确区分「已知丢失 / 未登记」，
+且 PASS 措辞已修正为「不存在**未登记**缺口」，不再宣称「零 JS 异常」。
+
+**变异自证（证明不是恒过）**：把上述三个登记表临时清空后重跑该工具 → **EXIT=1**，
+逐条报出 6 个 deck 缺口的未登记项与 collab 的模块丢失 + 异常。
+（变异体只在临时副本上生效，运行后已逐字节恢复原文件。）
+
 ---
 
 ## 4. 多窗口并发（并发层，真实 HTTP 竞争）
@@ -157,6 +216,7 @@ create -> 201 pid=prj-0005 ver=1
 | # | 裁决项 | 选项 | 建议 |
 |---|---|---|---|
 | 1 | `v2-shell.js` 部分路由丢失 deck 内页级元素（§3.2） | **A** 维持现状（该标题在壳层导航后不显示）；**B** 让部分路由同时协调 deck 内的页级元素；**C** 把页级元素从 deck 移入工作区（改页面结构） | **B**——A 会让「整页加载 / 壳层导航」两条路径呈现不一致；C 改动面更大且会动已冻结的视觉结构 |
+| 1b | `v2-shell.js` 部分路由丢失 `type="module"` 语义（§3.4） | **A** 维持现状（协作页模块能力在该路径下不可用 + 抛错）；**B** 在 `runRouteScripts()` 中保留 `type="module"`（并保持 `async=false` 的加载序）；**C** 改写协作页不再依赖 module 脚本 | **B**——最小且直接消除抛错；C 会改动已冻结页面结构 |
 | 2 | `canvas-list.js` 视图偏好跨窗口实时同步（§4.3） | **A** 维持现状（下次加载生效）；**B** 补 `storage` 监听 | **A**——行为规范无此要求，属锦上添花，不建议为无规范支撑的功能扩大改动面 |
 
 两者均属**共享层改动**（`v2-shell.js` 影响全部 v2 页面），按 `AGENTS.md` §5 须人工确认后实施。
