@@ -74,3 +74,27 @@
 - assets 专项真实浏览器：`projects → assets → projects → assets`，返回后 `window.V2Assets.rebind = true`、新 iframe 存在、page errors=0。
 
 **状态**：修复证据已齐，但在新的独立审核代理返回 PASS 前，不把工程 1–8 标记为最终完成；工程 9/10 仍未授权。
+
+## 7. 第二次 NEEDS WORK → Workshop 生命周期修复（2026-09-24）
+
+Astra 串行独立复核对 `0eed42d` 返回 **NEEDS WORK**，新增唯一阻断为 Workshop 控制器 `init()` 非幂等：连续返回页面会重复创建 `setInterval(updateClock, 1000)`，并重复触发请求；原探针只检查入口与 DOM，无法发现该泄漏。
+
+已由串行实现代理完成并提交 `b007fe1`：
+
+- `V2Workshop.rebind` 正式导出，壳层不再调用非幂等 `init`；
+- 增加 `dispose`，离开 Workshop 时清理时钟、取消未完成请求、移除 `message`/`popstate` 监听；
+- 以 `episodesView` 新根节点做幂等边界，同一 DOM 不重复发起项目/分集请求；
+- 请求加入生命周期代际、epoch、项目 ID 校验及 `AbortController`，旧项目/离页响应不得回写；
+- `switchStep(..., skipEpisodesFetch)` 消除 rebind 分集双请求；
+- E2E 连续导航探针增加 `updateClock` interval 计数，Workshop 每次返回必须恰好 1 个。
+
+最新门禁（当前 HEAD `b007fe1`）：
+
+- `node --check`：V2 shell 与 Workshop 内联脚本通过；
+- `python -P -m pytest -q`：489 passed / 7 skipped；
+- `python -P -m pytest tests/hygiene -q`：16 passed；
+- `python -P tools/frontend_e2e_smoke.py --serve --mutation-selftest`：退出码 0；
+- 8 个连续导航目标均 script growth=0、page errors=0、lifecycle probe=0；Workshop `updateClock` timer count=1；
+- 9/9 route consistency 无未登记缺口；27 个顶栏组合通过；mutation selftest 仍报 27 条 FAIL。
+
+**状态**：等待下一轮串行独立审核；在其明确 PASS 前，工程 1–8 不标记为最终完成。
