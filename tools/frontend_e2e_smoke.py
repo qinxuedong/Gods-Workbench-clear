@@ -122,6 +122,25 @@ KNOWN_REPEAT_NAV_PAGE_ERRORS: dict[str, frozenset[str]] = {}
 REPEAT_NAV_SEQUENCE: tuple[str, ...] = ("target", "projects", "target", "projects", "target")
 REPEAT_NAV_TARGETS: tuple[str, ...] = tuple(p for p in PAGES if p != "projects.html")
 
+# 连续导航返回后的控制器生命周期探针：不仅检查 script 数量，还检查新 DOM 是否拿到对应控制器入口。
+ROUTE_REBIND_PROBE_JS = """
+() => {
+  const page = location.pathname.split('/').pop() || 'index.html';
+  const expected = {
+    'index.html': [Boolean(window.V2Home?.rebind), '#v2MainDashboard'],
+    'projects.html': [Boolean(window.V2Projects?.rebind), '#projectsCardsStream'],
+    'production.html': [Boolean(window.V2Production?.rebind), '#currentProjectDisplayTitle'],
+    'workshop.html': [Boolean(window.V2Workshop?.init), '#workshopProjectTitle'],
+    'storyboard.html': [Boolean(window.V2Storyboard?.rebind), '#storyboardGrid'],
+    'agents.html': [Boolean(window.V2Agents?.rebind), '#agentList'],
+    'assets.html': [Boolean(window.V2Assets?.rebind), '#assetVaultFrame'],
+    'collab.html': [Boolean(window.V2Collab?.rebind), '#collabRefresh'],
+  }[page];
+  if (!expected) return { page, checked: false, ready: true };
+  return { page, checked: true, controller: expected[0], dom: Boolean(document.querySelector(expected[1])), ready: expected[0] && Boolean(document.querySelector(expected[1])) };
+}
+"""
+
 # 第 8 项「顶栏可达性」的检查视口与必达控件。
 # 为什么需要：顶层 header 为 overflow:hidden 且尺寸被 !important 钉死，一旦内部控件总宽超过
 # 可视宽度，超出的部分会被**静默裁掉**——不抛异常、不出现滚动条，pageerror 与静态资源检查都看不见。
@@ -671,6 +690,7 @@ def run_shell_route_repeat_nav(base_url: str) -> dict:
                     )
                     page.wait_for_timeout(2000)
                     inv = page.evaluate(SCRIPT_INVENTORY_JS)
+                    lifecycle = page.evaluate(ROUTE_REBIND_PROBE_JS)
                     steps.append(
                         {
                             "step": idx,
@@ -678,6 +698,7 @@ def run_shell_route_repeat_nav(base_url: str) -> dict:
                             "url_tail": page.url.split("/")[-1],
                             "reached": page.url.split("/")[-1].split("?")[0] == wanted_href.split("?")[0],
                             "scripts": inv["total"],
+                            "lifecycle": lifecycle,
                         }
                     )
                 context.close()
@@ -685,6 +706,7 @@ def run_shell_route_repeat_nav(base_url: str) -> dict:
                 final = steps[-1]["scripts"] if steps else initial
                 growth = final - initial
                 unreached = [s["step"] for s in steps if not s["reached"]]
+                lifecycle_failed = [s["step"] for s in steps if s.get("lifecycle", {}).get("checked") and not s["lifecycle"].get("ready")]
                 growth_registered = target_name in KNOWN_REPEAT_NAV_SCRIPT_GROWTH
                 known_err = set(KNOWN_REPEAT_NAV_PAGE_ERRORS.get(target_name, frozenset()))
                 err_messages = [e["message"] for e in errors]
@@ -704,12 +726,17 @@ def run_shell_route_repeat_nav(base_url: str) -> dict:
                         "page_errors_unregistered": err_unregistered,
                         "known_page_errors_no_longer_raised": err_fixed,
                         "unreached_steps": unreached,
+                        "lifecycle_failed_steps": lifecycle_failed,
                     }
                 )
 
                 if unreached:
                     failures.append(
                         f"连续导航 {target_name}：第 {unreached} 步未到达目标页（路由正确性失败）"
+                    )
+                if lifecycle_failed:
+                    failures.append(
+                        f"连续导航 {target_name}：返回页控制器/新 DOM 未重新绑定，第 {lifecycle_failed} 步失败"
                     )
                 if growth > 0 and not growth_registered:
                     failures.append(
