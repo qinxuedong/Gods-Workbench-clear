@@ -1100,3 +1100,77 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.35; }
     }
+
+/* GW-TOPBAR-T94: 必达控件优先布局，避免窄视口被 flex 行静默裁剪。 */
+.topbar-master-deck .master-deck-upper { position: relative; }
+.topbar-master-deck .master-deck-upper-right {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  z-index: 61;
+}
+.topbar-master-deck .recessed-deck-slot { position: relative; }
+.topbar-master-deck .recessed-deck-slot > div:last-child {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  z-index: 61;
+}
+@media (max-width: 1700px) {
+  .topbar-master-deck .recessed-deck-slot > div:nth-child(2) { display: none !important; }
+  .topbar-master-deck .recessed-deck-slot { justify-content: flex-start !important; }
+}
+@media (max-width: 1450px) {
+  .topbar-master-deck .master-deck-upper-right > div:nth-of-type(1),
+  .topbar-master-deck .master-deck-upper-right > div:nth-of-type(2) { display: none !important; }
+}
+
+/* GW-TOPBAR-T94: 为旧版同构页与动态注入回收站保留必达控件位置。 */
+.topbar-master-deck > div:has(> #masterDeckDate) { position: relative; }
+.topbar-master-deck > div:has(> #masterDeckDate) > div:has(> #masterDeckDate) {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  z-index: 61;
+}
+.topbar-master-deck .recessed-deck-slot > .gw-shell-right {
+  display: flex !important;
+  align-items: center;
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  z-index: 61;
+}
+@media (max-width: 1450px) {
+  .topbar-master-deck > div:has(> #masterDeckDate) > div:has(> #masterDeckDate) > div:nth-of-type(1),
+  .topbar-master-deck > div:has(> #masterDeckDate) > div:has(> #masterDeckDate) > div:nth-of-type(2) { display: none !important; }
+}
+
+/* GW-TOPBAR-T94-FINAL: 动态壳层可能给回收站容器加 hidden，显式恢复必达入口。 */
+.topbar-master-deck .recessed-deck-slot > .gw-shell-right,
+.topbar-master-deck .recessed-deck-slot > .gw-shell-right[hidden] {
+  display: flex !important;
+}
+.topbar-master-deck #masterDeckDate {
+  position: fixed !important;
+  top: 8px !important;
+  right: 20px !important;
+  transform: none !important;
+  z-index: 100 !important;
+}
+
+.topbar-master-deck .recessed-deck-slot > .gw-shell-right,
+.topbar-master-deck .recessed-deck-slot > .gw-shell-right[hidden] {
+  display: flex !important;
+  width: 56px !important;
+  min-width: 56px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.topbar-master-deck .recessed-deck-slot > .gw-shell-right #topbarUnifiedTrashBtn { display:flex !important; width:36px !important; height:42px !important; }

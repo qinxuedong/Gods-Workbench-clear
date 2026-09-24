@@ -157,7 +157,7 @@
     <div class="absolute bottom-0 left-0 right-0 h-px topbar-ambient-edge z-20"></div>
 
     <!-- UPPER DECK: 电源、Logo、双 UV 仪表与系统状态 -->
-    <div class="flex items-center justify-between relative z-30 px-1 pt-0.5">
+    <div class="master-deck-upper flex items-center justify-between relative z-30 px-1 pt-0.5">
 
       <!-- LEFT: 主电源与品牌铭牌 -->
       <div class="flex items-center space-x-2 shrink-0">
@@ -210,7 +210,7 @@
       </div>
 
       <!-- RIGHT: RAM 仪表与时钟 -->
-      <div class="flex items-center space-x-2 shrink-0">
+      <div class="master-deck-upper-right flex items-center space-x-2 shrink-0">
         <!-- RAM 模拟仪表 -->
         <div class="trapezoid-uv-housing mr-1.5" title="RAM 内存监视表">
           <div class="uv-dial-backlight"></div>
@@ -296,6 +296,12 @@
           <span class="text-slate-400">STORAGE:</span>
           <span class="text-[#dfc384] font-bold" id="saveState">LOCAL SETTINGS</span>
         </div>
+        <button type="button" id="topbarUnifiedTrashBtn" class="hw-mini-knob-box group cursor-pointer relative" title="统一回收站（制片工程与素材库全局回收池）" aria-label="打开统一回收站">
+          <div class="hw-mini-knob border border-[#dfc384]/40 hover:border-[#dfc384] transition">
+            <div class="hw-mini-knob-arc" style="border-top-color: #ef4444; border-right-color: #f59e0b;"></div>
+            <div class="hw-mini-knob-inner flex items-center justify-center text-[#eddab3]"><i data-lucide="trash-2" class="w-3.5 h-3.5 text-[#dfc384]"></i></div>
+          </div>
+        </button>
         <!-- 拟物头像键帽 (原智能体核心位置，替换左下角登录用户，无文字只显头像) -->
         <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="认证状态未接入：点击打开认证中心查看真实登录状态" data-gw-identity="unverified">
           <div class="hw-avatar-keycap-inner">
