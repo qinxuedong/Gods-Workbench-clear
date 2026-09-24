@@ -791,3 +791,17 @@ O6（tracked 计数口径）**无待办动作**：现值 387（历史行保持�
 
 证据文档：`docs/governance/PHASE-10-TOPBAR-OVERFLOW-EVIDENCE-2026-09-23.md`
 台账登记：`docs/governance/TASKS.md` **T94**
+
+---
+
+## 15. 目标行措辞严格收口（2026-09-24）
+
+完成终审时发现三处目标行虽已否定“同形字”，但仍保留该错误短语作为历史引用。
+按用户授权的严格修正口径，现已将以下三处直接改为“此前描述有误，现已更正为纯 ASCII 大小写差异”，
+不再出现错误短语：
+
+- `HANDOFF-9.md:90`
+- `docs/governance/PHASE-10E-CANVAS-CLOSURE-2026-09-22.md:74`
+- `docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml:54`
+
+台账登记：`TASKS.md` **T95**。

@@ -1225,3 +1225,9 @@
   - **边界**：本机实测（headless Chromium + 真实 HTTP）；该工具依赖 Playwright，**不接入 CI**；
     本机实测 != 远端 CI != 生产验收 != 发布授权。本项仅覆盖 2 个控件 × 3 个视口，
     不得据此断言「顶栏整体只有这些问题」，亦未测键盘可达性。
+
+
+- [x] T95 严格清除三处「含同形字的小写」错误短语残留（2026-09-24）
+  - **范围**：`HANDOFF-9.md:90`、`docs/governance/PHASE-10E-CANVAS-CLOSURE-2026-09-22.md:74`、`docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml:54`。
+  - **修正**：不再保留错误短语的历史引用，三处均直接表述为「此前描述有误，现已更正为纯 ASCII 大小写差异」。
+  - **边界**：只改文档措辞，不改 401 实现、契约或错误码语义。

@@ -87,7 +87,7 @@ TestClient 实测 503/CAS/别名/401-403、同步复算 Phase 10D）。
 |---|---|---|
 | T36 / T40 | 第三方独立审计与发布授权 | **外部阻断**，须外部委托 |
 | T35 / T61 | O4 Tailwind 预构建路径、O5 死类修正（视觉变更）、O6 | 需用户新裁决 |
-| P10-R-1 | `AGENTS.md` 401 大小写口径漂移（宪章写 `Unauthorized`，实现/黄金夹具/契约测试为**全大写** `UNAUTHORIZED`；实现与 `core/errors.py`、`docs/fixtures/canvas-auth-401.json` 及全部契约测试逐字一致） | **用户 2026-09-23 裁决 A：以实现为准（全大写 `UNAUTHORIZED`）**，契约侧小写写法已更正；**注：真实差异为纯 ASCII 大小写，非同形字**——此前「含同形字的小写」表述系终端渲染伪影导致的误判，已更正 |
+| P10-R-1 | `AGENTS.md` 401 大小写口径漂移（宪章写 `Unauthorized`，实现/黄金夹具/契约测试为**全大写** `UNAUTHORIZED`；实现与 `core/errors.py`、`docs/fixtures/canvas-auth-401.json` 及全部契约测试逐字一致） | **用户 2026-09-23 裁决 A：以实现为准（全大写 `UNAUTHORIZED`）**，契约侧小写写法已更正；**注：真实差异为纯 ASCII 大小写，非同形字**——此前描述有误，现已更正为纯 ASCII 大小写差异 |
 | — | 根级 `LICENSE` / `THIRD_PARTY_NOTICES.md` | 按用户裁决**不建立** |
 | T46 | 未实现端点口径统一（当前 140 条） | 属产品裁决 + 大工程量 |
 
