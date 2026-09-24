@@ -1,9 +1,11 @@
 /** The v2 shell delegates all asset operations to the canonical asset manager. */
 window.V2Assets = (() => {
   'use strict';
-  const frame = document.getElementById('assetVaultFrame');
-  const status = document.getElementById('assetVaultStatus');
-  const categories = document.getElementById('assetCategories');
+  let frame = null;
+  let status = null;
+  let categories = null;
+  let boundFrame = null;
+  let frameLoadHandler = null;
   let observer;
   let revision = 0;
   let categorySnapshot = '';
@@ -17,6 +19,7 @@ window.V2Assets = (() => {
     const value = text || '';
     const kind = /未纳入当前切片/.test(value) ? 'not_integrated'
       : (/暂时不可用/.test(value) ? 'service_unavailable' : '');
+    if (!status) return;
     status.textContent = value;
     if (kind) status.setAttribute('data-gw-degradation', kind);
     else status.removeAttribute('data-gw-degradation');
@@ -66,6 +69,7 @@ window.V2Assets = (() => {
   function syncCategories() {
     if (manager()?.querySelector('[data-tab="registry"][aria-selected="true"]')) setVaultStatus('');
     const controls = [...(manager()?.querySelectorAll('[data-registry-stat]') || [])];
+    if (!categories) return;
     if (!controls.length) {
       categorySnapshot = '';
       categories.querySelectorAll('[aria-pressed="true"]').forEach(button => {
@@ -103,7 +107,8 @@ window.V2Assets = (() => {
     const focused = categories.contains(document.activeElement) ? document.activeElement.dataset.assetCategory : null;
     categories.replaceChildren(fragment);
     if (focused !== null) categories.querySelector(`[data-asset-category="${CSS.escape(focused)}"]`)?.focus();
-    document.getElementById('assetCategoryTotal').textContent = rows[0].count;
+    const total = document.getElementById('assetCategoryTotal');
+    if (total) total.textContent = rows[0].count;
   }
 
   async function uploadAsset() {
@@ -140,16 +145,44 @@ window.V2Assets = (() => {
     syncCategories();
     waitForControl('[data-tab="registry"]').then(() => { setVaultStatus(''); mirrorFrameDegradation(); }).catch(error => { setVaultStatus(error.message); });
   }
-  // 首屏若 iframe 已处于降级态，父页状态条必须同步（不等待下一次 load 事件）。
-  mirrorFrameDegradation();
-  frame.addEventListener('load', initFrame);
-  const source = new URL(frame.dataset.src, location.origin);
-  const contextParams = new URLSearchParams(location.search);
-  for (const key of ['project_id', 'pipeline_id', 'asset_id']) {
-    if (contextParams.has(key)) source.searchParams.set(key, contextParams.get(key));
+  function bindElements() {
+    frame = document.getElementById('assetVaultFrame');
+    status = document.getElementById('assetVaultStatus');
+    categories = document.getElementById('assetCategories');
+    if (!frame) return false;
+    if (boundFrame !== frame) {
+      if (boundFrame && frameLoadHandler) boundFrame.removeEventListener('load', frameLoadHandler);
+      frameLoadHandler = initFrame;
+      frame.addEventListener('load', frameLoadHandler);
+      boundFrame = frame;
+    }
+    return true;
   }
-  source.hash = location.hash;
-  frame.src = source.href;
+
+  function syncFrameSource() {
+    if (!frame) return;
+    const source = new URL(frame.dataset.src || '/static/asset-manager.html', location.origin);
+    const contextParams = new URLSearchParams(location.search);
+    for (const key of ['project_id', 'pipeline_id', 'asset_id']) {
+      if (contextParams.has(key)) source.searchParams.set(key, contextParams.get(key));
+    }
+    source.hash = location.hash;
+    if (frame.dataset.gwBoundSrc !== source.href) {
+      frame.dataset.gwBoundSrc = source.href;
+      frame.src = source.href;
+    }
+  }
+
+  function rebind() {
+    if (!bindElements()) return;
+    categorySnapshot = '';
+    mirrorFrameDegradation();
+    syncFrameSource();
+    if (frame.contentDocument?.readyState === 'complete') initFrame();
+  }
+
+  // 首屏与壳层部分路由返回时都走同一个幂等绑定入口；不重复执行顶层脚本。
+  rebind();
   window.addEventListener('pagehide', () => observer?.disconnect());
-  return {uploadAsset};
+  return {uploadAsset, rebind};
 })();

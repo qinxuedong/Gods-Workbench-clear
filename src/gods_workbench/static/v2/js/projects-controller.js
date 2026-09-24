@@ -1442,6 +1442,12 @@ window.V2Projects = (function () {
     });
   }
 
+  function rebind() {
+    if (!document.getElementById('projectsCardsStream')) return;
+    render();
+    window.lucide?.createIcons();
+  }
+
   function init() {
     load();
     setupKeyboardShortcuts();
@@ -1465,6 +1471,7 @@ window.V2Projects = (function () {
   return {
     load,
     render,
+    rebind,
     switchView,
     filterType,
     filterScope,

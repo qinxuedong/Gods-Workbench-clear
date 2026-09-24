@@ -144,21 +144,31 @@
   }
   function refreshRouteController(href) {
     const pageName = new URL(href, location.href).pathname.split('/').pop() || 'index.html';
+    const rebinders = {
+      'index.html': window.V2Home?.rebind,
+      'projects.html': window.V2Projects?.rebind,
+      'production.html': window.V2Production?.rebind,
+      'workshop.html': window.V2Workshop?.init,
+      'storyboard.html': window.V2Storyboard?.rebind,
+      'agents.html': window.V2Agents?.rebind,
+      'assets.html': window.V2Assets?.rebind,
+      'collab.html': window.V2Collab?.rebind,
+    };
+    try { rebinders[pageName]?.(); } catch (error) {
+      console.warn('[GW shell] route controller rebind failed', pageName, error);
+    }
     if (pageName === 'production.html') {
-      const controller = window.V2Production;
-      controller?.initRouting?.();
-      controller?.renderSceneCatalog?.();
-      controller?.renderShots?.();
-    } else if (pageName === 'workshop.html') {
-      if (!workshopRouteBootstrapped && window.V2Workshop?.init) {
-        window.V2Workshop.init();
-        workshopRouteBootstrapped = true;
-      }
+      window.V2Production?.initRouting?.();
+      window.V2Production?.renderSceneCatalog?.();
+      window.V2Production?.renderShots?.();
+    }
+    if (pageName === 'workshop.html') {
       const title = document.getElementById('workshopProjectTitle');
       const projectName = localStorage.getItem('workspace_project_name');
       if (title && projectName) title.textContent = `${projectName} · 影视工坊流水线`;
     }
   }
+
   async function navigate(href, push) {
     const url = new URL(href, location.href);
     if (url.origin !== location.origin) return;

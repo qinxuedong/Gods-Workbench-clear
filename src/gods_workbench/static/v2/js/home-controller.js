@@ -1475,6 +1475,7 @@ window.V2Home = (function () {
   }
 
   return {
+    rebind: () => { if (document.getElementById('v2MainDashboard')) { renderProjectsList(); reloadAssetOverview(); } },
     reloadProjects,
     reloadAssetOverview,
     renderProjectsList,

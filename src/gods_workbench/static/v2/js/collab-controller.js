@@ -170,5 +170,5 @@ window.V2Collab = (() => {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
-  return {openTeamManagement};
+  return {openTeamManagement, rebind: init};
 })();

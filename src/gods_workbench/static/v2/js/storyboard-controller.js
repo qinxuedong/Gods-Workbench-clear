@@ -203,6 +203,7 @@ window.V2Storyboard = (function () {
     regenerateShot,
     batchGenerate,
     addNewShot,
-    exportPdf
+    exportPdf,
+    rebind: init
   };
 })();

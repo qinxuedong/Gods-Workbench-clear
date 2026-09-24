@@ -15,7 +15,8 @@ window.V2Agents = (function () {
       { id: 'vox-04', name: 'VOX-SYNCLIP 配音合成师', role: '音效唇形与声音克隆', status: 'not_integrated', model: 'Wav2Lip + GPT-SoVITS', active: false }
     ],
     traces: [],
-    traceUnsubscribe: null
+    traceUnsubscribe: null,
+    auraScopeHandler: null
   };
 
   const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -129,14 +130,17 @@ window.V2Agents = (function () {
   }
 
   function init() {
+    state.traceUnsubscribe?.();
+    if (state.auraScopeHandler) window.removeEventListener('gw-aura-scope', state.auraScopeHandler);
     state.traces = window.AuraTraceBus?.history?.() || [];
     renderAgents();
     renderTraces();
     state.traceUnsubscribe = window.AuraTraceBus?.subscribe?.(appendTrace) || null;
-    window.addEventListener('gw-aura-scope', () => {
+    state.auraScopeHandler = () => {
       state.traces = window.AuraTraceBus?.history?.() || [];
       renderTraces();
-    });
+    };
+    window.addEventListener('gw-aura-scope', state.auraScopeHandler);
     window.lucide?.createIcons();
   }
 
@@ -149,6 +153,7 @@ window.V2Agents = (function () {
   return {
     selectAgent,
     sendTestPrompt,
-    createAgent
+    createAgent,
+    rebind: init
   };
 })();

@@ -562,6 +562,7 @@ window.V2Production = (function () {
     addScene,
     switchProject,
     prevProject,
-    nextProject
+    nextProject,
+    rebind: reloadBus
   };
 })();
