@@ -1241,3 +1241,10 @@
     当前快照 85,348 字节，SHA-256 `A4F2FFB8D8358F184BA9AC9B921FA93B4998FF6F3259A423DF797156E00D4897`。
   - **边界**：本机工具与字节复核已通过；不等同于远端 CI、生产验收、外部第三方审计或公开发布授权。
   - **门禁复核**：`python -P -m pytest -v` = **487 passed / 7 skipped**；`python -P -m pytest tests/hygiene -q` = **16 passed**。
+
+- [x] T97 工程 1–8 收口：壳层生命周期、顶栏响应式布局与真实变异门禁（2026-09-24）
+  - **实现**：提交 `f86cd72`；完成页级 deck 同步、module 属性保真、脚本指纹去重、连续导航稳定性、顶栏响应式布局与旧登记清理。
+  - **门禁**：`python -P -m pytest -q` = **489 passed / 7 skipped**；`python -P -m pytest tests/hygiene -q` = **16 passed**；`python -P tools/frontend_e2e_smoke.py --serve --mutation-selftest` 退出码 **0**。
+  - **E2E 证据**：9/9 页 shell route deck/module 无未登记缺口；8 个连续导航目标 script growth=0、page errors=0；27 个页面-视口顶栏组合 overflow=0 且两个目标可用；真实隐藏目标的 mutation selftest 产生 **27 条 FAIL**。
+  - **文档**：新增 `HANDOFF-11.md`。工程 9 公开发布、工程 10 外部第三方审计仍未授权；发布状态仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+  - **复核边界**：本机门禁通过；本轮独立审核代理已串行派发但未返回新签字，未冒称独立 PASS。
