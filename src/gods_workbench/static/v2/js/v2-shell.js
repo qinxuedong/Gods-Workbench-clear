@@ -58,6 +58,12 @@
   function targetWorkspace(doc) { return doc.querySelector('.topbar-master-deck')?.nextElementSibling || doc.body; }
   function firstSidebar(workspace) { return workspace?.querySelector(':scope > aside') || null; }
   function workspaceNodes(workspace, aside) { return [...(workspace?.children || [])].filter(node => node !== aside); }
+  function syncRouteDeck(doc) {
+    const currentDeck = document.querySelector('.topbar-master-deck .recessed-deck-slot');
+    const nextDeck = doc.querySelector('.topbar-master-deck .recessed-deck-slot');
+    if (!currentDeck || !nextDeck) return;
+    currentDeck.replaceChildren(...[...nextDeck.childNodes].map(node => document.importNode(node, true)));
+  }
   function syncRouteBody(doc) {
     if (!doc.body) return;
     document.body.className = doc.body.className;
@@ -69,13 +75,18 @@
     });
   }
   async function runRouteScripts(doc) {
+    document.querySelectorAll('script[data-gw-route-script]').forEach(script => script.remove());
     const scripts = [...doc.querySelectorAll('body > script')].filter(script => {
       const src = script.getAttribute('src') || '';
       return src && !src.includes('v2-shell.js') && src.includes('/static/') || (!src && script.textContent.trim());
     });
     for (const source of scripts) {
       const script = document.createElement('script');
-      if (source.src) {
+      [...source.attributes].forEach(attribute => {
+        if (attribute.name !== 'src') script.setAttribute(attribute.name, attribute.value);
+      });
+      script.dataset.gwRouteScript = '1';
+      if (source.getAttribute('src')) {
         script.src = new URL(source.getAttribute('src'), doc.baseURI || location.href).href;
         script.async = false;
         await new Promise(resolve => { script.onload = resolve; script.onerror = resolve; document.body.appendChild(script); });
@@ -103,6 +114,7 @@
       // root at this boundary so the target layout classes remain intact.
       if (currentWorkspace.matches('main') !== nextWorkspace.matches('main')) {
         currentWorkspace.replaceWith(document.importNode(nextWorkspace, true));
+        syncRouteDeck(doc);
         if (push) history.pushState({}, '', url.href);
         if (doc.title) document.title = doc.title;
         standardRightDeck();
@@ -115,6 +127,7 @@
       const nextSidebar = firstSidebar(nextWorkspace);
       const nextNodes = workspaceNodes(nextWorkspace, nextSidebar);
       if (!nextNodes.length) throw new Error('target workspace missing');
+      syncRouteDeck(doc);
       document.querySelectorAll('style[data-gw-route-style],link[data-gw-route-style]').forEach(node => node.remove());
       doc.head.querySelectorAll('style,link[rel="stylesheet"]').forEach(node => {
         const copy = node.cloneNode(true); copy.dataset.gwRouteStyle = '1'; document.head.appendChild(copy);
