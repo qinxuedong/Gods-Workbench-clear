@@ -7,7 +7,7 @@
    在路由不存在时抛出带 `code=NOT_INTEGRATED` 的显式错误，
    但**不得**把含标准错误包的真实业务 404（如 CANVAS_NOT_FOUND）误判为未接入。
 
-本文件为**静态源码守卫**（接线存在性）；**运行时行为**（含 404/501/503 分支）由
+本文件为**静态源码守卫**（接线存在性）；**运行时行为**（含 401/403/404/409/501/503 分支）由
 `tests/contracts/test_phase9_degradation_runtime.py` 用 Node 真实执行 JS 覆盖。
 
 证据边界：静态守卫与 Node 行为守卫都**不等于**真实浏览器 E2E，
@@ -52,6 +52,22 @@ def test_asset_share_html_keeps_loading_placeholder():
     html = _read(SHARE_HTML)
     assert 'id="shareApp"' in html
     assert "aria-busy" in html
+
+
+def test_degradation_maps_frozen_auth_permission_and_conflict_semantics():
+    """经典脚本必须声明冻结的 401/403/409 语义映射，不得回落为通用请求失败。"""
+    js = _read(DEGRADATION_JS)
+    assert "UNAUTHORIZED_MESSAGE" in js
+    assert "FORBIDDEN_MESSAGE" in js
+    assert "CONFLICT_MESSAGE" in js
+    assert "if (code === 401) return 'unauthorized';" in js
+    assert "if (code === 403) return 'forbidden';" in js
+    assert "if (code === 409) return 'conflict';" in js
+    assert "isUnauthorized" in js
+    assert "isForbidden" in js
+    assert "isConflict" in js
+    assert "error.readOnly = kind === 'forbidden';" in js
+    assert "error.refreshRequired = kind === 'conflict';" in js
 
 
 def test_shared_transport_defines_not_integrated_semantics():

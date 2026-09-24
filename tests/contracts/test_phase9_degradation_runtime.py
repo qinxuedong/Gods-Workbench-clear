@@ -5,11 +5,13 @@
 ① 503 服务暂时不可用被误判为「未纳入当前切片」；
 ② 原守卫只有静态字符串断言，501/503 分支无行为覆盖。
 
-本文件用 Node 真实加载 `http-transport.js`，构造真实 `Response` 对象验证：
+本文件用 Node 真实加载共享 transport 与 `degradation.js`，构造真实 `Response` 对象验证：
 - 404 无标准错误包 → `NOT_INTEGRATED`（`unavailable=true`）；
 - 404 **含**标准错误包（业务错误，如 `CANVAS_NOT_FOUND`）→ 原样透传，不得降级；
 - 501 → `NOT_INTEGRATED`；
 - **503 → `SERVICE_UNAVAILABLE`（可恢复，`retryable=true`），不得报成未接入**；
+- 401 → `unauthorized`（提示重新登录）；403 → `forbidden`（只读降级）；
+  409 → `conflict`（刷新并解决并发差异后重试）；
 - 200 → 不降级。
 
 证据边界：Node 环境行为验证 **不等于**真实浏览器 E2E；无 Node 时本文件跳过。
@@ -28,6 +30,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 TRANSPORT_JS = REPO_ROOT / "src" / "gods_workbench" / "static" / "js" / "http-transport.js"
+DEGRADATION_JS = REPO_ROOT / "src" / "gods_workbench" / "static" / "js" / "degradation.js"
 
 _NODE = shutil.which("node")
 
@@ -38,11 +41,34 @@ const mk = (status, body) => new Response(JSON.stringify(body), {status, headers
 const mkFetch = (status, body) => async () => mk(status, body);
 const results = {};
 
+globalThis.window = globalThis;
+await import("./degradation.mjs");
+const degradation = globalThis.GWDegradation;
+
 results["404_plain"] = await isNotIntegratedResponse(mk(404, {detail: "Not Found"}));
 results["404_business"] = await isNotIntegratedResponse(mk(404, {detail: {code: "CANVAS_NOT_FOUND", message: "x"}}));
 results["501_plain"] = await isNotIntegratedResponse(mk(501, {detail: "Not Implemented"}));
 results["503_generic"] = await isNotIntegratedResponse(mk(503, {detail: "Service Unavailable"}));
 results["200_ok"] = await isNotIntegratedResponse(mk(200, {}));
+
+for (const [status, expectedKind, detail] of [
+    [401, "unauthorized", {code: "UNAUTHORIZED", message: "x"}],
+    [403, "forbidden", {code: "FORBIDDEN", message: "x"}],
+    [409, "conflict", {code: "CANVAS_VERSION_CONFLICT", message: "x"}],
+]) {
+    const classified = degradation.classifyResponse({status}, {detail});
+    const error = degradation.createError(classified.kind, status, detail);
+    results[`d${status}_kind`] = classified.kind;
+    results[`d${status}_message`] = classified.message;
+    results[`d${status}_code`] = error.code;
+    results[`d${status}_name`] = error.name;
+    results[`d${status}_retryable`] = error.retryable === true;
+    results[`d${status}_readOnly`] = error.readOnly === true;
+    results[`d${status}_refreshRequired`] = error.refreshRequired === true;
+    results[`d${status}_predicate`] = expectedKind === "unauthorized"
+        ? degradation.isUnauthorized(error)
+        : (expectedKind === "forbidden" ? degradation.isForbidden(error) : degradation.isConflict(error));
+}
 
 try {
     await createFetchTransport(mkFetch(404, {detail: "Not Found"})).request("x");
@@ -85,6 +111,7 @@ def probe_results() -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         (work / "http-transport.mjs").write_bytes(TRANSPORT_JS.read_bytes())
+        (work / "degradation.mjs").write_bytes(DEGRADATION_JS.read_bytes())
         (work / "probe.mjs").write_text(PROBE, encoding="utf-8")
         completed = subprocess.run(
             [_NODE, str(work / "probe.mjs")],
@@ -125,6 +152,31 @@ def test_503_is_service_unavailable_not_not_integrated(probe_results):
     assert probe_results["t503_isNotIntegrated"] is False
     assert probe_results["t503_retryable"] is True
     assert probe_results["t503_unavailable"] is False
+
+
+def test_frozen_auth_permission_and_conflict_semantics(probe_results):
+    """401/403/409 按冻结规范分别映射为认证失效、只读权限与 CAS 冲突。"""
+    assert probe_results["d401_kind"] == "unauthorized"
+    assert probe_results["d401_code"] == "UNAUTHORIZED"
+    assert probe_results["d401_name"] == "UnauthorizedError"
+    assert probe_results["d401_predicate"] is True
+    assert "重新登录" in probe_results["d401_message"]
+    assert probe_results["d401_retryable"] is False
+
+    assert probe_results["d403_kind"] == "forbidden"
+    assert probe_results["d403_code"] == "FORBIDDEN"
+    assert probe_results["d403_name"] == "ForbiddenError"
+    assert probe_results["d403_predicate"] is True
+    assert probe_results["d403_readOnly"] is True
+    assert "只读" in probe_results["d403_message"]
+
+    assert probe_results["d409_kind"] == "conflict"
+    assert probe_results["d409_code"] == "CANVAS_VERSION_CONFLICT"
+    assert probe_results["d409_name"] == "ConflictError"
+    assert probe_results["d409_predicate"] is True
+    assert probe_results["d409_retryable"] is True
+    assert probe_results["d409_refreshRequired"] is True
+    assert "刷新" in probe_results["d409_message"]
 
 
 def test_ok_response_is_not_degraded(probe_results):

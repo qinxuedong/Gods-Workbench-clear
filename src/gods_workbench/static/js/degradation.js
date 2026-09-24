@@ -7,6 +7,9 @@
  * 本文件与 `http-transport.js` / `workspace-common.js` 保持**同一判定语义**，
  * 供 v2 页面内联脚本与 `hardware-telemetry.js`（非模块脚本）复用：
  * - 404 / 501 且**不含标准错误包**（对象型 detail）→ `not_integrated`（未纳入当前切片）；
+ * - 401 → `unauthorized`（会话失效/未认证，提示重新登录）；
+ * - 403 → `forbidden`（权限不足，切换为只读）；
+ * - 409 → `conflict`（CAS 版本冲突，提示刷新并解决并发差异）；
  * - 503 → `service_unavailable`（可恢复，与「未接入」严格区分）；
  * - 其余（含对象型 detail 的业务 404）→ `error`，原样透传，不得降级。
  *
@@ -18,6 +21,11 @@
 
   var NOT_INTEGRATED_MESSAGE = '该功能尚未接入后端（未纳入当前切片）';
   var SERVICE_UNAVAILABLE_MESSAGE = '后端服务暂时不可用，请稍后重试';
+  // 以下三类状态语义来自冻结行为规范，不得与「未接入」或 503 混用：
+  // 401=会话失效/未认证；403=权限不足，只读降级；409=CAS 版本冲突。
+  var UNAUTHORIZED_MESSAGE = '会话失效或未认证，请重新登录';
+  var FORBIDDEN_MESSAGE = '权限不足，已切换为只读模式';
+  var CONFLICT_MESSAGE = '版本冲突，请刷新并解决并发差异后重试';
   var NOT_INTEGRATED_STATUSES = [404, 501];
 
   function escapeHtml(value) {
@@ -44,6 +52,9 @@
    */
   function statusKind(status, detailValue) {
     var code = Number(status);
+    if (code === 401) return 'unauthorized';
+    if (code === 403) return 'forbidden';
+    if (code === 409) return 'conflict';
     if (code === 503) return 'service_unavailable';
     if (NOT_INTEGRATED_STATUSES.indexOf(code) === -1) return 'error';
     if (isStandardEnvelope(detailValue)) return 'error';
@@ -54,6 +65,9 @@
   function messageFor(kind, status) {
     if (kind === 'not_integrated') return NOT_INTEGRATED_MESSAGE + '（HTTP ' + status + '）';
     if (kind === 'service_unavailable') return SERVICE_UNAVAILABLE_MESSAGE + '（HTTP ' + status + '）';
+    if (kind === 'unauthorized') return UNAUTHORIZED_MESSAGE + '（HTTP ' + status + '）';
+    if (kind === 'forbidden') return FORBIDDEN_MESSAGE + '（HTTP ' + status + '）';
+    if (kind === 'conflict') return CONFLICT_MESSAGE + '（HTTP ' + status + '）';
     return '请求失败（HTTP ' + status + '）';
   }
 
@@ -69,11 +83,21 @@
   function createError(kind, status, detail) {
     var error = new Error(messageFor(kind, status));
     error.name = kind === 'not_integrated' ? 'NotIntegratedError'
-      : (kind === 'service_unavailable' ? 'ServiceUnavailableError' : 'Error');
+      : (kind === 'service_unavailable' ? 'ServiceUnavailableError'
+        : (kind === 'unauthorized' ? 'UnauthorizedError'
+          : (kind === 'forbidden' ? 'ForbiddenError'
+            : (kind === 'conflict' ? 'ConflictError' : 'Error'))));
+    var detailCode = detail && typeof detail === 'object' && typeof detail.code === 'string'
+      ? detail.code : undefined;
     error.code = kind === 'not_integrated' ? 'NOT_INTEGRATED'
-      : (kind === 'service_unavailable' ? 'SERVICE_UNAVAILABLE' : 'REQUEST_FAILED');
+      : (kind === 'service_unavailable' ? 'SERVICE_UNAVAILABLE'
+        : (kind === 'unauthorized' ? 'UNAUTHORIZED'
+          : (kind === 'forbidden' ? 'FORBIDDEN'
+            : (kind === 'conflict' ? (detailCode || 'VERSION_CONFLICT') : 'REQUEST_FAILED'))));
     error.unavailable = kind === 'not_integrated';
-    error.retryable = kind === 'service_unavailable';
+    error.retryable = kind === 'service_unavailable' || kind === 'conflict';
+    error.readOnly = kind === 'forbidden';
+    error.refreshRequired = kind === 'conflict';
     error.status = status;
     if (detail !== undefined) error.detail = detail;
     return error;
@@ -90,15 +114,41 @@
     return Boolean(value) && value.code === 'SERVICE_UNAVAILABLE';
   }
 
+  function isUnauthorized(value) {
+    return Boolean(value) && value.code === 'UNAUTHORIZED';
+  }
+
+  function isForbidden(value) {
+    return Boolean(value) && value.code === 'FORBIDDEN';
+  }
+
+  function isConflict(value) {
+    return Boolean(value) && (value.code === 'VERSION_CONFLICT'
+      || value.code === 'CANVAS_VERSION_CONFLICT'
+      || value.code === 'STRUCTURE_VERSION_CONFLICT'
+      || value.code === 'CONFLICT');
+  }
+
   /** 统一「未接入 / 暂不可用」显式占位 HTML（明说未接入，不使用绿色就绪灯）。 */
   function noticeHtml(kind, detail) {
     var isNotIntegratedKind = kind === 'not_integrated';
     var isServiceKind = kind === 'service_unavailable';
+    var isUnauthorizedKind = kind === 'unauthorized';
+    var isForbiddenKind = kind === 'forbidden';
+    var isConflictKind = kind === 'conflict';
     var tone = isNotIntegratedKind ? 'text-slate-400 border-white/10'
-      : (isServiceKind ? 'text-amber-300 border-amber-500/30' : 'text-red-300 border-red-500/30');
-    var icon = isNotIntegratedKind ? 'plug-zap' : (isServiceKind ? 'cloud-off' : 'triangle-alert');
+      : (isServiceKind ? 'text-amber-300 border-amber-500/30'
+        : (isConflictKind ? 'text-orange-300 border-orange-500/30' : 'text-red-300 border-red-500/30'));
+    var icon = isNotIntegratedKind ? 'plug-zap'
+      : (isServiceKind ? 'cloud-off'
+        : (isUnauthorizedKind ? 'log-in'
+          : (isForbiddenKind ? 'lock-keyhole'
+            : (isConflictKind ? 'refresh-cw' : 'triangle-alert'))));
     var title = isNotIntegratedKind ? NOT_INTEGRATED_MESSAGE
-      : (isServiceKind ? SERVICE_UNAVAILABLE_MESSAGE : '请求失败');
+      : (isServiceKind ? SERVICE_UNAVAILABLE_MESSAGE
+        : (isUnauthorizedKind ? UNAUTHORIZED_MESSAGE
+          : (isForbiddenKind ? FORBIDDEN_MESSAGE
+            : (isConflictKind ? CONFLICT_MESSAGE : '请求失败'))));
     var extra = detail ? '<span class="block mt-0.5 text-[9px] text-slate-500">' + escapeHtml(String(detail)) + '</span>' : '';
     return '<div class="bay-inset p-3 rounded-xl border ' + tone + ' text-center text-[10px] font-mono" '
       + 'role="status" data-gw-degradation="' + kind + '">'
@@ -109,12 +159,18 @@
   window.GWDegradation = {
     NOT_INTEGRATED_MESSAGE: NOT_INTEGRATED_MESSAGE,
     SERVICE_UNAVAILABLE_MESSAGE: SERVICE_UNAVAILABLE_MESSAGE,
+    UNAUTHORIZED_MESSAGE: UNAUTHORIZED_MESSAGE,
+    FORBIDDEN_MESSAGE: FORBIDDEN_MESSAGE,
+    CONFLICT_MESSAGE: CONFLICT_MESSAGE,
     NOT_INTEGRATED_STATUSES: NOT_INTEGRATED_STATUSES,
     statusKind: statusKind,
     classifyResponse: classifyResponse,
     createError: createError,
     isNotIntegrated: isNotIntegrated,
     isServiceUnavailable: isServiceUnavailable,
+    isUnauthorized: isUnauthorized,
+    isForbidden: isForbidden,
+    isConflict: isConflict,
     noticeHtml: noticeHtml,
     escapeHtml: escapeHtml
   };
