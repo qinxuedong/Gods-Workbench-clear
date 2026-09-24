@@ -94,60 +94,28 @@ FORBIDDEN_PAGE_REQUEST_PREFIXES = ("/api/", "/static/")
 # ---------------------------------------------------------------------------
 # 键 = 目标页；值 = 该页在“整页加载”时存在于 .topbar-master-deck 内、
 #      但在“壳层部分路由”到达后丢失的 id 集合。
-# 来源：docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md §3.2
-#       （HANDOFF-10.md §11.2 / TASKS.md T89；待人工裁决，修复后请从此表移除）
-KNOWN_SHELL_ROUTE_DECK_LOSS: dict[str, frozenset[str]] = {
-    "production.html": frozenset({"currentProjectDisplayTitle"}),
-    "workshop.html": frozenset({"workshopProjectTitle"}),
-    "storyboard.html": frozenset({"storyboardNavCanvas"}),
-    "index.html": frozenset({"navPillDashboard", "navPillSettings", "uvNeedleGradCPU"}),
-}
+# 2026-09-24：壳层现已同步整套页级 deck；该表保持为空，新增缺口必须立即暴露。
+KNOWN_SHELL_ROUTE_DECK_LOSS: dict[str, frozenset[str]] = {}
 
 # 键 = 目标页；值 = 该页在整页加载时存在、但经壳层部分路由后**消失**的 `type="module"` 脚本 src。
-# 成因：v2-shell.js 的 runRouteScripts() 用 createElement('script') + src + async=false 重建脚本，
-#       **不保留 type="module"**，故模块脚本被当普通脚本执行 -> "Cannot use import statement outside a module"。
-# 来源：同上证据文档 §4；由 net::ERR_ABORTED 暴露，属真实缺口，待人工裁决修复。
-KNOWN_SHELL_ROUTE_MODULE_LOSS: dict[str, frozenset[str]] = {
-    "collab.html": frozenset({
-        "/static/js/asset-review/api.js?v=20260916-collab-team",
-        "/static/js/asset-auth/api.js?v=20260916-collab-team",
-    }),
-}
+# 2026-09-24：路由脚本复制保留原始 type 属性，并按稳定指纹去重；该表保持为空。
+KNOWN_SHELL_ROUTE_MODULE_LOSS: dict[str, frozenset[str]] = {}
 
 # 键 = 目标页；值 = 壳层部分路由期间出现的**已登记**未捕获 JS 异常指纹（原文）。
-# 上表中 collab.html 的 module 脚本被降级执行，因而抛出该异常——两条登记互为因果。
-# 未在本表登记、也未被上面 module 表解释的异常一律判失败（fail-closed）。
-KNOWN_SHELL_ROUTE_PAGE_ERRORS: dict[str, frozenset[str]] = {
-    "collab.html": frozenset({"Cannot use import statement outside a module"}),
-}
+# 未登记的异常一律判失败（fail-closed）。
+KNOWN_SHELL_ROUTE_PAGE_ERRORS: dict[str, frozenset[str]] = {}
 
 # 导航归属别名：某些页面的导航链接不指向同名文件（部分路由仍能正确到达目标页）。
 # projects.html 上的「系统设置」指向 index.html?view=settings，服务端 307 -> settings.html#section=general。
 NAV_HREF_ALIAS: dict[str, str] = {"settings.html": "index.html?view=settings"}
 
 # 第 7 项「连续壳层导航稳定性」的已登记缺陷基线（fail-closed）。
-# 成因：v2-shell.js 的 runRouteScripts() 每次部分路由都向 <body> **追加**脚本，从不移除上一次
-#       注入的脚本，故 script 元素数随导航单调累积；含顶层 const/let 的内联脚本被再次执行时
-#       抛 "Identifier '<X>' has already been declared"。
-# 键 = 目标页；值 = 该页在**连续导航**中被登记允许的缺陷形态（此处仅需登记页名）。
-# 来源：docs/governance/PHASE-10-CROSSPAGE-CONCURRENCY-EVIDENCE-2026-09-23.md §3.7（待人工裁决）。
-KNOWN_REPEAT_NAV_SCRIPT_GROWTH: frozenset[str] = frozenset({
-    "index.html", "production.html", "workshop.html", "storyboard.html",
-    "agents.html", "settings.html", "assets.html", "collab.html",
-})
+# 路由脚本按稳定指纹去重并在切换时清理注入节点；该表保持为空，新增累积必须暴露。
+KNOWN_REPEAT_NAV_SCRIPT_GROWTH: frozenset[str] = frozenset()
 
-# 键 = 目标页；值 = 连续导航期间出现的**已登记**未捕获 JS 异常指纹（原文）。
-# 实测：仅有含顶层 `const V2Workshop` 内联脚本的 workshop.html 抛错；其余页静默累积。
-KNOWN_REPEAT_NAV_PAGE_ERRORS: dict[str, frozenset[str]] = {
-    # workshop.html：内联 <script> 顶层 `const V2Workshop` 被重复注入并执行。
-    "workshop.html": frozenset({
-        "Failed to execute 'appendChild' on 'Node': Identifier 'V2Workshop' has already been declared",
-    }),
-    # collab.html：module 脚本被降级为普通脚本执行（与第 6 项 module 丢失互为因果）。
-    "collab.html": frozenset({
-        "Cannot use import statement outside a module",
-    }),
-}
+# 键 = 目标页；值 = 连续导航期间出现的**已登记**未捕获 JS 异常指纹。
+# 2026-09-24：重复声明与 module 降级均已修复，该表保持为空。
+KNOWN_REPEAT_NAV_PAGE_ERRORS: dict[str, frozenset[str]] = {}
 
 # 连续导航步序：从 projects.html 出发，交替 target / projects，共 5 步。
 # 第 3 步（第 2 次到达 target）是最早能暴露重复声明缺陷的位置——实测 workshop.html 即在此抛错。
@@ -163,20 +131,8 @@ TOPBAR_TARGETS: tuple[str, ...] = ("#topbarUnifiedTrashBtn", "#masterDeckDate")
 
 # 键 = 视口 "宽x高"；值 = 该视口下**已登记**顶栏横向溢出（scrollWidth > clientWidth）的页面集合。
 # 来源：docs/governance/PHASE-10-TOPBAR-OVERFLOW-EVIDENCE-2026-09-23.md（待人工裁决，修复后请从此表移除）
-KNOWN_TOPBAR_OVERFLOW: dict[str, frozenset[str]] = {
-    "1920x1080": frozenset({
-        "index.html", "projects.html", "production.html",
-        "storyboard.html", "agents.html", "assets.html", "collab.html",
-    }),
-    "1600x1000": frozenset({
-        "index.html", "projects.html", "production.html", "workshop.html",
-        "storyboard.html", "agents.html", "settings.html", "assets.html", "collab.html",
-    }),
-    "1366x768": frozenset({
-        "index.html", "projects.html", "production.html", "workshop.html",
-        "storyboard.html", "agents.html", "settings.html", "assets.html", "collab.html",
-    }),
-}
+# 2026-09-24：三视口顶栏溢出均已修复；保留空表使新回归 fail-closed。
+KNOWN_TOPBAR_OVERFLOW: dict[str, frozenset[str]] = {}
 
 # 判别力闸门（防止「控件只剩几个像素仍判可达」造成漏判）：
 # 一个控件即使 hit-test 命中的是自身，若可见宽度已被裁到不足
@@ -188,40 +144,8 @@ TOPBAR_MIN_VISIBLE_RATIO: float = 0.6
 
 # 键 = 页面；值 = 已登记的「视口|选择器」顶栏控件不可用组合（fail-closed）。
 # 未登记 -> FAIL；已登记但不再复现 -> 同样 FAIL 并提示移除登记（防清单腐化）。
-KNOWN_TOPBAR_UNREACHABLE: dict[str, frozenset[str]] = {
-    "index.html": frozenset({
-        "1366x768|#topbarUnifiedTrashBtn", "1600x1000|#topbarUnifiedTrashBtn",
-        "1920x1080|#topbarUnifiedTrashBtn",
-    }),
-    "projects.html": frozenset({
-        "1366x768|#topbarUnifiedTrashBtn", "1600x1000|#topbarUnifiedTrashBtn",
-        "1920x1080|#topbarUnifiedTrashBtn",
-    }),
-    "production.html": frozenset({
-        "1366x768|#topbarUnifiedTrashBtn", "1600x1000|#topbarUnifiedTrashBtn",
-        "1920x1080|#topbarUnifiedTrashBtn",
-    }),
-    "workshop.html": frozenset({"1366x768|#topbarUnifiedTrashBtn"}),
-    "storyboard.html": frozenset({
-        "1366x768|#topbarUnifiedTrashBtn", "1600x1000|#topbarUnifiedTrashBtn",
-        "1920x1080|#topbarUnifiedTrashBtn",
-    }),
-    "agents.html": frozenset({
-        "1366x768|#masterDeckDate", "1366x768|#topbarUnifiedTrashBtn",
-        "1600x1000|#topbarUnifiedTrashBtn", "1920x1080|#topbarUnifiedTrashBtn",
-    }),
-    "settings.html": frozenset({
-        "1366x768|#masterDeckDate", "1366x768|#topbarUnifiedTrashBtn",
-    }),
-    "assets.html": frozenset({
-        "1366x768|#masterDeckDate", "1366x768|#topbarUnifiedTrashBtn",
-        "1600x1000|#topbarUnifiedTrashBtn", "1920x1080|#topbarUnifiedTrashBtn",
-    }),
-    "collab.html": frozenset({
-        "1366x768|#masterDeckDate", "1366x768|#topbarUnifiedTrashBtn",
-        "1600x1000|#topbarUnifiedTrashBtn", "1920x1080|#topbarUnifiedTrashBtn",
-    }),
-}
+# 2026-09-24：两个必达控件在三视口均可用；保留空表使新回归 fail-closed。
+KNOWN_TOPBAR_UNREACHABLE: dict[str, frozenset[str]] = {}
 
 # ---------------------------------------------------------------------------
 # 交互期检查（加载期之上的补充）
@@ -428,7 +352,11 @@ TOPBAR_PROBE_JS_TEMPLATE = (
 )
 
 
-def run_topbar_accessibility(base_url: str, ignore_registry: bool = False) -> dict:
+def run_topbar_accessibility(
+    base_url: str,
+    ignore_registry: bool = False,
+    mutate_targets: bool = False,
+) -> dict:
     """第 8 项：顶栏可达性——溢出是否被静默裁剪、必达控件是否真的能用鼠标点到。
 
     为什么需要：顶栏 header 为 overflow:hidden 且尺寸被 !important 钉死，内部控件总宽超过可视
@@ -436,6 +364,7 @@ def run_topbar_accessibility(base_url: str, ignore_registry: bool = False) -> di
     第 1-7 项因此完全无法发现该缺陷（实测 9 页中 7 页的顶栏回收站入口在 1920/1600 下鼠标不可达）。
 
     ignore_registry=True 用于变异自证：忽略登记表必须仍能报出失败，否则说明判定恒真。
+    mutate_targets=True 会在浏览器中真实注入 display:none 变异，验证探针不是恒真。
     """
     from playwright.sync_api import sync_playwright
 
@@ -468,9 +397,22 @@ def run_topbar_accessibility(base_url: str, ignore_registry: bool = False) -> di
                         timeout=60000,
                     )
                     page.wait_for_timeout(1200)
+                    if mutate_targets:
+                        page.add_style_tag(
+                            content=(
+                                "#topbarUnifiedTrashBtn, #masterDeckDate "
+                                "{display:none !important; visibility:hidden !important;}"
+                            )
+                        )
+                        page.wait_for_timeout(50)
                     measured = page.evaluate(probe_js)
                     context.close()
 
+                    if measured.get("missing_header"):
+                        failures.append(
+                            "顶栏结构缺失 " + page_name + "@" + key
+                            + "：未找到 .topbar-master-deck（必须 fail-closed）"
+                        )
                     overflow = int(measured.get("headerOverflow") or 0)
                     # 判别力闸门：只有「命中自身」且「可见宽度达标」才算可用；
                     # 其余（不存在 / 不可命中 / 只剩几个像素）一律计入不可用。
@@ -1020,7 +962,7 @@ def main() -> int:
     parser.add_argument(
         "--mutation-selftest",
         action="store_true",
-        help="变异自证：忽略第 8 项登记表重跑，必须报出失败（证明判定非恒真）",
+        help="变异自证：真实隐藏顶栏目标后重跑，必须报出失败（证明判定非恒真）",
     )
     args = parser.parse_args()
 
@@ -1062,7 +1004,11 @@ def main() -> int:
         result["failures"].extend(topbar["failures"])
         if args.mutation_selftest:
             # 变异自证：忽略登记表后必须仍报出失败，否则该判定恒真、结论作废。
-            mutant = run_topbar_accessibility(args.base_url, ignore_registry=True)
+            mutant = run_topbar_accessibility(
+                args.base_url,
+                ignore_registry=True,
+                mutate_targets=True,
+            )
             result["topbar_mutation_selftest"] = {
                 "failures": mutant["failures"],
                 "failure_count": len(mutant["failures"]),

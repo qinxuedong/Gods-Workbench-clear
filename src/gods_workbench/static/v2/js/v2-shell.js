@@ -5,6 +5,25 @@
     'production.html': 'production.html', 'storyboard.html': 'storyboard.html?view=canvas',
     'agents.html': 'agents.html', 'assets.html': 'assets.html', 'collab.html': 'collab.html', 'settings.html': 'settings.html'
   };
+  // 部分路由会移除旧的 script 节点，但不会撤销浏览器已经建立的全局绑定。
+  // 以稳定指纹去重，避免外部脚本重复副作用和内联 const 重复声明。
+  const executedRouteScriptKeys = new Set();
+  let workshopRouteBootstrapped = false;
+  function routeScriptKey(script, baseURI = document.baseURI) {
+    const type = (script.getAttribute('type') || '').trim().toLowerCase();
+    const src = script.getAttribute('src');
+    if (src) return `${type}|src:${new URL(src, baseURI || location.href).href}`;
+    return `${type}|inline:${script.textContent || ''}`;
+  }
+  function seedInitialRouteScripts() {
+    document.querySelectorAll('body > script').forEach(script => {
+      if (!script.src || !script.src.includes('/static/v2/js/v2-shell.js')) {
+        executedRouteScriptKeys.add(routeScriptKey(script));
+      }
+    });
+    const pageName = location.pathname.split('/').pop() || 'index.html';
+    workshopRouteBootstrapped = pageName === 'workshop.html';
+  }
   function standardRightDeck() {
     const deck = document.querySelector('.topbar-master-deck .recessed-deck-slot');
     if (!deck || deck.children.length < 2) return;
@@ -53,16 +72,35 @@
       if (item.matches('button')) item.setAttribute('aria-pressed', String(active));
     });
   }
-  function init() { standardRightDeck(); injectTrash(); syncNavPills(location.href); }
+  function init() {
+    seedInitialRouteScripts();
+    standardRightDeck();
+    injectTrash();
+    syncNavPills(location.href);
+  }
   function shellWorkspace() { return document.querySelector('.topbar-master-deck')?.nextElementSibling || null; }
   function targetWorkspace(doc) { return doc.querySelector('.topbar-master-deck')?.nextElementSibling || doc.body; }
   function firstSidebar(workspace) { return workspace?.querySelector(':scope > aside') || null; }
   function workspaceNodes(workspace, aside) { return [...(workspace?.children || [])].filter(node => node !== aside); }
   function syncRouteDeck(doc) {
-    const currentDeck = document.querySelector('.topbar-master-deck .recessed-deck-slot');
-    const nextDeck = doc.querySelector('.topbar-master-deck .recessed-deck-slot');
-    if (!currentDeck || !nextDeck) return;
-    currentDeck.replaceChildren(...[...nextDeck.childNodes].map(node => document.importNode(node, true)));
+    const currentHeader = document.querySelector('.topbar-master-deck');
+    const nextHeader = doc.querySelector('.topbar-master-deck');
+    const currentDeck = currentHeader?.querySelector(':scope > .recessed-deck-slot');
+    const nextDeck = nextHeader?.querySelector(':scope > .recessed-deck-slot');
+    if (!currentHeader || !nextHeader || !currentDeck || !nextDeck) return;
+
+    // 顶栏上层同样包含页级元素（例如工程标题、首页专用渐变定义）。
+    // 只替换上层和下层内容，保留 header 外壳，确保路由后的 deck 与整页加载一致。
+    const currentUpper = [...currentHeader.children].find(node =>
+      node !== currentDeck && !node.classList.contains('absolute')
+    );
+    const nextUpper = [...nextHeader.children].find(node =>
+      node !== nextDeck && !node.classList.contains('absolute')
+    );
+    if (currentUpper && nextUpper) {
+      currentUpper.replaceWith(document.importNode(nextUpper, true));
+    }
+    currentDeck.replaceWith(document.importNode(nextDeck, true));
   }
   function syncRouteBody(doc) {
     if (!doc.body) return;
@@ -78,9 +116,11 @@
     document.querySelectorAll('script[data-gw-route-script]').forEach(script => script.remove());
     const scripts = [...doc.querySelectorAll('body > script')].filter(script => {
       const src = script.getAttribute('src') || '';
-      return src && !src.includes('v2-shell.js') && src.includes('/static/') || (!src && script.textContent.trim());
+      return (src && !src.includes('v2-shell.js') && src.includes('/static/')) || (!src && script.textContent.trim());
     });
     for (const source of scripts) {
+      const key = routeScriptKey(source, doc.baseURI || location.href);
+      if (executedRouteScriptKeys.has(key)) continue;
       const script = document.createElement('script');
       [...source.attributes].forEach(attribute => {
         if (attribute.name !== 'src') script.setAttribute(attribute.name, attribute.value);
@@ -89,11 +129,34 @@
       if (source.getAttribute('src')) {
         script.src = new URL(source.getAttribute('src'), doc.baseURI || location.href).href;
         script.async = false;
-        await new Promise(resolve => { script.onload = resolve; script.onerror = resolve; document.body.appendChild(script); });
+        const loaded = await new Promise(resolve => {
+          script.onload = () => resolve(true);
+          script.onerror = () => resolve(false);
+          document.body.appendChild(script);
+        });
+        if (loaded) executedRouteScriptKeys.add(key);
       } else {
         script.textContent = source.textContent;
         document.body.appendChild(script);
+        executedRouteScriptKeys.add(key);
       }
+    }
+  }
+  function refreshRouteController(href) {
+    const pageName = new URL(href, location.href).pathname.split('/').pop() || 'index.html';
+    if (pageName === 'production.html') {
+      const controller = window.V2Production;
+      controller?.initRouting?.();
+      controller?.renderSceneCatalog?.();
+      controller?.renderShots?.();
+    } else if (pageName === 'workshop.html') {
+      if (!workshopRouteBootstrapped && window.V2Workshop?.init) {
+        window.V2Workshop.init();
+        workshopRouteBootstrapped = true;
+      }
+      const title = document.getElementById('workshopProjectTitle');
+      const projectName = localStorage.getItem('workspace_project_name');
+      if (title && projectName) title.textContent = `${projectName} · 影视工坊流水线`;
     }
   }
   async function navigate(href, push) {
@@ -119,6 +182,7 @@
         if (doc.title) document.title = doc.title;
         standardRightDeck();
         await runRouteScripts(doc);
+       refreshRouteController(url.href);
         syncNavPills(url.href);
         window.dispatchEvent(new CustomEvent('gw:route-loaded', { detail: { href: url.href } }));
         if (window.lucide?.createIcons) window.lucide.createIcons();
@@ -146,6 +210,7 @@
       syncNavPills(url.href);
       standardRightDeck();
       await runRouteScripts(doc);
+       refreshRouteController(url.href);
       window.dispatchEvent(new CustomEvent('gw:route-loaded', { detail: { href: url.href } }));
       if (window.lucide?.createIcons) window.lucide.createIcons();
     } catch (error) {

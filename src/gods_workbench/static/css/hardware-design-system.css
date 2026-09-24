@@ -1101,76 +1101,92 @@
       50% { opacity: 0.35; }
     }
 
-/* GW-TOPBAR-T94: 必达控件优先布局，避免窄视口被 flex 行静默裁剪。 */
-.topbar-master-deck .master-deck-upper { position: relative; }
+/* GW-TOPBAR-T94: 响应式顶栏布局；必达控件保持在自身行内，不以固定宽度制造横向溢出。 */
+.topbar-master-deck .master-deck-upper {
+  position: relative;
+  min-width: 0;
+}
 .topbar-master-deck .master-deck-upper-right {
   position: absolute;
   top: 50%;
   right: 8px;
   transform: translateY(-50%);
   z-index: 61;
+  min-width: 0;
 }
-.topbar-master-deck .recessed-deck-slot { position: relative; }
+.topbar-master-deck .master-deck-upper-right #masterDeckDate {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  transform: none !important;
+  z-index: auto !important;
+}
+.topbar-master-deck .recessed-deck-slot {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+.topbar-master-deck .recessed-deck-slot > #navPillsGroup,
+.topbar-master-deck .recessed-deck-slot > div:first-child {
+  min-width: 0;
+  max-width: calc(100% - 430px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.topbar-master-deck .recessed-deck-slot > #navPillsGroup::-webkit-scrollbar,
+.topbar-master-deck .recessed-deck-slot > div:first-child::-webkit-scrollbar {
+  display: none;
+}
+.topbar-master-deck .recessed-deck-slot > .gw-shell-right,
 .topbar-master-deck .recessed-deck-slot > div:last-child {
-  position: absolute;
+  position: absolute !important;
   top: 50%;
   right: 10px;
   transform: translateY(-50%);
   z-index: 61;
-}
-@media (max-width: 1700px) {
-  .topbar-master-deck .recessed-deck-slot > div:nth-child(2) { display: none !important; }
-  .topbar-master-deck .recessed-deck-slot { justify-content: flex-start !important; }
-}
-@media (max-width: 1450px) {
-  .topbar-master-deck .master-deck-upper-right > div:nth-of-type(1),
-  .topbar-master-deck .master-deck-upper-right > div:nth-of-type(2) { display: none !important; }
-}
-
-/* GW-TOPBAR-T94: 为旧版同构页与动态注入回收站保留必达控件位置。 */
-.topbar-master-deck > div:has(> #masterDeckDate) { position: relative; }
-.topbar-master-deck > div:has(> #masterDeckDate) > div:has(> #masterDeckDate) {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  transform: translateY(-50%);
-  z-index: 61;
-}
-.topbar-master-deck .recessed-deck-slot > .gw-shell-right {
   display: flex !important;
   align-items: center;
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
-  z-index: 61;
+  width: auto;
+  min-width: 0;
+  max-width: calc(100% - 920px);
+  height: 44px;
+  overflow: visible;
+  visibility: visible;
+  opacity: 1;
+}
+.topbar-master-deck .recessed-deck-slot > .gw-shell-right #topbarUnifiedTrashBtn,
+.topbar-master-deck .recessed-deck-slot > div:last-child > #topbarUnifiedTrashBtn {
+  position: static !important;
+  display: flex !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 36px;
+  min-height: 36px;
+  transform: none !important;
+  z-index: auto !important;
+}
+@media (max-width: 1700px) {
+  /* 低宽度时仅收起非必要的 FLUX/VRAM 推子，保留导航、回收站、模式切换和身份键帽。 */
+  .topbar-master-deck .recessed-deck-slot > .gw-shell-right .gw-shell-fader,
+  .topbar-master-deck .recessed-deck-slot > div:last-child .gw-shell-fader {
+    display: none !important;
+  }
+  .topbar-master-deck .recessed-deck-slot > .gw-shell-right,
+  .topbar-master-deck .recessed-deck-slot > div:last-child {
+    max-width: calc(100% - 920px);
+  }
 }
 @media (max-width: 1450px) {
-  .topbar-master-deck > div:has(> #masterDeckDate) > div:has(> #masterDeckDate) > div:nth-of-type(1),
-  .topbar-master-deck > div:has(> #masterDeckDate) > div:has(> #masterDeckDate) > div:nth-of-type(2) { display: none !important; }
+  /* 无语义 class 的旧版页面把 RAM 表放在上层最右组；收起该装饰组，确保日期完整可见。 */
+  .topbar-master-deck > div:nth-child(4) > div:last-child > div:first-child {
+    display: none !important;
+  }
 }
-
-/* GW-TOPBAR-T94-FINAL: 动态壳层可能给回收站容器加 hidden，显式恢复必达入口。 */
-.topbar-master-deck .recessed-deck-slot > .gw-shell-right,
-.topbar-master-deck .recessed-deck-slot > .gw-shell-right[hidden] {
-  display: flex !important;
+@media (max-width: 1450px) {
+  /* 上层 RAM/功率表属于非关键装饰区，窄屏让位给日期入口。 */
+  .topbar-master-deck .master-deck-upper-right > div:nth-of-type(1),
+  .topbar-master-deck .master-deck-upper-right > div:nth-of-type(2) {
+    display: none !important;
+  }
 }
-.topbar-master-deck #masterDeckDate {
-  position: fixed !important;
-  top: 8px !important;
-  right: 20px !important;
-  transform: none !important;
-  z-index: 100 !important;
-}
-
-.topbar-master-deck .recessed-deck-slot > .gw-shell-right,
-.topbar-master-deck .recessed-deck-slot > .gw-shell-right[hidden] {
-  display: flex !important;
-  width: 56px !important;
-  min-width: 56px !important;
-  height: 44px !important;
-  min-height: 44px !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-.topbar-master-deck .recessed-deck-slot > .gw-shell-right #topbarUnifiedTrashBtn { display:flex !important; width:36px !important; height:42px !important; }
