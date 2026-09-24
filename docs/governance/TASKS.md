@@ -1249,15 +1249,16 @@
   - **文档**：新增 `HANDOFF-11.md`。工程 9 公开发布、工程 10 外部第三方审计仍未授权；发布状态仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
   - **复核边界**：本机门禁通过；本轮独立审核代理已串行派发但未返回新签字，未冒称独立 PASS。
 
-- [ ] T98 T97 后续独立复核阻断修复（2026-09-24）
+- [x] T98 T97 后续独立复核阻断修复（2026-09-24）
   - **触发**：Luna 对 `dfa312e` 返回 **NEEDS WORK**，指出壳层返回页的脚本/控制器生命周期与连续导航门禁覆盖不足。
   - **修复**：`dfa312e` 增加各 V2 控制器 `rebind` 生命周期、路由完成后的页级重绑定、assets iframe/MutationObserver 重绑定与旧监听清理；`170a5e2` 增加 `ROUTE_REBIND_PROBE_JS`，逐步校验控制器入口和代表性新 DOM，未重绑定时 fail-closed。
   - **验证**：`python -P -m pytest -q` = 489 passed / 7 skipped；`python -P -m pytest tests/hygiene -q` = 16 passed；全量 E2E 退出码 0；9/9 route consistency、8/8 repeat navigation lifecycle probe、27/27 顶栏组合通过；assets 返回页专项 page errors=0 且新 iframe 存在。
-  - **状态**：修复已完成，等待新的串行独立审核 PASS；不得把本项或工程 1–8 写成最终完成。工程 9/10 继续保持未授权。
+  - **状态**：已完成修复并取得新的串行独立审核 PASS；工程 1–8 可据此完成技术收口。工程 9/10 继续保持未授权。
 
 - [x] T99 Workshop 控制器生命周期二次修复（2026-09-24）
   - **触发**：Astra 对 `0eed42d` 独立复核发现 `V2Workshop.init()` 每次返回页重复创建 `setInterval(updateClock, 1000)`，且原连续导航探针漏报。
   - **提交**：`b007fe1`。导出幂等 `rebind` 与 `dispose`；离页清理 timer/监听器/请求；以新 `episodesView` 根节点去重加载；请求以生命周期代际、epoch、project_id 校验并支持 `AbortController`；shell 改为 `rebind`。
   - **探针**：连续导航门禁新增真实 `updateClock` interval 计数，Workshop 每次返回必须恰好 1 个；重复导航不再产生双 timer。
   - **验证**：`pytest -q` = 489 passed / 7 skipped；hygiene = 16 passed；完整 E2E 退出码 0；8/8 lifecycle probe 通过；mutation selftest 仍产生 27 条 FAIL。
-  - **状态**：实现已闭环，等待新的串行独立审核 PASS；T98 的最终治理状态仍需审核签字后再翻转。
+  - **状态**：实现已闭环；最终独立复核代理已返回 PASS。
+

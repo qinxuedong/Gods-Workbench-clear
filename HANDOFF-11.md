@@ -98,3 +98,23 @@ Astra 串行独立复核对 `0eed42d` 返回 **NEEDS WORK**，新增唯一阻断
 - 9/9 route consistency 无未登记缺口；27 个顶栏组合通过；mutation selftest 仍报 27 条 FAIL。
 
 **状态**：等待下一轮串行独立审核；在其明确 PASS 前，工程 1–8 不标记为最终完成。
+
+## 8. 最终独立复核 PASS 与治理裁决（2026-09-24）
+
+新的串行独立复核代理（Astra）已对当前 HEAD `cedc533` 完成只读复核并明确返回 **PASS**。核实内容：
+
+- `pytest -q`：489 passed / 7 skipped；
+- `tests/hygiene`：16 passed；
+- V2 shell 与 Workshop 内联脚本 `node --check` 通过；
+- 完整 E2E 退出码 0；9/9 route consistency、8/8 连续导航生命周期、script growth=0、page errors=0；
+- Workshop 每次返回 `updateClock` interval 数量均为 1；
+- 顶栏 27 个页面-视口组合通过；mutation selftest 产生 27 条预期失败；
+- 未发现 Workshop 控制器生命周期、旧请求回写或旧监听残留阻断。
+
+**最终技术裁决**：工程 1–8 **TECHNICALLY COMPLETE / INDEPENDENTLY VERIFIED PASS**。
+
+**边界声明**：
+
+- 本结论是本地技术复核与串行独立代理签字，不等同于远端 CI、生产验收或外部第三方审计；
+- 工程 9（公开发布）与工程 10（外部第三方审计）仍等待用户后续裁决；
+- 仓库发布状态继续保持 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**；不得据此添加许可证或公开分发。
