@@ -46,3 +46,31 @@
 ## 5. 下一步
 
 已串行派发 Astra 独立审核代理对提交 `f86cd72` 做最终复核；本轮工具会话在其返回独立结论前被中断，故本交接不冒称已取得新的独立 PASS。已有本机门禁全部通过；若要求新的独立签字，应继续单独运行审核代理并将其结论追加到本文件。
+
+## 6. NEEDS WORK → 修复 → 待最终独立复核（2026-09-24）
+
+上一轮 Luna 独立审核对提交 `dfa312e` 返回 **NEEDS WORK**，阻断点为：
+
+- 路由脚本永久指纹会阻止返回页重新注入；
+- 返回页旧控制器闭包仍可能绑定旧 DOM；
+- `refreshRouteController()` 覆盖范围不足；
+- assets 页 iframe `load` 监听器返回后可能失效；
+- 连续导航门禁只看脚本数与 pageerror，未验证控制器重绑定。
+
+本轮已完成修复并提交：
+
+- `dfa312e`：控制器 `rebind` 生命周期、路由完成后的页级重绑定、assets iframe/MutationObserver 重绑定、旧监听清理；
+- `170a5e2`：连续导航新增 `ROUTE_REBIND_PROBE_JS`，逐步检查控制器入口与代表性新 DOM，未重绑定时 fail-closed。
+
+最新证据（当前 HEAD `170a5e2`）：
+
+- `python -P -m pytest -q`：489 passed / 7 skipped；
+- `python -P -m pytest tests/hygiene -q`：16 passed；
+- `python -P tools/frontend_e2e_smoke.py --serve --mutation-selftest`：退出码 0；
+- route consistency：9/9 页面无未登记缺口；
+- repeat navigation：8 个目标页 script growth=0、page errors=0、lifecycle probe 无失败；
+- 顶栏专项：27 个页面-视口组合均无 overflow，27/27 必达控件可用；
+- mutation selftest：真实隐藏目标控件后仍产生 27 条 FAIL；
+- assets 专项真实浏览器：`projects → assets → projects → assets`，返回后 `window.V2Assets.rebind = true`、新 iframe 存在、page errors=0。
+
+**状态**：修复证据已齐，但在新的独立审核代理返回 PASS 前，不把工程 1–8 标记为最终完成；工程 9/10 仍未授权。

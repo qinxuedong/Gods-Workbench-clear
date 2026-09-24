@@ -1248,3 +1248,9 @@
   - **E2E 证据**：9/9 页 shell route deck/module 无未登记缺口；8 个连续导航目标 script growth=0、page errors=0；27 个页面-视口顶栏组合 overflow=0 且两个目标可用；真实隐藏目标的 mutation selftest 产生 **27 条 FAIL**。
   - **文档**：新增 `HANDOFF-11.md`。工程 9 公开发布、工程 10 外部第三方审计仍未授权；发布状态仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
   - **复核边界**：本机门禁通过；本轮独立审核代理已串行派发但未返回新签字，未冒称独立 PASS。
+
+- [ ] T98 T97 后续独立复核阻断修复（2026-09-24）
+  - **触发**：Luna 对 `dfa312e` 返回 **NEEDS WORK**，指出壳层返回页的脚本/控制器生命周期与连续导航门禁覆盖不足。
+  - **修复**：`dfa312e` 增加各 V2 控制器 `rebind` 生命周期、路由完成后的页级重绑定、assets iframe/MutationObserver 重绑定与旧监听清理；`170a5e2` 增加 `ROUTE_REBIND_PROBE_JS`，逐步校验控制器入口和代表性新 DOM，未重绑定时 fail-closed。
+  - **验证**：`python -P -m pytest -q` = 489 passed / 7 skipped；`python -P -m pytest tests/hygiene -q` = 16 passed；全量 E2E 退出码 0；9/9 route consistency、8/8 repeat navigation lifecycle probe、27/27 顶栏组合通过；assets 返回页专项 page errors=0 且新 iframe 存在。
+  - **状态**：修复已完成，等待新的串行独立审核 PASS；不得把本项或工程 1–8 写成最终完成。工程 9/10 继续保持未授权。
