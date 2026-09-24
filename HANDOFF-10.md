@@ -805,3 +805,24 @@ O6（tracked 计数口径）**无待办动作**：现值 387（历史行保持�
 - `docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml:54`
 
 台账登记：`TASKS.md` **T95**。
+
+## 16. Tailwind 快照重生成执行记录（2026-09-24，用户裁决 1）
+
+按用户已批准的裁决 1，本轮执行 `python -P tools/build_static_tailwind_utilities.py --force`，仅覆盖静态 Tailwind 快照；未引入二进制资源。
+
+- **执行前检查**：
+  - `python -P tools/build_static_tailwind_utilities.py --check`：退出码 **1**；扫描 70 个前端源码文件、2550 个候选类；现有快照正文 85,348 字节，生成候选正文 85,211 字符；SHA-256 不一致，符合重生成前差异预期。
+  - `python -P tools/build_static_tailwind_utilities.py --diff`：退出码 **0**；现有选择器 1014、候选选择器 945，共有 624，移除 390，新增 321，字节一致为 False。
+- **执行**：`python -P tools/build_static_tailwind_utilities.py --force`：退出码 **0**；生成文件为 `src/gods_workbench/static/css/tailwind-utilities.css`。
+- **执行后复核**：
+  - `python -P tools/build_static_tailwind_utilities.py --check`：退出码 **0**，字节一致。
+  - `python -P tools/build_static_tailwind_utilities.py --diff`：退出码 **0**；现有与候选选择器均为 945，共有 945，移除 0，新增 0，字节一致为 True。
+  - 生成快照当前大小 **85,348 字节**，SHA-256 为 `A4F2FFB8D8358F184BA9AC9B921FA93B4998FF6F3259A423DF797156E00D4897`。
+- **边界与剩余风险**：本记录证明本机生成器、快照字节及规则集合已闭环；不等同于远端 CI、生产验收、外部第三方审计或公开发布授权。运行时仍按脚本固定 SHA-256 校验，未把运行时写入仓库。
+
+台账登记：`TASKS.md` **T96**。
+
+### 16.1 门禁复核补充
+
+- `python -P -m pytest -v`：**487 passed / 7 skipped**（31.27 秒）。
+- `python -P -m pytest tests/hygiene -q`：**16 passed**（3.23 秒）。

@@ -1231,3 +1231,13 @@
   - **范围**：`HANDOFF-9.md:90`、`docs/governance/PHASE-10E-CANVAS-CLOSURE-2026-09-22.md:74`、`docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml:54`。
   - **修正**：不再保留错误短语的历史引用，三处均直接表述为「此前描述有误，现已更正为纯 ASCII 大小写差异」。
   - **边界**：只改文档措辞，不改 401 实现、契约或错误码语义。
+
+- [x] T96 用户裁决 1：按批准结果执行 Tailwind 静态快照 `--force` 重生成（2026-09-24）
+  - **执行前**：`python -P tools/build_static_tailwind_utilities.py --check` 退出码 **1**；
+    `--diff` 读数为现有选择器 1014、候选选择器 945，共有 624，移除 390，新增 321，字节一致为 False。
+  - **执行**：`python -P tools/build_static_tailwind_utilities.py --force` 退出码 **0**，
+    仅更新 `src/gods_workbench/static/css/tailwind-utilities.css`，未写入运行时或其他二进制资源。
+  - **执行后**：`--check` 退出码 **0**；`--diff` 退出码 **0**，现有与候选选择器均为 945，移除 0，新增 0，字节一致为 True。
+    当前快照 85,348 字节，SHA-256 `A4F2FFB8D8358F184BA9AC9B921FA93B4998FF6F3259A423DF797156E00D4897`。
+  - **边界**：本机工具与字节复核已通过；不等同于远端 CI、生产验收、外部第三方审计或公开发布授权。
+  - **门禁复核**：`python -P -m pytest -v` = **487 passed / 7 skipped**；`python -P -m pytest tests/hygiene -q` = **16 passed**。
