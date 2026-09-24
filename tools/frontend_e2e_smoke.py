@@ -123,6 +123,34 @@ REPEAT_NAV_SEQUENCE: tuple[str, ...] = ("target", "projects", "target", "project
 REPEAT_NAV_TARGETS: tuple[str, ...] = tuple(p for p in PAGES if p != "projects.html")
 
 # 连续导航返回后的控制器生命周期探针：不仅检查 script 数量，还检查新 DOM 是否拿到对应控制器入口。
+ROUTE_LIFECYCLE_INIT_JS = """
+(() => {
+  const nativeSetInterval = window.setInterval.bind(window);
+  const nativeClearInterval = window.clearInterval.bind(window);
+  const active = new Map();
+  const stats = {activeIntervalsByDelay: {}, activeIntervalsByCallback: {}};
+  window.__gwLifecycle = stats;
+  window.setInterval = (callback, delay, ...args) => {
+    const id = nativeSetInterval(callback, delay, ...args);
+    const key = String(delay ?? 0);
+    const callbackKey = callback?.name || '<anonymous>' ;
+    active.set(id, {delay: key, callback: callbackKey});
+    stats.activeIntervalsByDelay[key] = (stats.activeIntervalsByDelay[key] || 0) + 1;
+    stats.activeIntervalsByCallback[callbackKey] = (stats.activeIntervalsByCallback[callbackKey] || 0) + 1;
+    return id;
+  };
+  window.clearInterval = id => {
+    const entry = active.get(id);
+    if (entry !== undefined) {
+      active.delete(id);
+      stats.activeIntervalsByDelay[entry.delay] = Math.max(0, (stats.activeIntervalsByDelay[entry.delay] || 1) - 1);
+      stats.activeIntervalsByCallback[entry.callback] = Math.max(0, (stats.activeIntervalsByCallback[entry.callback] || 1) - 1);
+    }
+    return nativeClearInterval(id);
+  };
+})();
+"""
+
 ROUTE_REBIND_PROBE_JS = """
 () => {
   const page = location.pathname.split('/').pop() || 'index.html';
@@ -130,7 +158,7 @@ ROUTE_REBIND_PROBE_JS = """
     'index.html': [Boolean(window.V2Home?.rebind), '#v2MainDashboard'],
     'projects.html': [Boolean(window.V2Projects?.rebind), '#projectsCardsStream'],
     'production.html': [Boolean(window.V2Production?.rebind), '#currentProjectDisplayTitle'],
-    'workshop.html': [Boolean(window.V2Workshop?.init), '#workshopProjectTitle'],
+    'workshop.html': [Boolean(window.V2Workshop?.rebind), '#workshopProjectTitle'],
     'storyboard.html': [Boolean(window.V2Storyboard?.rebind), '#storyboardGrid'],
     'agents.html': [Boolean(window.V2Agents?.rebind), '#agentList'],
     'assets.html': [Boolean(window.V2Assets?.rebind), '#assetVaultFrame'],
@@ -657,6 +685,7 @@ def run_shell_route_repeat_nav(base_url: str) -> dict:
         try:
             for target_name in REPEAT_NAV_TARGETS:
                 context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                context.add_init_script(ROUTE_LIFECYCLE_INIT_JS)
                 page = context.new_page()
                 errors: list[dict] = []
                 current_step = [0]
@@ -691,6 +720,11 @@ def run_shell_route_repeat_nav(base_url: str) -> dict:
                     page.wait_for_timeout(2000)
                     inv = page.evaluate(SCRIPT_INVENTORY_JS)
                     lifecycle = page.evaluate(ROUTE_REBIND_PROBE_JS)
+                    if lifecycle.get("page") == "workshop.html":
+                        lifecycle["timer_count"] = page.evaluate("window.__gwLifecycle?.activeIntervalsByCallback?.updateClock || 0")
+                        if lifecycle["timer_count"] != 1:
+                            lifecycle["ready"] = False
+                            lifecycle["timer_error"] = f"workshop updateClock interval count={lifecycle['timer_count']}，期望 1"
                     steps.append(
                         {
                             "step": idx,

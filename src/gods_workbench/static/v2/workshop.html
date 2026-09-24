@@ -504,6 +504,15 @@
       // 若没有显式指定 step，且没有 pipeline_id，默认优先展示 'episodes' 剧集管理；否则默认进入指定 step 或 script
       let currentStep = params.get('step') || (pipelineId ? 'script' : 'episodes');
       let cachedProjectName = localStorage.getItem('workspace_project_name') || '';
+      let clockTimer = null;
+      let boundWorkspaceRoot = null;
+      let lifecycleGeneration = 0;
+      let requestEpoch = 0;
+      let active = false;
+      let projectsRequestController = null;
+      let episodesRequestController = null;
+      let messageHandler = null;
+      let popstateHandler = null;
 
       let episodes = [];
       let isLoadingEpisodes = false;
@@ -622,43 +631,57 @@
       const API_PROJECTS = '/api/asset-registry/projects';
       const API_PROJECTS_FALLBACK = '/api/projects';
 
+      function requestIsCurrent(generation, epoch, requestProjectId = null) {
+        return active && lifecycleGeneration === generation && requestEpoch === epoch
+          && (!requestProjectId || projectId === requestProjectId);
+      }
+
+      function invalidateRequests({ abortProjects = true, abortEpisodes = true } = {}) {
+        requestEpoch += 1;
+        if (abortProjects) projectsRequestController?.abort();
+        if (abortEpisodes) episodesRequestController?.abort();
+      }
+
       async function fetchProjects() {
         projectsDegradation = null;
+        const generation = lifecycleGeneration;
+        const epoch = requestEpoch;
+        projectsRequestController?.abort();
+        const controller = new AbortController();
+        projectsRequestController = controller;
         const keepPlaceholder = projects.filter(p => p.placeholder);
         try {
-          let res = await fetch(`${API_PROJECTS}?archived=false`, {credentials: 'same-origin' });
+          let res = await fetch(`${API_PROJECTS}?archived=false`, { credentials: 'same-origin', signal: controller.signal });
           let data = null;
           if (res.ok) {
             data = await res.json();
           } else {
-            res = await fetch(API_PROJECTS_FALLBACK, {credentials: 'same-origin' });
+            res = await fetch(API_PROJECTS_FALLBACK, { credentials: 'same-origin', signal: controller.signal });
             if (res.ok) data = await res.json();
           }
+          if (!requestIsCurrent(generation, epoch)) return;
           if (!res.ok) {
-            // 显式降级：接口未接入 / 服务不可用 / 请求失败一律如实标记并清空，
-            // 绝不填入任何伪造的示例工程数据。
             const failure = await classifyFetchFailure(res);
+            if (!requestIsCurrent(generation, epoch)) return;
             projectsDegradation = { kind: failure.kind, message: failure.message };
             projects = keepPlaceholder;
           } else {
             const list = data?.projects || data || [];
-            // 契约对齐：稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml），
-            // 归一化为内部 id，否则真实项目会被 `p.id` 判空全部丢弃。
             const real = (Array.isArray(list) ? list : []).map(p => {
               const pid = p && (p.id || p.project_id);
               return pid ? { id: pid, name: p.name || pid } : null;
             }).filter(Boolean);
-            // 后端如实应答「确实为空」：保留空态，不伪造数据。
             projects = real.concat(keepPlaceholder.filter(ph => !real.some(r => r.id === ph.id)));
           }
 
-          // 若当前路由 projectId 不在真实目录中，仅以占位条目补齐显示（标记 placeholder）。
+          if (!requestIsCurrent(generation, epoch)) return;
           if (projectId && !projects.some(p => p.id === projectId)) {
             try {
-              let pRes = await fetch(`${API_PROJECTS}/${encodeURIComponent(projectId)}`, {credentials: 'same-origin' });
+              let pRes = await fetch(`${API_PROJECTS}/${encodeURIComponent(projectId)}`, { credentials: 'same-origin', signal: controller.signal });
               if (!pRes.ok) {
-                pRes = await fetch(`${API_PROJECTS_FALLBACK}/${encodeURIComponent(projectId)}`, {credentials: 'same-origin' });
+                pRes = await fetch(`${API_PROJECTS_FALLBACK}/${encodeURIComponent(projectId)}`, { credentials: 'same-origin', signal: controller.signal });
               }
+              if (!requestIsCurrent(generation, epoch)) return;
               if (pRes.ok) {
                 const pData = await pRes.json();
                 const projObj = pData?.project || pData;
@@ -666,20 +689,22 @@
                 if (projId) {
                   projects.unshift({ id: projId, name: projObj.name || projId });
                   cachedProjectName = projObj.name || projId;
-                  try {
-                    localStorage.setItem('workspace_project_name', cachedProjectName);
-                  } catch (_) {}
+                  try { localStorage.setItem('workspace_project_name', cachedProjectName); } catch (_) {}
                 }
               }
-            } catch (_) {}
+            } catch (error) {
+              if (error?.name !== 'AbortError') { /* 详情读取失败不阻断主目录 */ }
+            }
           }
         } catch (e) {
-          // 网络异常：服务不可用（可恢复），同样不得伪造工程数据。
+          if (e?.name === 'AbortError' || !requestIsCurrent(generation, epoch)) return;
           console.warn('读取远端工程目录失败（网络异常）:', e);
           projectsDegradation = { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
           projects = keepPlaceholder;
+        } finally {
+          if (projectsRequestController === controller) projectsRequestController = null;
         }
-        updateProjectDisplay();
+        if (requestIsCurrent(generation, epoch)) updateProjectDisplay();
       }
 
       function updateProjectDisplay() {
@@ -710,28 +735,44 @@
       const API_EPISODES = '/api/episode-pipelines';
 
       async function fetchEpisodes() {
-        if (!projectId) return;
+        if (!projectId || !active) return false;
+        const requestProjectId = projectId;
+        const generation = lifecycleGeneration;
+        const epoch = requestEpoch;
+        episodesRequestController?.abort();
+        const controller = new AbortController();
+        episodesRequestController = controller;
         episodesDegradation = null;
         isLoadingEpisodes = true;
         try {
-          const res = await fetch(`${API_EPISODES}?project_id=${encodeURIComponent(projectId)}`, {credentials: 'same-origin' });
+          const res = await fetch(`${API_EPISODES}?project_id=${encodeURIComponent(requestProjectId)}`, {
+            credentials: 'same-origin', signal: controller.signal
+          });
+          if (!requestIsCurrent(generation, epoch, requestProjectId)) return false;
           if (res.ok) {
             const data = await res.json();
+            if (!requestIsCurrent(generation, epoch, requestProjectId)) return false;
             episodes = Array.isArray(data?.pipelines) ? data.pipelines : [];
           } else {
-            // 显式降级：不得把「接口未接入」静默显示成「该项目没有分集」。
             const failure = await classifyFetchFailure(res);
+            if (!requestIsCurrent(generation, epoch, requestProjectId)) return false;
             episodesDegradation = { kind: failure.kind, message: failure.message };
             episodes = [];
           }
+          return true;
         } catch (e) {
+          if (e?.name === 'AbortError' || !requestIsCurrent(generation, epoch, requestProjectId)) return false;
           console.warn('获取分集流水线失败（网络异常）:', e);
           episodesDegradation = { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
           episodes = [];
+          return true;
         } finally {
-          isLoadingEpisodes = false;
-          renderEpisodes();
-          updateStepButtons(currentStep);
+          if (episodesRequestController === controller) episodesRequestController = null;
+          if (requestIsCurrent(generation, epoch, requestProjectId)) {
+            isLoadingEpisodes = false;
+            renderEpisodes();
+            updateStepButtons(currentStep);
+          }
         }
       }
 
@@ -999,7 +1040,7 @@
         window.lucide?.createIcons();
       }
 
-      function switchStep(step, initial = false) {
+      function switchStep(step, initial = false, skipEpisodesFetch = false) {
         currentStep = step;
         updateStepButtons(step);
 
@@ -1020,7 +1061,7 @@
         if (step === 'episodes') {
           if (episodesView) episodesView.classList.remove('hidden');
           if (pipelineIframe) pipelineIframe.classList.add('hidden');
-          fetchEpisodes();
+          if (!skipEpisodesFetch) fetchEpisodes();
           return;
         }
 
@@ -1079,8 +1120,10 @@
 
       function switchProject(targetId) {
         if (!targetId) return;
+        if (targetId === projectId) return;
         projectId = targetId;
         pipelineId = '';
+        invalidateRequests();
         localStorage.setItem('workspace_project_id', projectId);
         const cur = projects.find(p => p.id === projectId);
         if (cur && cur.name) {
@@ -1089,8 +1132,13 @@
         }
 
         updateProjectDisplay();
+        const targetProjectId = projectId;
+        const targetGeneration = lifecycleGeneration;
+        const targetEpoch = requestEpoch;
         fetchEpisodes().then(() => {
-          switchStep('episodes');
+          if (requestIsCurrent(targetGeneration, targetEpoch, targetProjectId)) {
+            switchStep('episodes', false, true);
+          }
         });
       }
 
@@ -1137,49 +1185,105 @@
         }
       }
 
-      function init() {
+      function syncRouteState() {
+        const routeParams = new URLSearchParams(window.location.search);
+        const nextProjectId = routeParams.get('project_id') || localStorage.getItem('workspace_project_id') || 'proj-01';
+        const projectChanged = nextProjectId !== projectId;
+        if (projectChanged) invalidateRequests();
+        projectId = nextProjectId;
+        pipelineId = routeParams.get('pipeline_id') || '';
+        currentStep = routeParams.get('step') || (pipelineId ? 'script' : 'episodes');
+        if (projectId && !projects.some(p => p.id === projectId)) {
+          const placeholderName = cachedProjectName || (demoProjectCatalog[projectId] || {}).name || projectId;
+          projects.unshift({ id: projectId, name: placeholderName, placeholder: true });
+        }
+        return projectChanged;
+      }
+
+      function bindLifecycleListeners() {
+        if (!messageHandler) {
+          messageHandler = event => {
+            if (!active || !window.location.pathname.endsWith('/workshop.html')) return;
+            if (event.data?.type === 'episode-step-changed' && event.data.step) {
+              updateStepButtons(event.data.step);
+              const url = new URL(window.location.href);
+              url.searchParams.set('project_id', projectId);
+              url.searchParams.set('step', event.data.step);
+              window.history.replaceState({}, '', url.toString());
+            } else if (event.data?.type === 'episode-open-project-board') {
+              const board = new URL('/static/v2/projects.html', location.origin);
+              const pid = String(event.data.projectId || '');
+              if (pid) board.searchParams.set('project_id', pid);
+              location.assign(board.href);
+            }
+          };
+          window.addEventListener('message', messageHandler);
+        }
+        if (!popstateHandler) {
+          popstateHandler = () => {
+            if (!active || !window.location.pathname.endsWith('/workshop.html')) return;
+            const uParams = new URLSearchParams(window.location.search);
+            const popStep = uParams.get('step') || 'episodes';
+            const popProj = uParams.get('project_id') || projectId;
+            if (popProj !== projectId) {
+              switchProject(popProj);
+            } else if (popStep !== currentStep) {
+              switchStep(popStep);
+            }
+          };
+          window.addEventListener('popstate', popstateHandler);
+        }
+      }
+
+      function dispose() {
+        active = false;
+        lifecycleGeneration += 1;
+        invalidateRequests();
+        if (clockTimer) {
+          clearInterval(clockTimer);
+          clockTimer = null;
+        }
+        if (messageHandler) {
+          window.removeEventListener('message', messageHandler);
+          messageHandler = null;
+        }
+        if (popstateHandler) {
+          window.removeEventListener('popstate', popstateHandler);
+          popstateHandler = null;
+        }
+        boundWorkspaceRoot = null;
+      }
+
+      function rebind() {
+        const workspaceRoot = document.getElementById('episodesView');
+        const rootChanged = workspaceRoot !== boundWorkspaceRoot;
+        if (!active) {
+          lifecycleGeneration += 1;
+          active = true;
+          bindLifecycleListeners();
+        }
+        const projectChanged = syncRouteState();
         localStorage.setItem('workspace_project_id', projectId);
         updateProjectDisplay();
-        switchStep(currentStep, true);
-
-        fetchProjects();
-        fetchEpisodes();
-
+        switchStep(currentStep, true, true);
+        boundWorkspaceRoot = workspaceRoot;
+        if (rootChanged || projectChanged) {
+          fetchProjects();
+          fetchEpisodes();
+        }
         updateClock();
-        setInterval(updateClock, 1000);
-
+        if (!clockTimer) clockTimer = setInterval(updateClock, 1000);
         window.lucide?.createIcons();
       }
 
-      window.addEventListener('message', event => {
-        if (event.data?.type === 'episode-step-changed' && event.data.step) {
-          updateStepButtons(event.data.step);
-          const url = new URL(window.location.href);
-          url.searchParams.set('project_id', projectId);
-          url.searchParams.set('step', event.data.step);
-          window.history.replaceState({}, '', url.toString());
-        } else if (event.data?.type === 'episode-open-project-board') {
-          // 承接剧集流水线内嵌页的“返回项目”请求：经典版壳层删除后，改由 V2 项目中心承接。
-          const board = new URL('/static/v2/projects.html', location.origin);
-          const pid = String(event.data.projectId || '');
-          if (pid) board.searchParams.set('project_id', pid);
-          location.assign(board.href);
-        }
-      });
-
-      window.addEventListener('popstate', () => {
-        const uParams = new URLSearchParams(window.location.search);
-        const popStep = uParams.get('step') || 'episodes';
-        const popProj = uParams.get('project_id') || projectId;
-        if (popProj !== projectId) {
-          switchProject(popProj);
-        } else if (popStep !== currentStep) {
-          switchStep(popStep);
-        }
-      });
+      function init() {
+        rebind();
+      }
 
       return {
         init,
+        rebind,
+        dispose,
         switchStep,
         switchProject,
         prevProject,

@@ -142,13 +142,24 @@
       }
     }
   }
+  function disposeRouteController(href, nextHref = href) {
+    const pageName = new URL(href, location.href).pathname.split('/').pop() || 'index.html';
+    const nextPageName = new URL(nextHref, location.href).pathname.split('/').pop() || 'index.html';
+    if (pageName === nextPageName) return;
+    if (pageName === 'workshop.html') {
+      try { window.V2Workshop?.dispose?.(); } catch (error) {
+        console.warn('[GW shell] route controller dispose failed', pageName, error);
+      }
+    }
+  }
+
   function refreshRouteController(href) {
     const pageName = new URL(href, location.href).pathname.split('/').pop() || 'index.html';
     const rebinders = {
       'index.html': window.V2Home?.rebind,
       'projects.html': window.V2Projects?.rebind,
       'production.html': window.V2Production?.rebind,
-      'workshop.html': window.V2Workshop?.init,
+      'workshop.html': window.V2Workshop?.rebind,
       'storyboard.html': window.V2Storyboard?.rebind,
       'agents.html': window.V2Agents?.rebind,
       'assets.html': window.V2Assets?.rebind,
@@ -186,6 +197,7 @@
       // wrapper. Preserve the shared header, but swap the complete content
       // root at this boundary so the target layout classes remain intact.
       if (currentWorkspace.matches('main') !== nextWorkspace.matches('main')) {
+        disposeRouteController(location.href, url.href);
         currentWorkspace.replaceWith(document.importNode(nextWorkspace, true));
         syncRouteDeck(doc);
         if (push) history.pushState({}, '', url.href);
@@ -206,6 +218,7 @@
       doc.head.querySelectorAll('style,link[rel="stylesheet"]').forEach(node => {
         const copy = node.cloneNode(true); copy.dataset.gwRouteStyle = '1'; document.head.appendChild(copy);
       });
+      disposeRouteController(location.href, url.href);
       if (currentSidebar && nextSidebar) {
         currentSidebar.innerHTML = nextSidebar.innerHTML;
         currentSidebar.id = nextSidebar.id;
