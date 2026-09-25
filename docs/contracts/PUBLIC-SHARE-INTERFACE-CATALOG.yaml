@@ -1,0 +1,11 @@
+# Phase 11 B9 分享与公开访问接口目录
+meta:
+  version: p11-b9-1
+  distribution: NOT AUTHORIZED FOR PUBLIC DISTRIBUTION
+  unavailable_status: 503
+  unavailable_code: PUBLIC_SHARE_NOT_INTEGRATED
+interfaces:
+  - {name: get_public_share, method: GET, path: /api/public/shares/{p}}
+  - {name: post_public_share_access, method: POST, path: /api/public/shares/{p}/access}
+  - {name: put_public_share_approval, method: PUT, path: /api/public/shares/{p}/approvals}
+  - {name: post_public_share_comment, method: POST, path: /api/public/shares/{p}/comments}

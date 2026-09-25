@@ -1,0 +1,16 @@
+# Phase 11 B6 资产审查与交付接口目录
+meta:
+  version: p11-b6-1
+  distribution: NOT AUTHORIZED FOR PUBLIC DISTRIBUTION
+  unavailable_status: 503
+  unavailable_code: ASSET_REVIEW_NOT_INTEGRATED
+interfaces:
+  - {name: get_review_sessions, method: GET, path: /api/asset-reviews/sessions}
+  - {name: post_review_sessions, method: POST, path: /api/asset-reviews/sessions}
+  - {name: get_review_session, method: GET, path: /api/asset-reviews/sessions/{p}}
+  - {name: post_review_delivery, method: POST, path: /api/asset-reviews/sessions/{p}/delivery}
+  - {name: post_review_delivery_export, method: POST, path: /api/asset-reviews/deliveries/{p}/export}
+  - {name: post_review_comment, method: POST, path: /api/asset-reviews/sessions/{p}/comments}
+  - {name: put_review_approval, method: PUT, path: /api/asset-reviews/sessions/{p}/approval}
+  - {name: post_review_share, method: POST, path: /api/asset-reviews/shares}
+  - {name: patch_review_comment, method: PATCH, path: /api/asset-reviews/comments/{p}}

@@ -58,7 +58,8 @@ def test_manifest_integrity(fixtures_dir: Path):
     # 2026-09-22 Phase 10C：提示词库阶段新增 5 个黄金夹具（17 -> 22）。
     # 2026-09-22 Phase 10D：设置页阶段新增 5 个黄金夹具（22 -> 27）。
     # 2026-09-22 Phase 10E：画布闭环阶段新增 6 个黄金夹具（27 -> 33）。
-    assert len(data["fixtures"]) == 33
+    # 2026-09-25 Phase 11 B1：认证边界新增 1 个黄金夹具（33 -> 34）。
+    assert len(data["fixtures"]) == 34
     for item in data["fixtures"]:
         file_path = fixtures_dir / item["file"]
         assert file_path.exists(), f"夹具文件不存在: {item['file']}"

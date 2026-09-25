@@ -46,14 +46,10 @@ SERVICE_SOURCES = (
 EDITOR = {"X-User-Role": "editor", "Authorization": "Bearer cleanroom-test"}
 READONLY = {"X-User-Role": "readonly", "Authorization": "Bearer cleanroom-test"}
 UNAUTHORIZED_NEIGHBORS = (
-    ("get", "/api/asset-registry/assets"),
-    ("get", "/api/local-assets"),
-    ("get", "/api/storage-files"),
-    ("get", "/api/asset-reviews/sessions"),
-    ("post", "/api/asset-thumbnails/generate"),
-    ("get", "/api/jimeng/status"),
-    ("get", "/api/asset-content"),
-    ("get", "/api/asset-auth/teams"),
+    ("get", "/api/asset-reviews/sessions-unknown"),
+    ("post", "/api/asset-thumbnails/generate-unknown"),
+    ("get", "/api/audio-waveform-data-unknown"),
+    ("get", "/api/download-output-unknown"),
 )
 
 
@@ -117,8 +113,8 @@ def test_catalog_forbids_unauthorized_neighbors():
     """契约不得授权相邻未实现端点。"""
     pairs = re.findall(r"method:\s*(\w+)\s*\n\s*path:\s*(\S+)", CATALOG.read_text(encoding="utf-8"))
     declared = [f"{m} {p}" for m, p in pairs]
-    for forbidden in ("/api/asset-registry/assets", "/api/local-assets", "/api/storage-files", "/api/asset-content"):
-        assert not any(forbidden in item for item in declared), f"契约不得授权 {forbidden}"
+    for forbidden in ("/api/local-assets", "/api/storage-files", "/api/asset-content"):
+        assert not any(forbidden in item for item in declared), f"画布闭环契约不得授权 {forbidden}"
 
 
 def test_service_sources_have_no_fabrication_generators():

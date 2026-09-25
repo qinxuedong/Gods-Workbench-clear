@@ -102,8 +102,8 @@ def test_catalog_forbids_prompt_items_and_other_unauthorized_paths():
         "/api/prompt-libraries/categories/{category_id}",
     }
     assert routes == allowed, f"契约出现未授权路径: {routes - allowed}"
-    for route in routes:
-        assert "/items" not in route, f"契约不得授权条目 CRUD: {route}"
+    # B8 单独契约接管条目层级；10C 基础契约仍不夹带条目路径。
+    assert all("/items" not in route for route in routes)
 
 
 def test_catalog_declares_no_fabrication_rule():
@@ -594,7 +594,7 @@ def test_unauthorized_items_endpoints_still_unavailable(seeded_client: TestClien
         request = getattr(seeded_client, method)
         res = request(path, json=body, headers=EDITOR) if body is not None else request(path, headers=EDITOR)
         assert res.status_code >= 400, f"{method.upper()} {path} 不应可用，实际 {res.status_code}"
-        assert res.status_code in (404, 405), f"{method.upper()} {path} 应为 404/405，实际 {res.status_code}"
+        assert res.status_code == 503, f"{method.upper()} {path} 应由 B8 显式失败关闭，实际 {res.status_code}"
 
 
 # ---------------------------------------------------------------------------

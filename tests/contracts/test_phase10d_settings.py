@@ -42,12 +42,9 @@ SERVICE_SOURCES = (
 EDITOR = {"X-User-Role": "editor", "Authorization": "Bearer cleanroom-test"}
 READONLY = {"X-User-Role": "readonly", "Authorization": "Bearer cleanroom-test"}
 UNAUTHORIZED_NEIGHBORS = (
-    ("get", "/api/asset-registry/assets"),
-    ("post", "/api/asset-registry/reindex"),
-    ("get", "/api/asset-registry/project-directory-templates"),
-    ("get", "/api/local-assets"),
-    ("get", "/api/storage-files"),
-    ("post", "/api/storage-files/delete"),
+    ("get", "/api/asset-reviews/sessions-unknown"),
+    ("get", "/api/asset-thumbnails/generate-unknown"),
+    ("get", "/api/unknown-settings-neighbor"),
 )
 
 
@@ -89,8 +86,8 @@ def test_catalog_declares_exactly_thirteen_methods():
 def test_catalog_forbids_unauthorized_neighbors():
     """契约不得授权相邻未实现端点。"""
     routes_set = {path for _, path in re.findall(r"method:\s*(\w+)\s*\n\s*path:\s*(\S+)", CATALOG.read_text(encoding="utf-8"))}
-    for forbidden in ("/api/asset-registry/assets", "/api/local-assets", "/api/storage-files", "/api/asset-registry/reindex"):
-        assert all(forbidden not in path for path in routes_set), f"契约不得授权 {forbidden}"
+    for forbidden in ("/api/local-assets", "/api/storage-files"):
+        assert all(forbidden not in path for path in routes_set), f"设置契约不得授权 {forbidden}"
 
 
 def test_service_sources_have_no_fabrication_generators():

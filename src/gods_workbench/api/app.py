@@ -6,12 +6,23 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from gods_workbench.api.routes_ai import router as ai_router
 from gods_workbench.api.routes_asset_library import router as asset_library_router
+from gods_workbench.api.routes_asset_library_b4 import router as asset_library_b4_router
+from gods_workbench.api.routes_local_assets import router as local_assets_router
+from gods_workbench.api.routes_media import router as media_router
+from gods_workbench.api.routes_asset_review_b6 import router as asset_review_b6_router
+from gods_workbench.api.routes_episode_pipeline_b7 import router as episode_pipeline_b7_router
+from gods_workbench.api.routes_prompt_library_b8 import router as prompt_library_b8_router
+from gods_workbench.api.routes_public_b9 import router as public_b9_router
 from gods_workbench.api.routes_auth import router as auth_router
+from gods_workbench.api.routes_auth_management import router as auth_management_router
 from gods_workbench.api.routes_canvas_closure import router as canvas_closure_router
 from gods_workbench.api.routes_god_canvas import jobs_router, router as god_canvas_router
 from gods_workbench.api.routes_observability import router as observability_router
+from gods_workbench.api.routes_projects import legacy_router as projects_compat_router
 from gods_workbench.api.routes_projects import router as projects_router
+from gods_workbench.api.routes_asset_registry import router as asset_registry_router
 from gods_workbench.api.routes_prompt_library import router as prompt_library_router
 from gods_workbench.api.routes_settings import router as settings_router
 from gods_workbench.core import session as session_store
@@ -98,11 +109,22 @@ def create_app() -> FastAPI:
 
     # 挂载 API 路由
     app.include_router(auth_router)
+    app.include_router(ai_router)
+    app.include_router(auth_management_router)
     app.include_router(projects_router)
+    app.include_router(projects_compat_router)
     # 必须先于 god_canvas_router 注册：/api/canvases/trash 不能被 /{canvas_id} 抢先匹配。
     app.include_router(canvas_closure_router)
     app.include_router(god_canvas_router)
     app.include_router(asset_library_router)
+    app.include_router(asset_library_b4_router)
+    app.include_router(local_assets_router)
+    app.include_router(media_router)
+    app.include_router(asset_review_b6_router)
+    app.include_router(episode_pipeline_b7_router)
+    app.include_router(prompt_library_b8_router)
+    app.include_router(public_b9_router)
+    app.include_router(asset_registry_router)
     app.include_router(jobs_router)
     app.include_router(observability_router)
     app.include_router(prompt_library_router)

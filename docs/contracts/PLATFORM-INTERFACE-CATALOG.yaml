@@ -1,0 +1,218 @@
+meta:
+  source: "本仓冻结前端调用面与洁净室运行边界"
+  review_status: "phase11-b2-implementation-pending-independent-review"
+  distribution: "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
+  cleanroom_notice: "本契约不复制旧仓实现；外部 CLI/Provider 未完成准入时必须失败关闭，不得伪造成功。"
+service: platform_ai
+version: phase11-b2-frozen-1
+
+security:
+  authentication: "所有端点要求 Authorization Bearer 或 OIDC 服务端 gw_session；缺失返回 401。"
+  authorization: "只读状态/信息允许已认证主体读取；对话、上传、登录等写/执行动作还需 editor 及以上。"
+  no_external_side_effect: "本阶段不执行外部 CLI、不发起 Provider 网络请求、不保存上传内容、不回显凭据。"
+  error_envelope: "错误统一为 {detail: {code, message, ...}}。"
+
+truthfulness:
+  cli_status: "仅可观察 PATH 中的命令位置；installed 不等于版本、登录或执行可用。"
+  not_integrated_codes:
+    - AI_UPLOAD_NOT_INTEGRATED
+    - CHAT_NOT_INTEGRATED
+    - CLI_HELP_NOT_INTEGRATED
+    - JIMENG_CREDIT_NOT_INTEGRATED
+    - JIMENG_LOGIN_NOT_INTEGRATED
+  fail_closed_status: 503
+
+interfaces:
+  - name: ai_upload
+    method: POST
+    path: /api/ai/upload
+    body: "multipart/form-data（files）；本阶段不解析或保存内容"
+    status: [401, 403, 503]
+    response_503:
+      detail:
+        code: AI_UPLOAD_NOT_INTEGRATED
+        unavailable: true
+        data_status: not_integrated
+    acceptance: "请求经认证后明确拒绝；不读取、不保存、不伪造 files/url。"
+
+  - name: app_info
+    method: GET
+    path: /api/app-info
+    body: null
+    status: [200, 401]
+    response_200:
+      name: string
+      version: string
+      runtime: cleanroom
+      python_version: string
+      platform: string
+      auth_mode: string
+      release_authorized: false
+      data_status: ok
+      data_gaps: array
+    acceptance: "只返回源码/运行时可证明信息，不宣称外部 Provider 或发布授权已就绪。"
+
+  - name: chat
+    method: POST
+    path: /api/chat
+    body:
+      message: string
+      model: "string | optional"
+      provider: "string | optional"
+      mode: "string | optional"
+      additional_fields: "allowed for frozen frontend compatibility"
+    status: [400, 401, 403, 503]
+    response_503:
+      detail:
+        code: CHAT_NOT_INTEGRATED
+        unavailable: true
+        data_status: not_integrated
+    acceptance: "校验最小请求形状后拒绝向未准入 Provider 发送消息。"
+
+  - name: chat_agent
+    method: POST
+    path: /api/chat/agent
+    body: "与 /api/chat 相同，并允许 agent_id/agent_route 等前端字段"
+    status: [400, 401, 403, 503]
+    response_503:
+      detail:
+        code: CHAT_NOT_INTEGRATED
+        unavailable: true
+        data_status: not_integrated
+    acceptance: "不启动未审核智能体或外部命令，不伪造模型结果。"
+
+  - name: codex_status
+    method: GET
+    path: /api/codex/status
+    body: null
+    status: [200, 401]
+    response_200:
+      protocol: codex
+      installed: boolean
+      path: "string | null"
+      version: "null（未执行 CLI）"
+      execution_enabled: false
+      data_status: "observed | not_integrated"
+    acceptance: "只查询 PATH，不执行 codex。"
+
+  - name: codex_help
+    method: POST
+    path: /api/codex/help
+    body:
+      command: "string | optional"
+    status: [400, 401, 403, 503]
+    response_503:
+      detail:
+        code: CLI_HELP_NOT_INTEGRATED
+    acceptance: "command 仅作为数据校验，不执行外部进程。"
+
+  - name: gemini_cli_status
+    method: GET
+    path: /api/gemini-cli/status
+    body: null
+    status: [200, 401]
+    response_200:
+      protocol: gemini-cli
+      installed: boolean
+      path: "string | null"
+      version: "null（未执行 CLI）"
+      execution_enabled: false
+      data_status: "observed | not_integrated"
+    acceptance: "只查询 PATH，不执行 gemini/antigravity。"
+
+  - name: gemini_cli_help
+    method: POST
+    path: /api/gemini-cli/help
+    body:
+      command: "string | optional"
+    status: [400, 401, 403, 503]
+    response_503:
+      detail:
+        code: CLI_HELP_NOT_INTEGRATED
+    acceptance: "command 仅作为数据校验，不执行外部进程。"
+
+  - name: jimeng_credit
+    method: GET
+    path: /api/jimeng/credit
+    body: null
+    status: [401, 503]
+    response_503:
+      detail:
+        code: JIMENG_CREDIT_NOT_INTEGRATED
+    acceptance: "未接入真实会话时不得返回余额、积分或 quota 数字。"
+
+  - name: jimeng_help
+    method: POST
+    path: /api/jimeng/help
+    body:
+      command: "string | optional"
+    status: [400, 401, 403, 503]
+    response_503:
+      detail:
+        code: CLI_HELP_NOT_INTEGRATED
+    acceptance: "不执行外部 CLI。"
+
+  - name: jimeng_login_start
+    method: POST
+    path: /api/jimeng/login/start
+    body: null
+    status: [401, 503]
+    response_503:
+      detail:
+        code: JIMENG_LOGIN_NOT_INTEGRATED
+    acceptance: "不生成伪造二维码，不创建登录状态。"
+
+  - name: jimeng_login_status
+    method: GET
+    path: /api/jimeng/login/status
+    body: null
+    status: [200, 401]
+    response_200:
+      logged_in: false
+      running: false
+      qr_url: ""
+      raw: null
+      data_status: "observed | not_integrated"
+    acceptance: "只返回可证明的未登录/未运行状态。"
+
+  - name: jimeng_logout
+    method: POST
+    path: /api/jimeng/logout
+    body: null
+    status: [401, 503]
+    response_503:
+      detail:
+        code: JIMENG_LOGIN_NOT_INTEGRATED
+    acceptance: "不修改任何外部登录会话。"
+
+  - name: jimeng_status
+    method: GET
+    path: /api/jimeng/status
+    body: null
+    status: [200, 401]
+    response_200:
+      logged_in: false
+      raw: null
+      execution_enabled: false
+      data_status: "observed | not_integrated"
+    acceptance: "PATH 观察不等于登录或服务可用。"
+
+  - name: projects_compat_list
+    method: GET
+    path: /api/projects
+    body: null
+    status: [200, 401]
+    response_200:
+      projects: "项目中心 ProjectItem 数组"
+    acceptance: "与 /api/asset-registry/projects 共享同一真值，不制造第二套项目存储。"
+
+  - name: projects_compat_get
+    method: GET
+    path: /api/projects/{project_id}
+    body: null
+    status: [200, 401, 404]
+    response_200:
+      project: "ProjectItem"
+    errors:
+      404: "PROJECT_NOT_FOUND"
+    acceptance: "读取稳定 project_id；不存在返回标准 404。"

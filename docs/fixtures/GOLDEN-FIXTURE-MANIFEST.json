@@ -7,6 +7,12 @@
   },
   "fixtures": [
     {
+      "id": "phase11-b1-boundary-v1",
+      "file": "phase11-b1-boundary.json",
+      "kind": "contract-boundary",
+      "purpose": "认证、团队与令牌管理的最小洁净室边界；禁止回显或持久化令牌原文"
+    },
+    {
       "id": "projects-hub-list-active-v1",
       "file": "projects-hub-list-active.json",
       "kind": "api-response",

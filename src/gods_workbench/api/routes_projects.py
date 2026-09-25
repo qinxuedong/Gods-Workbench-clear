@@ -6,11 +6,12 @@
 from typing import Optional
 from fastapi import APIRouter, Header, Query, status
 
-from gods_workbench.core.auth import require_edit_access, require_governance_access
+from gods_workbench.core.auth import require_authenticated, require_edit_access, require_governance_access
 from gods_workbench.core.errors import UnauthorizedException
 from gods_workbench.projects_hub.models import (
     CasVersionRequest,
     ProjectCreateRequest,
+    ProjectDetailResponse,
     ProjectListResponse,
     ProjectMutationResponse,
     ProjectUpdateRequest,
@@ -143,3 +144,45 @@ def restore_project_from_trash(
     require_governance_access(authorization, x_user_role)
     result = default_projects_service.restore_from_trash(project_id, payload.expected_version)
     return ProjectMutationResponse(project=result)
+
+
+# ---------------------------------------------------------------------------
+# B2 兼容项目路径
+# ---------------------------------------------------------------------------
+
+legacy_router = APIRouter(tags=["projects-compat"])
+
+
+@legacy_router.get(
+    "/api/projects",
+    response_model=ProjectListResponse,
+    summary="兼容读取项目列表",
+    status_code=status.HTTP_200_OK,
+)
+def list_projects_compat(
+    archived: Optional[bool] = Query(False, description="是否包含归档项目"),
+    deleted: Optional[bool] = Query(None, description="是否包含回收站项目"),
+    authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role"),
+):
+    """兼容旧工作台路径，复用项目中心同一内存真值。"""
+    require_authenticated(authorization, x_user_role)
+    return ProjectListResponse(
+        projects=default_projects_service.list_projects(archived=archived, deleted=deleted)
+    )
+
+
+@legacy_router.get(
+    "/api/projects/{project_id}",
+    response_model=ProjectDetailResponse,
+    summary="兼容读取单个项目",
+    status_code=status.HTTP_200_OK,
+)
+def get_project_compat(
+    project_id: str,
+    authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role"),
+):
+    """读取项目详情；不存在返回标准 PROJECT_NOT_FOUND。"""
+    require_authenticated(authorization, x_user_role)
+    return ProjectDetailResponse(project=default_projects_service.get_project(project_id))

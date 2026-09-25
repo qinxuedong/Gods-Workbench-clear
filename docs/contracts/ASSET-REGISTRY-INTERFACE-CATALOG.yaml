@@ -1,0 +1,453 @@
+# -*- coding: utf-8 -*-
+meta:
+  source: "Phase 11 B3 前端调用面与洁净室边界收敛"
+  review_status: "implementation_pending_independent_review"
+  distribution: "NOT AUTHORIZED FOR PUBLIC DISTRIBUTION"
+  cleanroom_notice: "不复制旧仓实现；不读取本地文件；不发起网络或外部媒体处理；未准入能力统一 503。"
+service: asset_registry
+version: p11-b3-cleanroom-1
+decisions:
+  stable_ids: "对外只使用 asset_id、version_id、folder_id、job_id、project_id、entity_id、tag_id 等稳定字段。"
+  empty_truth: "当前没有真实资产数据源，列表/状态/治理读取返回空集合并标记 data_status=ok 或 not_integrated，不生成演示资产。"
+  fail_closed: "媒体、文件、远程资源、索引、治理写入和任务操作未获准入时返回 503，错误外层统一为 detail。"
+  auth: "读取端点要求认证；写入/治理端点先做角色检查，再执行失败关闭；OIDC 角色不信任请求头。"
+  cas: "本最小闭环不执行资源写入，因此不伪造版本推进；后续真实写服务必须带 expected_version 并返回 409。"
+interfaces:
+  - name: get_api_asset_registry
+    method: GET
+    path: /api/asset-registry
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_assets
+    method: GET
+    path: /api/asset-registry/assets
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_archive
+    method: POST
+    path: /api/asset-registry/assets/archive
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_export_pdf
+    method: POST
+    path: /api/asset-registry/assets/export-pdf
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_import
+    method: POST
+    path: /api/asset-registry/assets/import
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_relations
+    method: POST
+    path: /api/asset-registry/assets/relations
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_resolve_reference
+    method: POST
+    path: /api/asset-registry/assets/resolve-reference
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_tags
+    method: POST
+    path: /api/asset-registry/assets/tags
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_assets_asset_id
+    method: GET
+    path: /api/asset-registry/assets/{asset_id}
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: patch_api_asset_registry_assets_asset_id
+    method: PATCH
+    path: /api/asset-registry/assets/{asset_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: delete_api_asset_registry_assets_asset_id
+    method: DELETE
+    path: /api/asset-registry/assets/{asset_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_assets_asset_id_image_versions
+    method: GET
+    path: /api/asset-registry/assets/{asset_id}/image-versions
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_asset_id_image_versions
+    method: POST
+    path: /api/asset-registry/assets/{asset_id}/image-versions
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: patch_api_asset_registry_assets_asset_id_image_versions_version_id
+    method: PATCH
+    path: /api/asset-registry/assets/{asset_id}/image-versions/{version_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: delete_api_asset_registry_assets_asset_id_image_versions_version_id
+    method: DELETE
+    path: /api/asset-registry/assets/{asset_id}/image-versions/{version_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_assets_asset_id_image_versions_version_id_media
+    method: GET
+    path: /api/asset-registry/assets/{asset_id}/image-versions/{version_id}/media
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_assets_asset_id_media
+    method: GET
+    path: /api/asset-registry/assets/{asset_id}/media
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_asset_id_open_local
+    method: POST
+    path: /api/asset-registry/assets/{asset_id}/open-local
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: delete_api_asset_registry_assets_asset_id_relations_related_asset_id
+    method: DELETE
+    path: /api/asset-registry/assets/{asset_id}/relations/{related_asset_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: delete_api_asset_registry_assets_asset_id_tags_tag_id
+    method: DELETE
+    path: /api/asset-registry/assets/{asset_id}/tags/{tag_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_assets_asset_id_video_clip
+    method: POST
+    path: /api/asset-registry/assets/{asset_id}/video/clip
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_assets_asset_id_video_frame
+    method: GET
+    path: /api/asset-registry/assets/{asset_id}/video/frame
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_assets_asset_id_video_storyboard
+    method: GET
+    path: /api/asset-registry/assets/{asset_id}/video/storyboard
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_facets
+    method: GET
+    path: /api/asset-registry/facets
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_folders
+    method: GET
+    path: /api/asset-registry/folders
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_folders
+    method: POST
+    path: /api/asset-registry/folders
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_governance_asset_trash_entry_id_restore
+    method: POST
+    path: /api/asset-registry/governance/asset-trash/{entry_id}/restore
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_governance_assets_asset_id_restore
+    method: POST
+    path: /api/asset-registry/governance/assets/{asset_id}/restore
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_governance_audit_outbox_reconcile
+    method: POST
+    path: /api/asset-registry/governance/audit-outbox/reconcile
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_governance_canvases_purge_expired
+    method: POST
+    path: /api/asset-registry/governance/canvases/purge-expired
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_governance_canvases_canvas_id_restore
+    method: POST
+    path: /api/asset-registry/governance/canvases/{canvas_id}/restore
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_governance_cascade_preview
+    method: GET
+    path: /api/asset-registry/governance/cascade-preview
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_governance_operations
+    method: POST
+    path: /api/asset-registry/governance/operations
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_governance_overview
+    method: GET
+    path: /api/asset-registry/governance/overview
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_index_sync
+    method: POST
+    path: /api/asset-registry/index/sync
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_preferences_team
+    method: GET
+    path: /api/asset-registry/preferences/team
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: patch_api_asset_registry_preferences_team
+    method: PATCH
+    path: /api/asset-registry/preferences/team
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_presets
+    method: GET
+    path: /api/asset-registry/presets
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_presets
+    method: POST
+    path: /api/asset-registry/presets
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: delete_api_asset_registry_presets_preset_id
+    method: DELETE
+    path: /api/asset-registry/presets/{preset_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_project_directory_templates
+    method: GET
+    path: /api/asset-registry/project-directory-templates
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_project_directory_templates
+    method: POST
+    path: /api/asset-registry/project-directory-templates
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: patch_api_asset_registry_project_directory_templates_template_id
+    method: PATCH
+    path: /api/asset-registry/project-directory-templates/{template_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_project_directory_templates_template_id_archive
+    method: POST
+    path: /api/asset-registry/project-directory-templates/{template_id}/archive
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_project_directory_templates_template_id_default
+    method: POST
+    path: /api/asset-registry/project-directory-templates/{template_id}/default
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: patch_api_asset_registry_project_entities_entity_id
+    method: PATCH
+    path: /api/asset-registry/project-entities/{entity_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: patch_api_asset_registry_project_gates_gate_id
+    method: PATCH
+    path: /api/asset-registry/project-gates/{gate_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_project_recycle_project_id_restore
+    method: POST
+    path: /api/asset-registry/project-recycle/{project_id}/restore
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_projects_project_id_assets
+    method: POST
+    path: /api/asset-registry/projects/{project_id}/assets
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_projects_project_id_entities
+    method: POST
+    path: /api/asset-registry/projects/{project_id}/entities
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_recycle_bin
+    method: GET
+    path: /api/asset-registry/recycle-bin
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_recycle_bin_entry_id_restore
+    method: POST
+    path: /api/asset-registry/recycle-bin/{entry_id}/restore
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_reindex
+    method: POST
+    path: /api/asset-registry/reindex
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_remote_assets
+    method: GET
+    path: /api/asset-registry/remote-assets
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_remote_assets
+    method: POST
+    path: /api/asset-registry/remote-assets
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: delete_api_asset_registry_remote_assets_asset_id
+    method: DELETE
+    path: /api/asset-registry/remote-assets/{asset_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: patch_api_asset_registry_settings_features_feature_id
+    method: PATCH
+    path: /api/asset-registry/settings/features/{feature_id}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: patch_api_asset_registry_settings_index_automation
+    method: PATCH
+    path: /api/asset-registry/settings/index-automation
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_status
+    method: GET
+    path: /api/asset-registry/status
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: get_api_asset_registry_workspace_jobs_job_id
+    method: GET
+    path: /api/asset-registry/workspace-jobs/{job_id}
+    body: null
+    status: [200, 401, 403, 404]
+    response_200: "读取端点返回稳定外层；空集合不填充伪造资产。"
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+  - name: post_api_asset_registry_workspace_jobs_job_id_action
+    method: POST
+    path: /api/asset-registry/workspace-jobs/{job_id}/{action}
+    body: "JSON object or multipart for import; payload is not read when capability is rejected"
+    status: [200, 401, 403, 404, 503]
+    response_503: {code: ASSET_REGISTRY_NOT_INTEGRATED, unavailable: true, data_status: not_integrated}
+    acceptance: "统一错误包 {detail:{code,message,...}}；未准入副作用不得返回成功。"
+fixture_contract:
+  empty_registry: "docs/fixtures/phase11-b3-empty-registry.json"
+  fail_closed: "docs/fixtures/phase11-b3-fail-closed.json"
+  route_matrix: "docs/fixtures/phase11-b3-route-matrix.json"
+data_gaps:
+  - "asset_registry_source_not_connected"
+  - "media_storage_not_connected"
+  - "local_file_access_not_admitted"
+  - "remote_asset_source_not_connected"
+  - "asset_index_not_connected"
+  - "governance_store_not_connected"

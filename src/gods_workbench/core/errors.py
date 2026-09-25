@@ -15,6 +15,9 @@ class ErrorDetail(BaseModel):
     expected_version: Optional[int] = Field(None, description="期望的 CAS 版本")
     current_version: Optional[int] = Field(None, description="当前实际的 CAS 版本")
     canvas_id: Optional[str] = Field(None, description="冲突的画布标识")
+    endpoint: Optional[str] = Field(None, description="产生错误的接口路径")
+    unavailable: Optional[bool] = Field(None, description="能力当前不可用或未准入")
+    data_status: Optional[str] = Field(None, description="数据可用性状态")
 
 
 class ErrorEnvelope(BaseModel):
@@ -26,18 +29,33 @@ class ErrorEnvelope(BaseModel):
 class CleanroomException(Exception):
     """洁净室顶层应用异常。"""
 
-    def __init__(self, status_code: int, code: str, message: str, extra: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        extra: Optional[Dict[str, Any]] = None,
+        expose_extra_fields: Optional[set[str]] = None,
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.message = message
         self.extra = extra or {}
+        # 允许某些新模块显式暴露受控错误元数据；默认保持既有夹具行为。
+        self.expose_extra_fields = expose_extra_fields
 
     def to_envelope(self) -> ErrorEnvelope:
+        # 默认只保留既有 CAS/画布冲突字段，维持冻结黄金夹具的错误形状；
+        # 新模块必须显式声明允许外露的元数据，避免未知字段污染既有契约。
+        allowed = {"expected_version", "current_version", "canvas_id"}
+        if self.expose_extra_fields is not None:
+            allowed = self.expose_extra_fields
+        exposed = {key: value for key, value in self.extra.items() if key in allowed}
         payload = {
             "code": self.code,
             "message": self.message,
-            **self.extra,
+            **exposed,
         }
         return ErrorEnvelope(detail=ErrorDetail(**payload))
 

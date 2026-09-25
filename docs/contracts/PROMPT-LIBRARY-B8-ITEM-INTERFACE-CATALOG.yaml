@@ -1,0 +1,11 @@
+# Phase 11 B8 提示词条目接口目录
+meta:
+  version: p11-b8-1
+  distribution: NOT AUTHORIZED FOR PUBLIC DISTRIBUTION
+  unavailable_status: 503
+  unavailable_code: PROMPT_LIBRARY_ITEMS_NOT_INTEGRATED
+interfaces:
+  - {name: post_prompt_item, method: POST, path: /api/prompt-libraries/items}
+  - {name: post_prompt_items_delete, method: POST, path: /api/prompt-libraries/items/delete}
+  - {name: patch_prompt_item, method: PATCH, path: /api/prompt-libraries/items/{p}}
+  - {name: delete_prompt_item, method: DELETE, path: /api/prompt-libraries/items/{p}}

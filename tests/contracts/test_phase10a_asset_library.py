@@ -194,14 +194,13 @@ def test_seeded_library_uses_stable_ids(seeded_client: TestClient):
     assert "cid" not in category
 
 
-def test_unimplemented_asset_library_endpoints_still_404(seeded_client: TestClient):
-    """未获契约授权的素材库端点必须仍然不可用（不得顺带实现）。"""
+def test_unsupported_asset_library_methods_still_unavailable(seeded_client: TestClient):
+    """B4 已接入的路径仍只开放契约声明的方法，其他方法保持不可用。"""
     for method, path in [
         ("get", "/api/asset-library/libraries/library_default"),
-        ("patch", "/api/asset-library/categories/category_image"),
-        ("delete", "/api/asset-library/categories/category_image"),
-        ("post", "/api/asset-library/items/batch"),
-        ("post", "/api/asset-library/workflows/upload"),
+        ("get", "/api/asset-library/categories/category_image"),
+        ("get", "/api/asset-library/items/batch"),
+        ("get", "/api/asset-library/workflows/upload"),
     ]:
         res = getattr(seeded_client, method)(path, headers=EDITOR)
-        assert res.status_code == 404, f"{method.upper()} {path} 不应可用"
+        assert res.status_code in {404, 405}, f"{method.upper()} {path} 不应可用"

@@ -37,6 +37,12 @@ class ProjectItem(BaseModel):
     updated_at: Optional[str] = Field(None, description="最近更新时间")
 
 
+class ProjectDetailResponse(BaseModel):
+    """兼容路径单项目读取包装。"""
+
+    project: ProjectItem
+
+
 class ProjectListResponse(BaseModel):
     """项目列表返回结构。"""
 

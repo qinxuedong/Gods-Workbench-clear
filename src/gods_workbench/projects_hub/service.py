@@ -82,6 +82,14 @@ class ProjectsService:
             # 保持排序稳定：按创建/ID 逆序
             return sorted(results, key=lambda x: x.project_id, reverse=True)
 
+    def get_project(self, project_id: str) -> ProjectItem:
+        """读取单个项目真值，供 B2 兼容路径使用。"""
+        with self._lock:
+            item = self._projects.get(project_id)
+            if not item:
+                raise CleanroomException(status_code=404, code="PROJECT_NOT_FOUND", message=f"项目 {project_id} 不存在")
+            return copy.deepcopy(item)
+
     def create_project(self, payload: ProjectCreateRequest) -> ProjectMutationResult:
         """创建项目并分配初始稳定 ID 与版本 1。"""
         with self._lock:

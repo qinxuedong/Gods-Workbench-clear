@@ -1,0 +1,13 @@
+# Phase 11 B7 剧集流水线接口目录
+meta:
+  version: p11-b7-1
+  distribution: NOT AUTHORIZED FOR PUBLIC DISTRIBUTION
+  unavailable_status: 503
+  unavailable_code: EPISODE_PIPELINE_NOT_INTEGRATED
+interfaces:
+  - {name: get_episode_pipelines, method: GET, path: /api/episode-pipelines}
+  - {name: post_episode_pipelines, method: POST, path: /api/episode-pipelines}
+  - {name: get_episode_pipeline, method: GET, path: /api/episode-pipelines/{p}}
+  - {name: post_episode_stage_cancel, method: POST, path: /api/episode-pipelines/{p}/stages/{p}/cancel}
+  - {name: post_episode_stage_complete, method: POST, path: /api/episode-pipelines/{p}/stages/{p}/complete}
+  - {name: post_episode_stage_start, method: POST, path: /api/episode-pipelines/{p}/stages/{p}/start}

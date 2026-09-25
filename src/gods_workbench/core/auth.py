@@ -14,6 +14,7 @@
 配置缺失时一律失败关闭（拒绝请求），不静默降级为本地通行。
 """
 
+import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
@@ -137,7 +138,9 @@ def require_authenticated(
     role = (user_role or "editor").strip().lower()
     if role not in KNOWN_ROLES:
         raise ForbiddenException(message="未知用户角色，已拒绝请求")
-    return AuthContext(role=role, mode=AUTH_MODE_LOCAL)
+    # 本地模式不暴露 Bearer 原文；用摘要作为进程内稳定主体，供资源范围过滤。
+    subject = hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
+    return AuthContext(role=role, subject=f"local:{subject}", mode=AUTH_MODE_LOCAL)
 
 
 def require_edit_access(authorization: Optional[str], user_role: Optional[str] = "editor") -> AuthContext:

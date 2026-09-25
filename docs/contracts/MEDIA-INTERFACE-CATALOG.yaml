@@ -1,0 +1,23 @@
+# -*- coding: utf-8 -*-
+# Phase 11 B5 媒体处理与缩略图洁净室接口目录
+meta:
+  version: p11-b5-1
+  distribution: NOT AUTHORIZED FOR PUBLIC DISTRIBUTION
+  data_policy: "不读取本机文件、不联网、不执行外部进程、不伪造媒体 URL 或任务进度。"
+  unavailable_status: 503
+  unavailable_code: MEDIA_NOT_INTEGRATED
+interfaces:
+  - {name: get_asset_proxy_settings, method: GET, path: /api/asset-proxy/settings}
+  - {name: patch_asset_proxy_settings, method: PATCH, path: /api/asset-proxy/settings}
+  - {name: get_asset_thumbnail_settings, method: GET, path: /api/asset-thumbnails/settings}
+  - {name: patch_asset_thumbnail_settings, method: PATCH, path: /api/asset-thumbnails/settings}
+  - {name: post_asset_thumbnail_delete, method: POST, path: /api/asset-thumbnails/delete}
+  - {name: post_asset_thumbnail_delete_storyboards, method: POST, path: /api/asset-thumbnails/delete-storyboards}
+  - {name: post_asset_thumbnail_generate, method: POST, path: /api/asset-thumbnails/generate}
+  - {name: post_asset_thumbnail_generate_background, method: POST, path: /api/asset-thumbnails/generate-background}
+  - {name: get_asset_thumbnail_job, method: GET, path: /api/asset-thumbnails/jobs/{p}}
+  - {name: get_audio_waveform_data, method: GET, path: /api/audio-waveform-data}
+  - {name: get_download_output, method: GET, path: /api/download-output}
+  - {name: get_media_preview, method: GET, path: /api/media-preview}
+  - {name: get_media_transcode, method: GET, path: /api/media-transcode}
+  - {name: post_online_image, method: POST, path: /api/online-image}
