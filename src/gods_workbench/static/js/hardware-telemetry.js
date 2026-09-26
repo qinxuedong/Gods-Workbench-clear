@@ -587,7 +587,7 @@
       this.renderAccountModalContent();
     },
 
-    // 6. Real Team & Member Management (/api/asset-auth/teams & /static/asset-manager.html & /static/v2/collab.html)
+    // 6. Real Team & Member Management (/api/asset-auth/teams & /static/v2/assets.html & /static/v2/collab.html)
     openTeamModal: async function() {
       let modal = document.getElementById('teamModal');
       if (!modal) {
@@ -639,14 +639,14 @@
               <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500 group-hover:text-[#eddab3] transition"></i>
             </a>
 
-            <a href="/static/asset-manager.html" target="_blank" class="bay-inset p-2 rounded-xl flex items-center justify-between group hover:border-[#dfc384]/40 transition border border-white/5">
+            <a href="/static/v2/assets.html" class="bay-inset p-2 rounded-xl flex items-center justify-between group hover:border-[#dfc384]/40 transition border border-white/5">
               <div class="flex items-center space-x-2">
                 <div class="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-300">
                   <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
                 </div>
                 <div>
                   <div class="font-bold text-slate-200 group-hover:text-cyan-300 transition">权限与团队审批</div>
-                  <div class="text-[8.5px] font-mono text-slate-400">/static/asset-manager.html</div>
+                  <div class="text-[8.5px] font-mono text-slate-400">/static/v2/assets.html</div>
                 </div>
               </div>
               <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300 transition"></i>
@@ -721,7 +721,7 @@
             <div class="bay-inset p-2.5 rounded-xl text-center text-[10px] font-mono text-slate-400">
               <i data-lucide="users" class="w-4 h-4 mx-auto mb-1 text-slate-500" aria-hidden="true"></i>
               <span class="block">暂无团队与席位数据</span>
-              <span class="block mt-0.5 text-[9px] text-slate-500">接口已就绪；可前往 <a href="/static/asset-manager.html" target="_blank" class="text-[#dfc384] underline">资产管理页</a> 创建团队与成员。</span>
+              <span class="block mt-0.5 text-[9px] text-slate-500">接口已就绪；可前往 <a href="/static/v2/assets.html" class="text-[#dfc384] underline">资产管理页</a> 创建团队与成员。</span>
             </div>`;
           containers.forEach(c => c.innerHTML = emptyHtml);
           if (window.lucide) window.lucide.createIcons();
@@ -803,7 +803,7 @@
             <!-- 原版系统三大真实设置入口 -->
             <div class="text-[10px] font-mono text-[#dfc384] font-bold">核心配置入口</div>
             <div class="grid grid-cols-3 gap-2">
-              <a href="/static/api-settings.html" target="_blank" class="bay-inset p-2.5 rounded-xl flex flex-col justify-between group hover:border-[#dfc384]/50 transition border border-white/5">
+              <a href="/static/v2/settings.html?section=api-settings" class="bay-inset p-2.5 rounded-xl flex flex-col justify-between group hover:border-[#dfc384]/50 transition border border-white/5">
                 <div class="flex items-center space-x-1.5 mb-1 text-slate-100 group-hover:text-[#dfc384] transition">
                   <i data-lucide="key" class="w-3.5 h-3.5 text-[#dfc384]"></i>
                   <span class="font-bold text-[11px]">API 设置</span>
@@ -815,7 +815,7 @@
                 </div>
               </a>
 
-              <a href="/static/v2/settings.html" target="_blank" class="bay-inset p-2.5 rounded-xl flex flex-col justify-between group hover:border-amber-400/50 transition border border-white/5">
+              <a href="/static/v2/settings.html" class="bay-inset p-2.5 rounded-xl flex flex-col justify-between group hover:border-amber-400/50 transition border border-white/5">
                 <div class="flex items-center space-x-1.5 mb-1 text-slate-100 group-hover:text-amber-300 transition">
                   <i data-lucide="sliders" class="w-3.5 h-3.5 text-amber-400"></i>
                   <span class="font-bold text-[11px]">通用偏好</span>

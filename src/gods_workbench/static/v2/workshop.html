@@ -1101,7 +1101,7 @@
         }
 
         if (pipelineIframe) {
-          let targetUrl = `/static/episode-pipeline.html?project_id=${encodeURIComponent(projectId)}&step=${encodeURIComponent(step)}`;
+          let targetUrl = `/static/episode-pipeline.html?embedded=1&project_id=${encodeURIComponent(projectId)}&step=${encodeURIComponent(step)}`;
           if (pipelineId) targetUrl += `&pipeline_id=${encodeURIComponent(pipelineId)}`;
 
           try {

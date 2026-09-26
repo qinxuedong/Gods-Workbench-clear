@@ -66,6 +66,12 @@ window.V2Assets = (() => {
     } catch (error) { setVaultStatus(error.message); }
   }
 
+  function openRequestedAsset() {
+    const assetId = new URLSearchParams(location.search).get('asset_id');
+    if (!assetId || !frame?.contentWindow) return;
+    frame.contentWindow.postMessage({ type: 'asset-global-search', asset_id: assetId }, location.origin);
+  }
+
   function syncCategories() {
     if (manager()?.querySelector('[data-tab="registry"][aria-selected="true"]')) setVaultStatus('');
     const controls = [...(manager()?.querySelectorAll('[data-registry-stat]') || [])];
@@ -143,7 +149,7 @@ window.V2Assets = (() => {
     observer = new MutationObserver(syncCategories);
     observer.observe(doc.getElementById('assetManagerRoot') || doc.body, {childList: true, subtree: true});
     syncCategories();
-    waitForControl('[data-tab="registry"]').then(() => { setVaultStatus(''); mirrorFrameDegradation(); }).catch(error => { setVaultStatus(error.message); });
+    waitForControl('[data-tab="registry"]').then(() => { setVaultStatus(''); mirrorFrameDegradation(); openRequestedAsset(); }).catch(error => { setVaultStatus(error.message); });
   }
   function bindElements() {
     frame = document.getElementById('assetVaultFrame');
@@ -161,7 +167,7 @@ window.V2Assets = (() => {
 
   function syncFrameSource() {
     if (!frame) return;
-    const source = new URL(frame.dataset.src || '/static/asset-manager.html', location.origin);
+    const source = new URL(frame.dataset.src || '/static/asset-manager.html?embedded=1&vault=1', location.origin);
     const contextParams = new URLSearchParams(location.search);
     for (const key of ['project_id', 'pipeline_id', 'asset_id']) {
       if (contextParams.has(key)) source.searchParams.set(key, contextParams.get(key));

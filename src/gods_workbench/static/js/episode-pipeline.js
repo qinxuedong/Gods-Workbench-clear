@@ -66,7 +66,7 @@
   function scriptGenerationContext(data, mode) { return {script_mode: mode.key, output_mode: mode.label, genre: String(data.scriptGenre || ''), visual_style: String(data.scriptStyle || ''), episode_duration: String(data.scriptDuration || ''), pacing: String(data.scriptPacing || '')}; }
   function scriptGenerationSettingsText(context) { return `当前生成参数（必须纳入本次输出，不得忽略）：\n- 题材预设：${context.genre}\n- 视听风格：${context.visual_style}\n- 单集时长：${context.episode_duration}\n- 节奏：${context.pacing}\n- 输出模式：${context.output_mode}`; }
   function promptSource(pipeline, stage) { const doc = promptDocument(pipeline, stagePromptItem(pipeline, stage)); return `${state.libraries.find(item => item.id === (pipeline?.prompt_library_id || 'episode'))?.name || '当前项目剧集提示词库'} · ${doc.name}`; }
-  const SCRIPT_ARCHITECT_ROUTE = '/static/episode-pipeline.html?agent=script-03';
+  const SCRIPT_ARCHITECT_ROUTE = '/static/v2/workshop.html?step=script&agent=script-03';
   const SCRIPT_ARCHITECT_AGENT_ID = 'script-03';
   function auraAgentFor(stageKey) { return stageKey === 'script' || stageKey === 'video' ? 'script-03' : stageKey === 'audio_compose' ? 'vox-04' : stageKey === 'assets' ? 'flux-02' : 'aura-01'; }
   function auraOperation(stageKey, itemId) { const stage = STAGES.find(item => item.key === stageKey); return `${stage?.display || stageKey} · ${itemId || '文本模型执行'}`; }

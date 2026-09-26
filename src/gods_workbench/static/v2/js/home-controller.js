@@ -1275,7 +1275,7 @@ window.V2Home = (function () {
             const meta = getAssetMeta(a.asset_type || a.type, a.file_path || a.name || a.title);
             const name = a.name || a.title || a.file_path?.split('/').pop() || '未命名资产';
             const sizeStr = a.file_size ? formatBytes(a.file_size) : (a.size_label || '24 MB');
-            const targetUrl = a.id ? `/static/asset-manager.html#asset=${encodeURIComponent(a.id)}` : 'assets.html';
+            const targetUrl = a.id ? `/static/v2/assets.html?asset_id=${encodeURIComponent(a.id)}` : 'assets.html';
 
             return `
               <div class="bay-inset p-2 rounded-lg flex items-center justify-between hover:border-[#dfc384]/40 transition group cursor-pointer" onclick="location.href='${targetUrl}'" title="单击前往资产详情">

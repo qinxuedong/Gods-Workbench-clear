@@ -648,13 +648,20 @@ function openEpisodePipelineFromAsset(asset={}){
     try {
         const target = parent.document.getElementById('frame-episode-pipeline');
         if(target){
-            const source = target.dataset.src || '/static/episode-pipeline.html';
-            target.src = `${source}${query ? `?${query}` : ''}`;
+            const source = target.dataset.src || '/static/episode-pipeline.html?embedded=1';
+            const targetUrl = new URL(source, window.location.origin);
+            if(asset.projectId) targetUrl.searchParams.set('project_id', String(asset.projectId));
+            if(asset.pipelineId) targetUrl.searchParams.set('pipeline_id', String(asset.pipelineId));
+            target.src = targetUrl.href;
             parent.switchUI(parent.document.querySelector("[onclick*=\"'episode-pipeline'\"]"), 'episode-pipeline');
             return;
         }
     } catch(_) {}
-    location.href = `/static/episode-pipeline.html${query ? `?${query}` : ''}`;
+    const v2Target = `/static/v2/workshop.html?step=script${query ? `&${query}` : ''}`;
+    try {
+        if(window.top !== window){ window.top.location.href = v2Target; return; }
+    } catch(_) {}
+    location.href = v2Target;
 }
 function renderScriptAssetsManager(){
     const items = scriptArchiveItems.length ? scriptArchiveItems : readScriptWorkspaceAssets();

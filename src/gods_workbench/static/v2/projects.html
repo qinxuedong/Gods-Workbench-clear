@@ -445,7 +445,7 @@
         <div class="h-4 w-px bg-white/10"></div>
 
         <!-- 拟物头像键帽 (原智能体核心位置，替换左下角登录用户，无文字只显头像) -->
-        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="认证状态未接入：点击打开认证中心查看真实登录状态" data-gw-identity="unverified">
+        <div class="hw-avatar-keycap ml-1 cursor-pointer hover:scale-105 active:scale-95 transition" title="认证状态未接入：点击打开认证中心查看真实登录状态" role="button" tabindex="0" aria-label="打开认证中心" data-gw-identity="unverified">
           <div class="hw-avatar-keycap-inner">
             <i data-lucide="shield-check" class="w-4 h-4 text-[#eddab3]"></i>
           </div>
@@ -906,14 +906,14 @@
             <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500 group-hover:text-[#eddab3] transition"></i>
           </a>
 
-          <a href="/static/asset-manager.html" target="_blank" class="bay-inset p-2 rounded-xl flex items-center justify-between group hover:border-[#dfc384]/40 transition border border-white/5">
+          <a href="/static/v2/assets.html" class="bay-inset p-2 rounded-xl flex items-center justify-between group hover:border-[#dfc384]/40 transition border border-white/5">
             <div class="flex items-center space-x-2">
               <div class="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-300">
                 <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
               </div>
               <div>
                 <div class="font-bold text-slate-200 group-hover:text-cyan-300 transition">权限与团队审批</div>
-                <div class="text-[8.5px] font-mono text-slate-400">/static/asset-manager.html</div>
+                <div class="text-[8.5px] font-mono text-slate-400">/static/v2/assets.html</div>
               </div>
             </div>
             <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300 transition"></i>
@@ -1075,7 +1075,7 @@
         </button>
       </div>
 
-      <a href="/static/governance.html" target="_blank" class="text-[9px] font-mono text-[#dfc384] hover:underline flex items-center space-x-1" title="打开完整治理页面">
+      <a href="/static/v2/projects.html?openTrash=1" class="text-[9px] font-mono text-[#dfc384] hover:underline flex items-center space-x-1" title="打开 V2 统一回收站">
         <span>高级审计</span>
         <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
       </a>

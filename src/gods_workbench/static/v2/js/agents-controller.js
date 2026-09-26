@@ -11,7 +11,7 @@ window.V2Agents = (function () {
     agents: [
       { id: 'aura-01', name: 'AURA·核心调度脑', role: '系统编排与逻辑拆解', status: 'not_integrated', model: 'Claude-3.5-Sonnet', active: true },
       { id: 'flux-02', name: 'FLUX-PRO 电影原画师', role: '4K ACEScg 视觉生成', status: 'not_integrated', model: 'FLUX.1-DEV + LoRA', active: false },
-      { id: 'script-03', name: 'SCRIPT-ARCH 剧本架构师', role: '文学分镜与冲突提炼', status: 'not_integrated', model: 'DeepSeek-R1 / V3', active: false, route: '/static/episode-pipeline.html?agent=script-03' },
+      { id: 'script-03', name: 'SCRIPT-ARCH 剧本架构师', role: '文学分镜与冲突提炼', status: 'not_integrated', model: 'DeepSeek-R1 / V3', active: false, route: '/static/v2/workshop.html?step=script&agent=script-03' },
       { id: 'vox-04', name: 'VOX-SYNCLIP 配音合成师', role: '音效唇形与声音克隆', status: 'not_integrated', model: 'Wav2Lip + GPT-SoVITS', active: false }
     ],
     traces: [],
@@ -29,7 +29,7 @@ window.V2Agents = (function () {
       <div class="tree-node-card ${ag.active ? 'active' : ''} p-2 cursor-pointer transition" role="button" tabindex="0" onclick="V2Agents.selectAgent('${ag.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();V2Agents.selectAgent('${ag.id}')}" aria-label="选择 ${esc(ag.name)}">
         <div class="flex items-center justify-between mb-1">
           <div class="font-bold text-slate-100 text-xs truncate">${esc(ag.name)}</div>
-          ${ag.route ? `<a href="${esc(ag.route)}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-[#dfc384] shrink-0" title="打开剧本架构师路由" aria-label="打开剧本架构师路由" onclick="event.stopPropagation()"><i data-lucide="external-link" class="w-3 h-3"></i></a>` : ''}
+          ${ag.route ? `<a href="${esc(ag.route)}" class="text-slate-400 hover:text-[#dfc384] shrink-0" title="打开剧本架构师路由" aria-label="打开剧本架构师路由" onclick="event.stopPropagation()"><i data-lucide="external-link" class="w-3 h-3"></i></a>` : ''}
           <span class="text-[7.5px] font-mono px-1 py-0.5 rounded-full ${ag.status === 'online' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}"${ag.status === 'not_integrated' ? ' data-gw-degradation="not_integrated"' : ''}>
             ${ag.status === 'not_integrated' ? '未接入' : ag.status}
           </span>

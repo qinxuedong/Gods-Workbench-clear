@@ -140,7 +140,7 @@ window.V2Collab = (() => {
           item.setAttribute('aria-selected', String(active));
           item.tabIndex = active ? 0 : -1;
         });
-        document.querySelector('[data-collab-route-link]').href = '/static/task-center.html?view=' + state.view;
+        document.querySelector('[data-collab-route-link]').href = '/static/v2/collab.html?view=' + encodeURIComponent(state.view);
         renderTaskFeed();
       });
       button.addEventListener('keydown', event => {

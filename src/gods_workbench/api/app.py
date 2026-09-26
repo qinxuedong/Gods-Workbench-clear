@@ -1,9 +1,10 @@
 """FastAPI 洁净室应用工厂与核心中间件。"""
 
 from pathlib import Path
+from urllib.parse import urlencode
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from gods_workbench.api.routes_ai import router as ai_router
@@ -129,6 +130,35 @@ def create_app() -> FastAPI:
     app.include_router(observability_router)
     app.include_router(prompt_library_router)
     app.include_router(settings_router)
+
+    # 统一 V2 用户入口：根级业务页只保留给 V2 内部 iframe 使用。
+    # `embedded=1` 是内部实现边界，不能重定向，否则会导致 iframe 循环。
+    legacy_v2_targets = {
+        "asset-manager": ("/static/v2/assets.html", ("project_id", "pipeline_id", "asset_id")),
+        "api-settings": ("/static/v2/settings.html", ("section", "project_id")),
+        "canvas-list": ("/static/v2/storyboard.html", ("project_id", "entity_id", "canvas_id", "view", "filter", "layout")),
+        "episode-pipeline": ("/static/v2/workshop.html", ("project_id", "pipeline_id", "step", "agent")),
+        "task-center": ("/static/v2/collab.html", ("view", "project_id")),
+        "governance": ("/static/v2/projects.html", ("openTrash", "project_id")),
+    }
+
+    @app.get("/static/{legacy_name}.html", include_in_schema=False)
+    async def legacy_page_v2_entry(request: Request, legacy_name: str):
+        """把用户直接打开的根级业务页收口到 V2；内嵌切片仍由静态目录提供。"""
+        source = STATIC_DIR / f"{legacy_name}.html"
+        if not source.is_file() or legacy_name not in legacy_v2_targets:
+            # 交给静态挂载处理未知文件和公共分享深链，避免改变其匿名访问边界。
+            return FileResponse(source) if source.is_file() else JSONResponse({"detail": "Not Found"}, status_code=404)
+        if request.query_params.get("embedded") == "1":
+            return FileResponse(source)
+        target, keys = legacy_v2_targets[legacy_name]
+        params = []
+        for key in keys:
+            value = request.query_params.get(key)
+            if value is not None and value != "":
+                params.append((key, value))
+        query = urlencode(params)
+        return RedirectResponse(f"{target}?{query}" if query else target, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     # 挂载静态文件目录
     if STATIC_DIR.exists():
