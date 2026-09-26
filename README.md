@@ -25,18 +25,20 @@ python run.py
 
 ### Windows 一键启动
 
-在资源管理器中右键仓库根目录的 `启动GodsWorkbench.ps1`，选择“使用 PowerShell 运行”，程序会：
+在 Windows 资源管理器中**双击**仓库根目录的 `启动GodsWorkbench.pyw`（需已安装并关联 Python 3.11），程序会：
 
 1. 检查 `2077` 端口上是否已有健康的 Gods-Workbench 服务；
 2. 未运行时以隐藏窗口启动 `run.py`；
 3. 等待 `/healthz` 通过后自动打开项目中心首页；
-4. 将启动输出写入根目录 `logs/`，不回显或保存任何凭据。
+4. 将启动输出写入根目录 `logs/`；启动失败时弹窗提示日志位置，不回显或保存任何凭据。
 
 如需只启动服务、不打开浏览器：
 
 ```powershell
-.\启动GodsWorkbench.ps1 -NoBrowser
+py -3 .\启动GodsWorkbench.pyw --no-browser
 ```
+
+若双击打开的是编辑器，请先将 `.pyw` 关联到 Python Launcher (`pyw.exe`)；也可右键 `启动GodsWorkbench.ps1` 选择“使用 PowerShell 运行”。
 
 - 项目中心：`http://127.0.0.1:2077/`（307 重定向到 `/static/v2/projects.html`）
 - `god-canvas`：`http://127.0.0.1:2077/static/v2/workshop.html`
