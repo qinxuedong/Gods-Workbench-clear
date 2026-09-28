@@ -1,5 +1,6 @@
 """FastAPI 洁净室应用工厂与核心中间件。"""
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlencode
 from fastapi import FastAPI, Request, status
@@ -37,12 +38,24 @@ from gods_workbench.core.errors import CleanroomException
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
+@asynccontextmanager
+async def _app_lifespan(app: FastAPI):
+    """应用关闭时停止后台索引线程；任务、资产和用户文件保持原样。"""
+    try:
+        yield
+    finally:
+        # FastAPI 0.141 起应用对象不再提供 add_event_handler。
+        from gods_workbench.asset_registry.index_jobs import shutdown as shutdown_index_jobs
+        shutdown_index_jobs()
+
+
 def create_app() -> FastAPI:
     """构建并配置洁净应用实例。"""
     app = FastAPI(
         title="Gods-Workbench Cleanroom API",
         version="0.1.0",
         description="基于本轮修复输入与黄金夹具构建的洁净室服务骨架",
+        lifespan=_app_lifespan,
     )
 
     @app.exception_handler(CleanroomException)
@@ -222,9 +235,6 @@ def create_app() -> FastAPI:
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
-    # 后台索引暂停线程也必须随应用正常关闭；恢复由持久收据判定。
-    from gods_workbench.asset_registry.index_jobs import shutdown as shutdown_index_jobs
-    app.add_event_handler("shutdown", shutdown_index_jobs)
     return app
 
 

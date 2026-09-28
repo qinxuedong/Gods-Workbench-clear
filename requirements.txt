@@ -6,3 +6,8 @@ pydantic>=2.7,<3
 
 # 外部 IdP（OIDC）运行期接线所需密码学依赖：GW_AUTH_MODE=oidc 时用于 RS256 校验
 cryptography>=42,<47
+
+# 观测硬件读数、multipart 上传、图片缩略图。缺失时相关能力失败关闭，但 CI 与本机验收必须安装。
+psutil>=5.9,<8
+python-multipart>=0.0.9,<1
+pillow>=10,<13

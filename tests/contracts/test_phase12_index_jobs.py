@@ -32,6 +32,17 @@ def index_runtime(tmp_path, monkeypatch):
     jobs._default = None
 
 
+def test_application_shutdown_stops_index_executor(tmp_path, monkeypatch):
+    """应用退出必须停掉索引线程池，不能只依赖已删除的 add_event_handler。"""
+    monkeypatch.setenv("GW_DATA_DIR", str(tmp_path / "gw-data"))
+    app = create_app()
+    with TestClient(app):
+        service = jobs.service()
+        assert service.closed is False
+    assert service.closed is True
+    assert jobs._default is service
+
+
 def submit(client, payload=None, key="one", kind="reindex", auth=AUTH):
     return client.post(BASE + "/" + kind, headers={**auth, "Idempotency-Key": key},
                        json={"background": True, **(payload or {})})
