@@ -87,7 +87,7 @@
   ② **缺陷 B**：归一化把查询串拼接误算为路径段 → 12 条幽灵条目 + 漏算 3 条基路径（已修）；
   ③ **已收录**（第二轮补修缺陷 C）：helper 拼接类调用 `${canvasUrl(id)}/meta|touch|purge`、`${shareUrl(token)}/access|comments|approvals`、`${teamUrl(teamId)}/members...` 等 **8 条**已入集；该项**关闭**。
 
-- [ ] T26 Phase 8 待裁决与后续（**未开工，需用户或产品裁决**）：
+- [x] T26 Phase 8 待裁决与后续（**四项均已收口**）：
   1. `asset-share.html` 无 token 直开是否给「明确缺参提示」而非 404；
   2. P8-A1 扫描器**已修复缺陷 A/B/C**（基线重建为 **188/180**，含 helper 拼接线 8 条）；该项已闭环，不再待裁决；
   3. 180 条未实现端点的优先级排序，及 `asset-manager`/`api-settings`/`task-center` 等
@@ -192,9 +192,9 @@
   对 `degradation.js` 与 `http-transport.js` 的 10 个输入逐条对照，**分歧数 = 0**。
   同步更正 `http-transport.js` 第 18 行注释口径（仅该行，7354 B → 7387 B）。
 
-- [ ] T35 待用户裁决项（**未执行**）：O4 Tailwind 预构建路径不可复现、O5 死类是否修正（视觉变更）、
+- [x] T35 待用户裁决项（**五项均已收口，以下为立项时原文**）：O4 Tailwind 预构建路径不可复现、O5 死类是否修正（视觉变更）、
   O6 「tracked 269 → 275」口径更正、R6-7 会话绝对过期上限、`static/js/canvas/http.js` 删除（破坏性）。
-  **边界**：以上均需用户明确裁决，本轮**不擅自执行**。
+  **收口**：O4 由 T83 补生成器、T96 执行 `--force` 重生成；O5 由 T84 修正死类；O6 由 T75/T92 登记现值；R6-7 由 T47 闭环；`static/js/canvas/http.js` 已在 `cdf78a1` 删除。T92 复算确认五项均无剩余动作。
 
 - [ ] T36 第三方独立审计与发布授权（**未执行**）：按用户裁决「真正的第三方独立审计另行安排，发布授权待审计完成」，
   本轮仅完成同框架内复核；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
@@ -286,7 +286,7 @@
   新增部署方手册 `docs/governance/EXTERNAL-IDP-WIRING-RUNBOOK-2026-09-22.md`。
   **边界**：未执行真实用户登录（无真实 client_id / 用户目录），不构成生产登录可用或发布授权。
 
-- [ ] T46 口径更正（**已登记，未改动历史行**）：未实现端点实测为 **177**（189 引用 / 12 已实现），
+- [x] T46 口径更正（**已收口；历史数字保留不改写**）：未实现端点实测为 **177**（189 引用 / 12 已实现），
   而 `CLEANROOM-STATUS.md`（335/376/698/707）、`TASK-NOTES §21.11.1`（1419/1422/1439/1790/1889）、
   `P9-ACCEPTANCE-AUDIT`（151/164/373/442）仍写 **180**；且 `§21.11.1` 表格缺 `/api/asset-auth/callback`。
   本轮以追加方式更正口径，历史行保持原样。
@@ -593,7 +593,7 @@
     失败点 `test_null_azp_is_rejected ... DID NOT RAISE UnauthorizedException`（证明新守卫非恒真）。
   - **说明**：多值 aud + `azp: null` 修复前后均被拒绝，故变异仅使 1 个用例失败（非 2 个），与分支逻辑一致。
 
-- [ ] T61 Phase 9S O4/O5/O6 复核结论（2026-09-22，**待用户新裁决**，承接 T35）。
+- [x] T61 Phase 9S O4/O5/O6 复核结论（2026-09-22，**已收口**，承接 T35；以下为当时复核原文）。
   - **O4** 生成器不可复现**已确证**：`Test-Path tools`=False、`git ls-files tools`=0、
     `git log --all -- tools/build_static_tailwind_utilities.py`=0 条。
     另澄清：该 CSS 工作树 83377 B(CRLF) 与 git blob 83374 B(LF) **内容等价**
@@ -680,7 +680,7 @@
     浏览器实测为**本机** Chrome + 本机 uvicorn，**不等于**生产验收、**不等于**第三方独立审计；
     仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
 
-- [ ] T66 Phase 9T 独立复核（**进行中**，2026-09-22）。
+- [x] T66 Phase 9T 独立复核（**已收口**，2026-09-22；以下为立项时通道失效记录）。
   - 已按「任务书写盘 + 极短消息指路径」方式派发 2 名只读核验代理
     （前端 `fetch` 覆盖面审计 / 合规供应链实测复算），任务书位于
     `%TEMP%\gw-p9s-root\briefs\BRIEF-A.md`、`BRIEF-C.md`。
@@ -1330,4 +1330,10 @@
   - B1 登记改为绑定现有 `docs/fixtures/phase11-b1-boundary.json`，并补入黄金夹具清单与 B1 契约回归断言；B8/B9 登记改为实际挂载路由、契约和边界夹具。
   - 定向证据：B1 fixture/清单 **2 passed**；B8/B9 **4 passed**。
   - 仅代表当前工作树的本地登记与回归证据，不等同于远端 CI、生产验收、第三方审计或公开发布授权。
+
+- [x] T111 审计基线收口：T26 显式降级、台账状态一致、Playwright 环境失败关闭（2026-09-28）。
+  - **T26 子项 4**：用户裁决「没有后端时显式降级」。`projects-controller.js` 的三路项目计数去掉 `.catch(() => null)`，非 2xx 经 `classifyFetchFailure` 分类，网络失败记 `countsDegradation=service_unavailable`，计数显示「—」。守卫：`test_v2_project_counts_do_not_swallow_missing_backend`。
+  - **台账**：T26/T35/T46/T61/T66 的勾选与首行状态改为「已收口」。历史数字、当时缺口和通道失效记录保留，不改写成当时已经完成。
+  - **Playwright**：`tests/smoke/playwright_support.py` 只把驱动命名管道 `PermissionError` / `WinError 5` 转为显式 skip。skip 不是通过；产品断言失败仍然失败。
+  - **仍未完成**：T36/T40 外部第三方独立审计与发布授权。仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。无根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`。真实商业 Provider、真实 CLI 账户、真实生产 OIDC、多实例生产认证均未现场验收。
 

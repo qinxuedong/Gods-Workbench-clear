@@ -10,6 +10,7 @@ from gods_workbench.api import routes_asset_registry, routes_projects
 from gods_workbench.projects_hub import service as projects_module
 from gods_workbench.projects_hub.service import ProjectsService
 from gods_workbench.video_tasks import service as video_module
+from playwright_support import open_playwright
 
 def test_browser_creates_and_reads_back_project_gates(monkeypatch, tmp_path):
     browser_api = pytest.importorskip("playwright.sync_api")
@@ -35,7 +36,7 @@ def test_browser_creates_and_reads_back_project_gates(monkeypatch, tmp_path):
         while not server.started and thread.is_alive() and time.monotonic() < deadline:
             time.sleep(0.05)
         assert server.started
-        with browser_api.sync_playwright() as pw:
+        with open_playwright(browser_api) as pw:
             try:
                 browser = pw.chromium.launch(channel="chrome", headless=True)
             except browser_api.Error as exc:

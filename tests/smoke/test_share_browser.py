@@ -11,6 +11,7 @@ import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 from gods_workbench.api.app import create_app
+from playwright_support import open_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -45,7 +46,7 @@ def test_share_guest_media_comment_approval_download_and_reload(monkeypatch, tmp
         while not server.started and thread.is_alive() and time.monotonic() < deadline:
             time.sleep(0.05)
         assert server.started
-        with browser_api.sync_playwright() as pw:
+        with open_playwright(browser_api) as pw:
             try:
                 browser = pw.chromium.launch(channel="chrome", headless=True)
             except browser_api.Error as exc:
@@ -215,7 +216,7 @@ def test_share_pagehide_discards_late_http_responses_and_revalidates(monkeypatch
         while not server.started and thread.is_alive() and time.monotonic() < deadline:
             time.sleep(0.05)
         assert server.started
-        with browser_api.sync_playwright() as pw:
+        with open_playwright(browser_api) as pw:
             try:
                 browser = pw.chromium.launch(channel="chrome", headless=True)
             except browser_api.Error as exc:

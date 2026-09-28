@@ -1,8 +1,17 @@
 """Pytest 全局配置与夹具。"""
 
+import importlib.util
 import sys
 from pathlib import Path
 import pytest
+
+# tests 不是包。浏览器测试需要按稳定模块名复用 Playwright 启动辅助。
+_PLAYWRIGHT_SUPPORT = Path(__file__).resolve().parent / "smoke" / "playwright_support.py"
+if _PLAYWRIGHT_SUPPORT.is_file() and "playwright_support" not in sys.modules:
+    _support_spec = importlib.util.spec_from_file_location("playwright_support", _PLAYWRIGHT_SUPPORT)
+    _support_module = importlib.util.module_from_spec(_support_spec)
+    sys.modules["playwright_support"] = _support_module
+    _support_spec.loader.exec_module(_support_module)
 from fastapi.testclient import TestClient
 
 # 确保 src 目录在 Python 模块解析路径中

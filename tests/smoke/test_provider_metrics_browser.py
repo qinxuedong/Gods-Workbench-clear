@@ -8,6 +8,7 @@ import time
 import pytest
 import uvicorn
 from gods_workbench.api.app import create_app
+from playwright_support import open_playwright
 
 
 def test_provider_metrics_browser_real_loopback(monkeypatch, tmp_path):
@@ -56,7 +57,7 @@ def test_provider_metrics_browser_real_loopback(monkeypatch, tmp_path):
         while not server.started and thread.is_alive() and time.monotonic() < deadline:
             time.sleep(.05)
         assert server.started
-        with browser_api.sync_playwright() as pw:
+        with open_playwright(browser_api) as pw:
             browser = pw.chromium.launch(channel="chrome", headless=True)
             try:
                 context = browser.new_context(viewport={"width": 1600, "height": 1000})

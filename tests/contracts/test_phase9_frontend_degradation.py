@@ -1218,6 +1218,17 @@ def test_v2_project_dispatch_status_is_driven_by_real_create():
     assert "404" in region and "501" in region, "端点缺失必须走显式降级分支"
 
 
+def test_v2_project_counts_do_not_swallow_missing_backend():
+    """T26 子项 4：项目计数不得用 .catch(() => null) 把后端缺失吞成普通空值。"""
+    js = _read(V2_JS / "projects-controller.js")
+    start = js.find("async function fetchCounts()")
+    assert start != -1, "未找到 fetchCounts()"
+    body = js[start: js.find("function updateCountBadges", start)]
+    assert ".catch(() => null)" not in body, "计数请求失败必须进入显式降级，不得静默变成 null"
+    assert "classifyFetchFailure" in body, "非 2xx 必须按共享口径分类"
+    assert "countsDegradation" in body, "失败必须留下结构化降级状态"
+
+
 def test_v2_home_asset_overview_distinguishes_empty_from_failure():
     """真实空集合必须给中性空态，不得把 200+空 渲染成「未接入（HTTP 0）」。"""
     js = _read(V2_JS / "home-controller.js")

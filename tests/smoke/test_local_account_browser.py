@@ -10,6 +10,7 @@ from http.client import HTTPConnection, HTTPException
 import json
 
 import pytest
+from playwright_support import open_playwright
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,7 +59,7 @@ def start_owned_server(command, env, log, port):
 
 def test_local_account_browser_setup_login_restart_logout(tmp_path):
     browser_api = pytest.importorskip("playwright.sync_api")
-    with browser_api.sync_playwright() as pw:
+    with open_playwright(browser_api) as pw:
         try:
             browser = pw.chromium.launch(channel="chrome", headless=True)
         except browser_api.Error as exc:

@@ -223,16 +223,22 @@ window.V2Projects = (function () {
   async function fetchCounts() {
     try {
       const [resAct, resArc, resTra] = await Promise.all([
-        fetch('/api/asset-registry/projects?archived=false', { credentials: 'same-origin' }).catch(() => null),
-        fetch('/api/asset-registry/projects?archived=true', { credentials: 'same-origin' }).catch(() => null),
-        fetch('/api/asset-registry/projects?deleted=true', { credentials: 'same-origin' }).catch(() => null)
+        fetch('/api/asset-registry/projects?archived=false', { credentials: 'same-origin' }),
+        fetch('/api/asset-registry/projects?archived=true', { credentials: 'same-origin' }),
+        fetch('/api/asset-registry/projects?deleted=true', { credentials: 'same-origin' })
       ]);
       const okAll = [resAct, resArc, resTra].every(r => r && r.ok);
       if (!okAll) {
-        // 显式降级：计数不可信时显示「—」，不得用当前列表长度顶替。
+        // 显式降级：任一端点缺失或失败都分类后显示「—」，不得静默吞掉。
+        const failed = [resAct, resArc, resTra].find(r => r && !r.ok);
+        const failure = failed ? await classifyFetchFailure(failed) : null;
+        state.countsDegradation = failure
+          ? { kind: failure.kind, message: failure.message }
+          : { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
         updateCountBadges(null, null, null);
         return;
       }
+      state.countsDegradation = null;
       const actData = await resAct.json();
       const arcData = await resArc.json();
       const traData = await resTra.json();
@@ -243,7 +249,8 @@ window.V2Projects = (function () {
 
       updateCountBadges(actLen, arcLen, traLen);
     } catch (e) {
-      // 显式降级：读取异常同样显示「—」，不估算、不伪造。
+      // 网络异常同样显式降级：显示「—」，不估算、不伪造。
+      state.countsDegradation = { kind: 'service_unavailable', message: degradationMessage('service_unavailable', 0) };
       updateCountBadges(null, null, null);
     }
   }

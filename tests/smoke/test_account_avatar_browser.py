@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
+from playwright_support import open_playwright
 
 from gods_workbench.api.app import app
 
@@ -11,7 +12,7 @@ from gods_workbench.api.app import app
 def test_avatar_opens_auth_modal_and_discloses_local_mode(monkeypatch):
     browser_api = pytest.importorskip("playwright.sync_api")
     monkeypatch.setenv("GW_AUTH_MODE", "local")
-    with TestClient(app) as client, browser_api.sync_playwright() as pw:
+    with TestClient(app) as client, open_playwright(browser_api) as pw:
         try:
             browser = pw.chromium.launch(channel="chrome", headless=True)
         except browser_api.Error as exc:

@@ -7,6 +7,7 @@ import pytest
 import uvicorn
 from gods_workbench.api.app import create_app
 from gods_workbench.asset_registry import index_jobs, repository as repo
+from playwright_support import open_playwright
 
 
 def test_index_job_browser_real_file_and_controls(monkeypatch, tmp_path):
@@ -40,7 +41,7 @@ def test_index_job_browser_real_file_and_controls(monkeypatch, tmp_path):
         while not server.started and thread.is_alive() and time.monotonic() < end:
             time.sleep(.05)
         assert server.started
-        with browser_api.sync_playwright() as pw:
+        with open_playwright(browser_api) as pw:
             browser = pw.chromium.launch(channel="chrome", headless=True)
             try:
                 context = browser.new_context(viewport={"width":1440,"height":1000})

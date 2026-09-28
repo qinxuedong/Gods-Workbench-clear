@@ -13,6 +13,7 @@ import pytest
 import uvicorn
 
 from gods_workbench.api.app import create_app
+from playwright_support import open_playwright
 from gods_workbench.settings import service as settings_service
 from gods_workbench.video_tasks import service as video_module
 from gods_workbench.video_tasks.service import VideoTaskService
@@ -63,7 +64,7 @@ def test_video_generate_preview_export_download_browser(monkeypatch, tmp_path):
         while not server.started and thread.is_alive() and time.monotonic() < deadline:
             time.sleep(0.05)
         assert server.started
-        with browser_api.sync_playwright() as pw:
+        with open_playwright(browser_api) as pw:
             try:
                 browser = pw.chromium.launch(channel="chrome", headless=True)
             except browser_api.Error as exc:
