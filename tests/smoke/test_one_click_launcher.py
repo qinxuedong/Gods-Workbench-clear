@@ -2,7 +2,7 @@
 
 import importlib.machinery
 import importlib.util
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 LAUNCHER = Path(__file__).resolve().parents[2] / "启动GodsWorkbench.pyw"
@@ -59,7 +59,8 @@ def test_fresh_start_opens_visible_console_with_console_python(monkeypatch):
 
     monkeypatch.setattr(launcher.subprocess, "Popen", spawn)
     launcher.start(wait_seconds=1, no_browser=True)
-    assert Path(captured["command"][0]).name == "python.exe"
+    # 启动命令是 Windows 路径；Linux CI 的 Path 不会按反斜杠拆分。
+    assert PureWindowsPath(captured["command"][0]).name == "python.exe"
     assert captured["creationflags"] == 16
     assert "stdout" not in captured and "stderr" not in captured
     assert "stdin" not in captured
