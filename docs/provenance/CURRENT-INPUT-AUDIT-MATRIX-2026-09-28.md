@@ -134,3 +134,21 @@
 - 本文件**未改动**任何 `docs/contracts/` 文件；§2 的哈希是 2026-09-28 读取时的快照，契约后续变更须重新生成。
 - 本文件**不改动**发布状态：仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
 - 本文件**不宣称**洁净终验通过。A-05 关闭的是"现行输入是否有集中台账"，**不是**"所有输入都已通过独立审核"。
+
+## 7. 2026-09-28 未审输入范围与来源复核
+
+本节只登记范围、来源和仓库内证据，不产生终验结论，也不把契约自写 `frozen` 字段当作已审。9 个文件的当前原始字节 SHA-256 均与 §2 记录一致。均未引用明确排除的 `PLUGIN-PROTOCOL-SPEC.md`。
+
+| 文件 | 复核结论 | 范围与来源 | 仓库内证据 |
+| --- | --- | --- | --- |
+| `AUDIT-OUTBOX-LOCAL-SINK-CONTRACT.md` | 范围来源已复核 | 来源为 `PHASE-12-OUTPUT-CACHE-N1-LIFECYCLE-INDEPENDENT-REVIEW.md` 第 C 节；设计通过不等于实现验收 | `tests/contracts/test_phase12_audit_outbox.py:32` |
+| `CHAT-METRICS-INTERFACE-CATALOG.yaml` | 范围来源已复核 | 指向 Phase 12 公开协议观察；明确不读取旧仓 | `tests/contracts/test_phase12_chat_metrics.py:45` |
+| `LOCAL-ACCOUNT-AUTH-2026-09-26.md` | 范围来源已复核 | 同日治理记录写明用户明确要求恢复本地账户登录 | `docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md:804` |
+| `LOCAL-ACCOUNT-INTERFACE-CATALOG.yaml` | 范围来源已复核 | 同一条用户确认记录，并指向本接口目录 | `docs/governance/agent-reports-2026-09-21/P8-A1-FRONTEND-BACKEND-API-GAP.md:809` |
+| `OUTPUT-ACCESS-CONTRACT.md` | 范围来源已复核 | 来源为 `PHASE-12-OUTPUT-BOUNDARY-DESIGN-REVIEW.md`；方案通过不等于实现验收 | `tests/contracts/test_phase12_output_boundary.py:24` |
+| `PHASE12-PROVIDER-PROTOCOL-EVIDENCE-2026-09-27.md` | 范围来源已复核 | 文件列出公开官方协议页面；不证明真实服务可用 | `docs/contracts/VIDEO-TASKS-INTERFACE-CATALOG.yaml` 的 `source_evidence` |
+| `PROMPT-LIBRARY-B8-ITEM-INTERFACE-CATALOG.yaml` | 范围来源已复核 | 范围指向既有 `PROMPT-LIBRARY-INTERFACE-CATALOG.yaml`；不生成提示词文本 | `tests/contracts/test_phase11_b8_prompt_items.py:39` |
+| `PUBLIC-SHARE-INTERFACE-CATALOG.yaml` | 范围来源已复核 | 明确为本地分享，未接公网托管；token 只存哈希 | `tests/contracts/test_phase11_b9_public_share.py:58` |
+| `TEXT-PDF-EXPORT-CONTRACT.md` | 范围来源已复核 | 指向 Phase 12 PDF 设计及独立设计复核 D1–D4 | `tests/contracts/test_phase12_pdf.py` |
+
+真实外部 OIDC、商业 Provider、公网托管、多实例部署和生产发布仍不在本节范围内。发布状态仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
