@@ -5,7 +5,7 @@ import argparse
 import ctypes
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import subprocess
 import sys
 import time
@@ -53,7 +53,8 @@ def start(wait_seconds: int, no_browser: bool) -> None:
     env.update(GW_HOST="127.0.0.1", GW_PORT=str(PORT), GW_RELOAD="false")
 
     # 双击入口由 pythonw 执行，但后台必须用 python.exe 创建独立可见控制台。
-    python = Path(sys.executable)
+    # 用 Windows 路径语义判断，避免 Linux CI 把反斜杠当成文件名的一部分。
+    python = PureWindowsPath(sys.executable)
     if python.name.lower() == "pythonw.exe":
         python = python.with_name("python.exe")
     process = subprocess.Popen(
