@@ -4,7 +4,7 @@
 """
 
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -59,6 +59,8 @@ class ProjectCreateRequest(BaseModel):
     description: Optional[str] = Field(None, description="项目描述")
     start_at: Optional[int] = Field(None, description="排期开始时间戳（毫秒）")
     due_at: Optional[int] = Field(None, description="排期截止时间戳（毫秒）")
+    client_request_id: Optional[str] = Field(None, description="创建幂等请求键")
+    gates: Optional[List[Dict[str, Any]]] = Field(None, description="明确提交的初始阶段门；省略为空")
 
     @model_validator(mode="after")
     def validate_schedule(self):
@@ -96,6 +98,8 @@ class ProjectUpdateRequest(BaseModel):
     description: Optional[str] = Field(None, description="项目描述")
     start_at: Optional[int] = Field(None, description="排期开始时间戳（毫秒）")
     due_at: Optional[int] = Field(None, description="排期截止时间戳（毫秒）")
+    client_request_id: Optional[str] = Field(None, description="创建幂等请求键")
+    gates: Optional[List[Dict[str, Any]]] = Field(None, description="明确提交的初始阶段门；省略为空")
     expected_version: int = Field(..., description="CAS 期望版本号")
 
     @model_validator(mode="after")

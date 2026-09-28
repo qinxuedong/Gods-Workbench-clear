@@ -8,9 +8,10 @@
 - 素材库可用性：``AssetLibraryService.get_snapshot`` 快照探测；
 - 事件：``core.audit.list_auth_events`` 的**已脱敏**认证审计环形缓冲。
 
-未接入数据源（硬件遥测、指标时间序列、数据源注册表、素材体积统计）
+Phase 12 A4 已真实接入的数据源（硬件遥测 / 指标采样 / 数据源注册表 / 素材体积扫描）
 ------------------------------------------------------------------
-一律返回**空集合** + ``data_status: "not_integrated"``，并在 ``data_gaps`` 中说明原因；
+按真实求值返回数据；仅当数据源本身不可求值（未配置根目录、psutil 缺失、采样存储不可读）时，
+才返回**空集合** + ``data_status: "not_integrated"``，并在 ``data_gaps`` 中说明原因；
 绝不使用 ``random``、常量曲线或任何演示数据伪造波形、任务或事件。
 
 过滤语义（关键取舍）
@@ -37,6 +38,7 @@ from gods_workbench.asset_library.service import default_asset_library_service
 from gods_workbench.core import audit as audit_log
 from gods_workbench.core.errors import CleanroomException
 from gods_workbench.god_canvas.service import default_god_canvas_service
+from gods_workbench.observability import telemetry
 from gods_workbench.observability.models import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
@@ -58,7 +60,7 @@ from gods_workbench.observability.models import (
 )
 from gods_workbench.projects_hub.service import default_projects_service
 
-CONTRACT_VERSION = "p10b-frozen-1"
+CONTRACT_VERSION = "p12-a4-1"
 SERVICE_NAME = "observability"
 AUDIT_SOURCE = "core.audit"
 CURSOR_PREFIX = "obs1:"
@@ -72,20 +74,20 @@ _OUTCOME_STATUS = {
 }
 _WARN_STATUSES = frozenset({"denied", "rejected"})
 
-# 本阶段**未接入**的数据源类目；健康检查必须把它们标为 not_integrated。
-_NOT_INTEGRATED_COMPONENTS: Tuple[Tuple[str, str], ...] = (
-    ("hardware_telemetry", "未接入宿主机 CPU/内存/磁盘遥测数据源"),
-    ("metrics_series", "未接入指标时间序列存储（无真实序列数据源）"),
-    ("source_registry", "未接入可观测性数据源注册表"),
-    ("asset_volume_index", "未接入素材体积统计索引"),
-)
+# Phase 12 A4：hardware_telemetry / metrics_series / source_registry / asset_volume_index
+# 均已真实接入。健康检查按下述**真实**口径逐项求值；无法求值时才标 not_integrated。
+# 上列 GAP_* 文案仅描述「无法求值」成因，不再声称端点未接入。
+_GAP_METRICS_EMPTY = "指标采样存储可读但当前无采样点，序列为空（真实空，非未接入）"
+_GAP_METRICS_UNAVAILABLE = "指标采样存储不可读，时间序列能力降级"
+_GAP_VOLUMES_UNCONFIGURED = "未配置 GW_ALLOWED_ROOTS，素材体积索引无可扫目录"
 
-GAP_HARDWARE = "未接入宿主机硬件遥测数据源，不提供 CPU/内存/磁盘读数"
-GAP_SERIES = "未接入指标时间序列存储，禁止伪造波形，故返回空序列"
-GAP_SOURCES = "未接入可观测性数据源注册表，故返回空数组"
-GAP_ASSET_VOLUMES = "未接入素材体积统计索引，故返回空数组"
+GAP_HARDWARE = "psutil 不可用，宿主机硬件遥测（CPU/内存/磁盘）无法求值"
+GAP_GPU = "nvidia-smi 不可用或无 NVIDIA 设备，GPU 利用率/显存遥测无法求值"
+GAP_SERIES = "指标采样存储不可读，时间序列无法求值"
+GAP_SOURCES = "可观测性数据源注册表登记为空，无可列来源"
+GAP_ASSET_VOLUMES = "未配置 GW_ALLOWED_ROOTS，素材体积索引无可扫目录"
 GAP_AUDIT_UNAVAILABLE = "审计缓冲不可读，认证事件不可观测（如实降级，不伪装为空）"
-GAP_LATENCY = "未接入延迟直方图数据源，p95 延迟不可计算，故为 null"
+GAP_LATENCY = "延迟直方图数据源未接入，p95 延迟不可计算，故为 null"
 
 _ID_SCOPE_LABELS = (
     ("stable_id", "stable_id"),
@@ -244,7 +246,7 @@ class ObservabilityService:
             ),
             ResourceDescriptor(
                 name="series", path="/api/observability/series",
-                data_status=DataStatus.NOT_INTEGRATED, description="指标时间序列（本阶段无真实数据源，返回空序列）",
+                data_status=DataStatus.DEGRADED, description="指标采样序列（observability_samples，按真实采样求值）",
             ),
             ResourceDescriptor(
                 name="events", path="/api/observability/events",
@@ -256,15 +258,15 @@ class ObservabilityService:
             ),
             ResourceDescriptor(
                 name="health", path="/api/observability/health",
-                data_status=DataStatus.DEGRADED, description="本进程组件可用性（未接入组件标 not_integrated）",
+                data_status=DataStatus.DEGRADED, description="本进程组件可用性（含 psutil 硬件读数与采样存储）",
             ),
             ResourceDescriptor(
                 name="sources", path="/api/observability/sources",
-                data_status=DataStatus.NOT_INTEGRATED, description="数据源注册表（本阶段未接入，返回空数组）",
+                data_status=DataStatus.OK, description="数据源注册表（真实登记本进程来源路径）",
             ),
             ResourceDescriptor(
                 name="asset-volumes", path="/api/observability/asset-volumes",
-                data_status=DataStatus.NOT_INTEGRATED, description="素材体积索引（本阶段未接入，返回空数组）",
+                data_status=DataStatus.DEGRADED, description="素材体积索引（真实遍历 GW_ALLOWED_ROOTS；未配置为空 + not_integrated）",
             ),
         ]
         return ObservabilityIndex(
@@ -272,7 +274,7 @@ class ObservabilityService:
             contract_version=CONTRACT_VERSION,
             generated_at=_now_iso(),
             data_status=DataStatus.DEGRADED,
-            data_gaps=[GAP_SERIES, GAP_SOURCES, GAP_ASSET_VOLUMES, GAP_HARDWARE],
+            data_gaps=[GAP_LATENCY],
             resources=resources,
             applied_filters=filters,
         )
@@ -285,7 +287,7 @@ class ObservabilityService:
         project_counts, project_gap = self._project_counts()
         job_counts, job_gap = self._job_counts()
 
-        gaps: List[str] = [GAP_LATENCY, GAP_HARDWARE]
+        gaps: List[str] = [GAP_LATENCY]
         if project_gap:
             gaps.append(project_gap)
         if job_gap:
@@ -359,24 +361,53 @@ class ObservabilityService:
         )
 
     # ------------------------------------------------------------------
-    # 指标序列（未接入）
+    # 指标序列（真实采样存储）
     # ------------------------------------------------------------------
     def series(self, filters: AppliedFilters) -> ObservabilitySeries:
-        """无真实时间序列数据源：返回空序列 + not_integrated，绝不伪造波形。"""
-        metrics = [
-            SeriesMetric(metric=name, data_status=DataStatus.NOT_INTEGRATED, points=[])
-            for name in filters.metrics
-        ]
+        """读取真实采样存储；读取前落盘一次真实硬件采样，不足 2 点返回 degraded，绝不插值。"""
+        # 未显式指定 metrics 时，默认返回全部真实白名单指标，避免「无参数=未接入」的误导。
+        requested = list(filters.metrics) or list(telemetry.KNOWN_METRICS)
+        # 观测系统自身即真实采样源：每次读取先写入一次真实 psutil 读数（psutil 缺失时不写）。
+        if any(name in telemetry.KNOWN_METRICS for name in requested):
+            try:
+                telemetry.record_sample()
+            except Exception:
+                pass
         start_ms, end_ms = filters.resolve_window(_now_ms())
+        metrics: List[SeriesMetric] = []
+        series: Dict[str, List[Any]] = {}
+        gaps: List[str] = []
+        unknown = [name for name in requested if name not in telemetry.KNOWN_METRICS]
+        for name in unknown:
+            gaps.append("指标 %s 不在真实采样白名单内，未返回任何点" % name)
+        for name in requested:
+            if name not in telemetry.KNOWN_METRICS:
+                metrics.append(SeriesMetric(metric=name, data_status=DataStatus.NOT_INTEGRATED, points=[]))
+                continue
+            points = telemetry.load_series(name, start_ms, end_ms)
+            if len(points) < 2:
+                metrics.append(SeriesMetric(metric=name, data_status=DataStatus.DEGRADED, points=points))
+                gaps.append("指标 %s 真实采样不足 2 点，未渲染曲线（禁止插值）" % name)
+            else:
+                metrics.append(SeriesMetric(metric=name, data_status=DataStatus.OK, points=points))
+                series[name] = points
+        if not gaps and metrics and all(item.data_status == DataStatus.OK for item in metrics):
+            overall = DataStatus.OK
+        elif any(item.data_status == DataStatus.OK for item in metrics) or metrics:
+            overall = DataStatus.DEGRADED
+        else:
+            overall = DataStatus.NOT_INTEGRATED
+        if not gaps:
+            gaps = []
         return ObservabilitySeries(
-            data_status=DataStatus.NOT_INTEGRATED,
-            series={},
+            data_status=overall,
+            series=series,
             metrics=metrics,
-            requested_metrics=list(filters.metrics),
-            data_gap=GAP_SERIES,
+            requested_metrics=requested,
+            data_gap=("" if not gaps else gaps[0]),
             start_ms=start_ms,
             end_ms=end_ms,
-            data_gaps=[GAP_SERIES],
+            data_gaps=gaps,
             applied_filters=filters,
         )
 
@@ -647,14 +678,95 @@ class ObservabilityService:
                 HealthCheck(name="job_store", status="unknown", message_safe="未发现可读的任务存储引用")
             )
 
-        for name, message in _NOT_INTEGRATED_COMPONENTS:
-            checks.append(HealthCheck(name=name, status="not_integrated", message_safe=message))
-            gaps.append(message)
+        reading = telemetry.hardware_telemetry()
+        if reading is None:
+            checks.append(HealthCheck(name="hardware_telemetry", status="not_integrated",
+                                      message_safe=GAP_HARDWARE))
+            gaps.append(GAP_HARDWARE)
+        else:
+            checks.append(HealthCheck(
+                name="hardware_telemetry",
+                status="ok",
+                message_safe="psutil 真实读数（CPU/内存/磁盘）",
+                metrics=dict(reading),
+            ))
+
+        # GPU 遥测为可选真实来源：nvidia-smi 可用即接入，不可用才如实标未接入。
+        gpu = telemetry.gpu_telemetry()
+        if gpu is None:
+            checks.append(HealthCheck(name="gpu_telemetry", status="not_integrated",
+                                      message_safe=GAP_GPU))
+            gaps.append(GAP_GPU)
+        else:
+            checks.append(HealthCheck(
+                name="gpu_telemetry",
+                status="ok",
+                message_safe="nvidia-smi 真实读数（设备清单/利用率/显存）",
+                metrics=dict(gpu),
+            ))
+
+        # metrics_series：先落盘一次真实采样（观测系统自身即采样源），再读存储；
+        # 无点=degraded（真实为空），存储不可读=not_integrated。
+        try:
+            telemetry.record_sample()
+        except Exception:
+            pass
+        try:
+            metric_names = list(telemetry.KNOWN_METRICS)
+            sample_total = sum(len(telemetry.load_series(name, None, None)) for name in metric_names)
+        except Exception:
+            checks.append(HealthCheck(name="metrics_series", status="not_integrated",
+                                      message_safe=_GAP_METRICS_UNAVAILABLE))
+            gaps.append(_GAP_METRICS_UNAVAILABLE)
+        else:
+            if sample_total > 0:
+                checks.append(HealthCheck(
+                    name="metrics_series", status="ok",
+                    message_safe="指标采样存储可读，当前共 %d 个真实采样点" % sample_total,
+                ))
+            else:
+                checks.append(HealthCheck(
+                    name="metrics_series", status="degraded",
+                    message_safe=_GAP_METRICS_EMPTY,
+                ))
+                gaps.append(_GAP_METRICS_EMPTY)
+
+        # source_registry：真实登记本进程数据源。
+        try:
+            registered = telemetry.source_registry()
+        except Exception:
+            registered = []
+        if registered:
+            checks.append(HealthCheck(
+                name="source_registry", status="ok",
+                message_safe="已真实登记 %d 个数据源" % len(registered),
+            ))
+        else:
+            checks.append(HealthCheck(name="source_registry", status="not_integrated",
+                                      message_safe="数据源注册表为空"))
+            gaps.append("数据源注册表为空")
+
+        # asset_volume_index：遍历真实允许根目录；未配置=not_integrated（fail-closed）。
+        try:
+            volume = telemetry.scan_asset_volumes(limit=1)
+        except Exception:
+            volume = {"data_status": "not_integrated", "data_gaps": [_GAP_VOLUMES_UNCONFIGURED]}
+        if volume.get("data_status") == "ok":
+            checks.append(HealthCheck(name="asset_volume_index", status="ok",
+                                      message_safe="素材体积索引可读（GW_ALLOWED_ROOTS）"))
+        elif volume.get("data_status") == "degraded":
+            checks.append(HealthCheck(name="asset_volume_index", status="degraded",
+                                      message_safe="素材体积扫描部分失败，结果可能不完整"))
+            gaps.extend(volume.get("data_gaps") or [])
+        else:
+            checks.append(HealthCheck(name="asset_volume_index", status="not_integrated",
+                                      message_safe=_GAP_VOLUMES_UNCONFIGURED))
+            gaps.append(_GAP_VOLUMES_UNCONFIGURED)
 
         if any(check.status == "failed" for check in checks):
             overall = "degraded"
             data_status = DataStatus.DEGRADED
-        elif any(check.status in {"not_integrated", "unknown"} for check in checks):
+        elif any(check.status in {"degraded", "not_integrated", "unknown"} for check in checks):
             overall = "partial"
             data_status = DataStatus.DEGRADED
         else:
@@ -672,15 +784,45 @@ class ObservabilityService:
         )
 
     # ------------------------------------------------------------------
-    # 未接入数据源
+    # 真实数据源注册表
     # ------------------------------------------------------------------
     def sources(self, filters: AppliedFilters) -> ObservabilityListResponse:
-        """未接入数据源注册表：空数组 + not_integrated。"""
-        return self._empty_response(filters, GAP_SOURCES)
+        """返回真实登记的数据源清单（与实现路径一一对应）。"""
+        start_ms, end_ms = filters.resolve_window(_now_ms())
+        items = telemetry.source_registry()
+        return ObservabilityListResponse(
+            data_status=DataStatus.OK,
+            items=items,
+            total=len(items),
+            limit=filters.limit,
+            has_more=False,
+            next_cursor=None,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            data_gaps=[],
+            applied_filters=filters,
+        )
 
     def asset_volumes(self, filters: AppliedFilters) -> ObservabilityListResponse:
-        """未接入素材体积索引：空数组 + not_integrated。"""
-        return self._empty_response(filters, GAP_ASSET_VOLUMES)
+        """真实遍历允许根目录统计素材体积；未配置根目录为空 + not_integrated。"""
+        start_ms, end_ms = filters.resolve_window(_now_ms())
+        scan = telemetry.scan_asset_volumes(limit=filters.limit)
+        items = scan["items"]
+        status = DataStatus.OK if scan["data_status"] == "ok" else (
+            DataStatus.NOT_INTEGRATED if scan["data_status"] == "not_integrated" else DataStatus.DEGRADED
+        )
+        return ObservabilityListResponse(
+            data_status=status,
+            items=items,
+            total=len(items),
+            limit=filters.limit,
+            has_more=False,
+            next_cursor=None,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            data_gaps=list(scan["data_gaps"]),
+            applied_filters=filters,
+        )
 
     def _empty_response(self, filters: AppliedFilters, gap: str) -> ObservabilityListResponse:
         start_ms, end_ms = filters.resolve_window(_now_ms())

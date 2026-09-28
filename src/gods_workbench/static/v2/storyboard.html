@@ -88,7 +88,7 @@
           <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 border border-[#dfc384]/30 text-[#eddab3]">SYS.02 PRO</span>
         </div>
         <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" id="gwOnlineStatus" data-gw-degradation="not_integrated" title="读取真实探针 GET /api/observability/health">探测中…</span>
             <span class="relative flex h-2 w-2">
               <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
             </span>
@@ -201,7 +201,7 @@
             <div class="hw-fader-glow-bar" style="width: 0%;"></div>
             <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[9px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实阶段进度数据源，未读取任何指标">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-bold" id="flowPipelineReadout" data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health">未接入</span>
         </div>
         <div class="flex items-center space-x-2">
           <span class="text-[9px] font-mono text-slate-400 font-bold">VRAM</span>
@@ -209,7 +209,7 @@
             <div class="hw-fader-glow-bar" style="width: 0%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
             <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[9px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实显存遥测数据源，未读取任何指标">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-bold" id="gpuVramReadout" data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health 的 gpu_telemetry 检查项">未接入</span>
         </div>
       </div>
 

@@ -50,6 +50,25 @@ window.V2Projects = (function () {
     return String(value === undefined || value === null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // 立项能力状态位：只按真实创建结果写，绝不断言未验证的端点存在性。
+  function setDispatchStatus(kind, detail) {
+    const label = document.getElementById('projectDispatchStatus');
+    const led = document.getElementById('projectDispatchLed');
+    if (!label) return;
+    const map = {
+      ok: { text: '已接入', cls: 'text-[7.5px] font-mono text-emerald-400', led: 'w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1' },
+      not_integrated: { text: '未接入', cls: 'text-[7.5px] font-mono text-amber-300', led: 'w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 animate-pulse' },
+      service_unavailable: { text: '暂不可用', cls: 'text-[7.5px] font-mono text-amber-300', led: 'w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 animate-pulse' }
+    };
+    const view = map[kind] || { text: '待命', cls: 'text-[7.5px] font-mono text-slate-400', led: 'w-1.5 h-1.5 rounded-full bg-slate-500 mr-1' };
+    label.className = view.cls;
+    label.textContent = view.text;
+    if (detail) label.title = detail;
+    if (kind) label.setAttribute('data-gw-degradation', kind);
+    else label.removeAttribute('data-gw-degradation');
+    if (led) led.className = view.led;
+  }
+
   'use strict';
 
   const state = {
@@ -416,11 +435,11 @@ window.V2Projects = (function () {
               </div>
               <div class="bay-inset px-1 py-0.5 rounded flex flex-col justify-center">
                 <span class="text-[6.5px] font-mono text-slate-400 uppercase leading-tight">资产规模</span>
-                <span class="text-[8px] font-mono font-bold text-slate-500 leading-tight" data-gw-degradation="not_integrated">未接入</span>
+                <span class="text-[8px] font-mono font-bold text-slate-500 leading-tight" data-gw-asset-scale data-gw-degradation="not_integrated" title="真实数据源：GET /api/asset-registry/assets 的 total（全库已登记素材）">未接入</span>
               </div>
               <div class="bay-inset px-1 py-0.5 rounded flex flex-col justify-center">
                 <span class="text-[6.5px] font-mono text-slate-400 uppercase leading-tight">算力集群</span>
-                <span class="text-[8px] font-mono font-bold text-slate-500 leading-tight" data-gw-degradation="not_integrated">未接入</span>
+                <span class="text-[8px] font-mono font-bold text-slate-500 leading-tight" data-gw-gpu-cluster data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health 的 gpu_telemetry">未接入</span>
               </div>
               <div class="bay-inset px-1 py-0.5 rounded flex flex-col justify-center">
                 <span class="text-[6.5px] font-mono text-slate-400 uppercase leading-tight">更新时间</span>
@@ -667,6 +686,10 @@ window.V2Projects = (function () {
         `;
       }).join('');
     }
+
+    // 卡片流由本函数重建 innerHTML：真实读数必须在其之后写入，
+    // 否则「资产规模」格会停留在静态初值「未接入」（假降级）。
+    syncAssetScale();
 
     window.lucide?.createIcons();
     updateNavPillsProject();
@@ -1010,6 +1033,48 @@ window.V2Projects = (function () {
     render();
   }
 
+  // 创建门时保存请求键直到服务端确认，网络结果未知时相同payload可安全重试。
+  function projectCreateRequestId(payload) {
+    const signature = JSON.stringify(payload);
+    let stored = null;
+    try {
+      stored = JSON.parse(window.sessionStorage.getItem('gw.pending-project-create') || 'null');
+    } catch (e) {
+      throw new Error('\u6d4f\u89c8\u5668\u65e0\u6cd5\u5b89\u5168\u4fdd\u5b58\u521b\u5efa\u8bf7\u6c42\u952e\uff0c\u8bf7\u542f\u7528\u4f1a\u8bdd\u5b58\u50a8\u540e\u91cd\u8bd5');
+    }
+    if (stored && stored.signature === signature && /^[A-Za-z0-9_.:-]{8,128}$/.test(stored.client_request_id || '')) {
+      return stored.client_request_id;
+    }
+    if (!window.crypto?.getRandomValues) throw new Error('\u6d4f\u89c8\u5668\u7f3a\u5c11\u5b89\u5168\u968f\u673a\u6e90\uff0c\u65e0\u6cd5\u521b\u5efa\u5e42\u7b49\u8bf7\u6c42\u952e');
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    const clientRequestId = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    try {
+      window.sessionStorage.setItem('gw.pending-project-create', JSON.stringify({ signature, client_request_id: clientRequestId }));
+    } catch (e) {
+      throw new Error('\u6d4f\u89c8\u5668\u65e0\u6cd5\u4fdd\u5b58\u521b\u5efa\u8bf7\u6c42\u952e\uff0c\u8bf7\u542f\u7528\u4f1a\u8bdd\u5b58\u50a8\u540e\u91cd\u8bd5');
+    }
+    return clientRequestId;
+  }
+
+  function clearProjectCreateRequestId(clientRequestId) {
+    if (!clientRequestId) return true;
+    try {
+      const key = 'gw.pending-project-create';
+      const stored = JSON.parse(window.sessionStorage.getItem(key) || 'null');
+      if (stored?.client_request_id === clientRequestId) window.sessionStorage.removeItem(key);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function verifiedProjectGateSummary(gates) {
+    const states = { pending: '\u5f85\u5ba1\u6838', approved: '\u5df2\u901a\u8fc7', changes_requested: '\u9700\u8865\u5145' };
+    const sample = gates.slice(0, 3).map(gate => `${gate.name} [${states[gate.state] || gate.state} v${gate.version}]`);
+    const more = gates.length > sample.length ? `\uff1b\u53e6\u6709${gates.length - sample.length}\u9879` : '';
+    return `\u5df2\u56de\u8bfb\u9a8c\u8bc1${gates.length}\u4e2a\u9636\u6bb5\u95e8\uff1a${sample.join('\uff1b')}${more}`;
+  }
   // 9. 处理新建项目提交
   async function handleCreateProject(event) {
     event.preventDefault();
@@ -1018,6 +1083,7 @@ window.V2Projects = (function () {
     const descInput = document.getElementById('newProjectDescInput');
     const startAtInput = document.getElementById('newProjectStartAt');
     const dueAtInput = document.getElementById('newProjectDueAt');
+    const gatesInput = document.getElementById('newProjectGatesInput');
 
     const name = nameInput?.value?.trim();
     if (!name) return;
@@ -1030,6 +1096,30 @@ window.V2Projects = (function () {
       due_at: dateInputTimestamp(dueAtInput?.value)
     };
 
+    const gateLines = String(gatesInput?.value || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (gateLines.length > 32) {
+      showToast('初始阶段门最多32项', 'error');
+      return;
+    }
+    if (gateLines.length) {
+      const gates = [];
+      for (const [index, line] of gateLines.entries()) {
+        const divider = line.indexOf('|');
+        if (divider < 1 || !line.slice(divider + 1).trim()) {
+          showToast(`第${index + 1}行阶段门格式错误，请使用 code|阶段名称`, 'error');
+          return;
+        }
+        gates.push({ code: line.slice(0, divider).trim(), name: line.slice(divider + 1).trim() });
+      }
+      payload.gates = gates;
+      try {
+        payload.client_request_id = projectCreateRequestId(payload);
+      } catch (e) {
+        showToast(e.message || '无法创建幂等请求键', 'error');
+        return;
+      }
+    }
+
     try {
       const res = await fetch('/api/asset-registry/projects', {
         method: 'POST',
@@ -1040,24 +1130,58 @@ window.V2Projects = (function () {
       if (res.ok) {
         const resData = await res.json();
         const raw = resData.project || resData;
-        // 契约对齐：创建接口只回传 project_id / version（见 PROJECTS-HUB-INTERFACE-CATALOG.yaml 的
-        // create_project.response_200_201），不含 id 与 name；此处归一化并补全本地渲染所需名称，
-        // 否则新建后不会写 localStorage、不会 selectProject，且卡片渲染 `p.id.slice` 抛 TypeError。
+        // 契约只回传稳定ID与版本；补齐项目卡片渲染所需名称。
         const created = { ...raw, id: raw.id || raw.project_id, name: raw.name || payload.name };
-        state.projects.unshift(created);
+        const existingIndex = state.projects.findIndex(item => (item.id || item.project_id) === created.id);
+        if (existingIndex >= 0) state.projects[existingIndex] = { ...state.projects[existingIndex], ...created };
+        else state.projects.unshift(created);
         if (created.id) {
           localStorage.setItem('workspace_project_id', created.id);
           localStorage.setItem('workspace_project_name', created.name || created.title || payload.name);
           selectProject(created.id);
         }
-        showToast('项目已成功创建并初始化本地工程目录', 'success');
+
+        let verifiedGates = null;
+        if (Array.isArray(payload.gates)) {
+          try {
+            const gatesRes = await fetch(`/api/asset-registry/projects/${encodeURIComponent(created.id)}/gates`, {
+              method: 'GET', credentials: 'same-origin'
+            });
+            const gatesData = await gatesRes.json().catch(() => null);
+            const gates = gatesData?.gates;
+            const matchesRequest = Array.isArray(gates) && gates.length === payload.gates.length &&
+              gates.every((gate, index) => gate.project_id === created.id &&
+                gate.code === String(payload.gates[index].code).trim().toLowerCase() &&
+                gate.name === payload.gates[index].name && gate.state === 'pending' && gate.version === 1);
+            if (!gatesRes.ok || gatesData?.project_id !== created.id || !matchesRequest) {
+              throw new Error('gate readback did not match the submitted project');
+            }
+            verifiedGates = gates;
+          } catch (e) {
+            console.warn('\u9879\u76ee\u521b\u5efa\u5df2\u786e\u8ba4\uff0c\u9636\u6bb5\u95e8\u56de\u8bfb\u5c1a\u672a\u9a8c\u8bc1:', e);
+            setDispatchStatus('service_unavailable', 'GET /api/asset-registry/projects/{project_id}/gates');
+            showToast('\u9879\u76ee\u5df2\u521b\u5efa\uff0c\u4f46\u9636\u6bb5\u95e8\u56de\u8bfb\u672a\u9a8c\u8bc1\uff1b\u8bf7\u4fdd\u6301\u5185\u5bb9\u76f8\u540c\u91cd\u8bd5\uff0c\u5e42\u7b49\u952e\u4f1a\u9632\u6b62\u91cd\u590d\u521b\u5efa', 'warning');
+            render();
+            return;
+          }
+        }
+
+        const requestKeyCleared = clearProjectCreateRequestId(payload.client_request_id);
+        if (!requestKeyCleared) {
+          showToast('\u9879\u76ee\u5df2\u521b\u5efa\uff0c\u4f46\u6d4f\u89c8\u5668\u672a\u80fd\u6e05\u7406\u5e42\u7b49\u952e\uff1b\u8bf7\u5237\u65b0\u9875\u9762\u540e\u518d\u521b\u5efa\u540c\u540d\u9879\u76ee', 'warning');
+        }
+        showToast(verifiedGates ? verifiedProjectGateSummary(verifiedGates) : '\u9879\u76ee\u5df2\u6210\u529f\u521b\u5efa\u5e76\u521d\u59cb\u5316\u672c\u5730\u5de5\u7a0b\u76ee\u5f55', 'success');
+        setDispatchStatus('ok', 'POST /api/asset-registry/projects \u771f\u5b9e\u521b\u5efa\u6210\u529f');
         HardwareDeck.closeModal('newProjectModal');
         nameInput.value = '';
         if (descInput) descInput.value = '';
+        if (gatesInput) gatesInput.value = '';
         window.GWProjectDateRange?.setRange(document.querySelector('#newProjectModal [data-project-date-range]'), '', '');
         render();
       } else {
         const errJson = await res.json().catch(() => ({}));
+        if (res.status === 503) setDispatchStatus('service_unavailable', 'HTTP ' + res.status);
+        else if (res.status === 404 || res.status === 501) setDispatchStatus('not_integrated', 'HTTP ' + res.status);
         showToast(errJson.detail || '新建项目失败', 'error');
       }
     } catch (e) {
@@ -1448,7 +1572,39 @@ window.V2Projects = (function () {
     window.lucide?.createIcons();
   }
 
+  // 项目卡「资产规模」格：消费真实 GET /api/asset-registry/assets 的 total（全库已登记素材数）。
+  // 端点不可用时如实回退「未接入」，绝不显示伪造数字。
+  async function syncAssetScale() {
+    const nodes = document.querySelectorAll('[data-gw-asset-scale]');
+    if (!nodes.length) return;
+    try {
+      const res = await fetch('/api/asset-registry/assets?limit=1', { credentials: 'same-origin' });
+      const body = await res.json().catch(() => null);
+      if (res.ok && body && Number.isFinite(Number(body.total))) {
+        nodes.forEach(el => {
+          el.textContent = Number(body.total) + ' 项';
+          el.className = 'text-[8px] font-mono font-bold text-cyan-300 leading-tight';
+          el.removeAttribute('data-gw-degradation');
+          el.title = '真实已登记素材总数（GET /api/asset-registry/assets 的 total）';
+        });
+      } else {
+        nodes.forEach(el => {
+          el.textContent = '未接入';
+          el.setAttribute('data-gw-degradation', res.status === 503 ? 'service_unavailable' : 'not_integrated');
+          el.title = '素材注册表端点不可用（HTTP ' + res.status + '）';
+        });
+      }
+    } catch (e) {
+      nodes.forEach(el => {
+        el.textContent = '暂不可用';
+        el.setAttribute('data-gw-degradation', 'service_unavailable');
+        el.title = '素材注册表请求异常';
+      });
+    }
+  }
+
   function init() {
+    // 不在初始化阶段读资产规模：此时卡片尚未由 render() 生成，会命中 0 个节点。
     load();
     setupKeyboardShortcuts();
     if (new URLSearchParams(location.search).get('openTrash') === '1') {

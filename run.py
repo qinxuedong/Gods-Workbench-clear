@@ -17,6 +17,8 @@ if str(SRC_DIR) not in sys.path:
 
 
 def main():
+    # 面向用户的启动入口默认使用数据库账户；不覆盖显式 OIDC 配置。
+    os.environ.setdefault("GW_AUTH_MODE", "local_account")
     host = os.getenv("GW_HOST", "127.0.0.1")
     port = int(os.getenv("GW_PORT", "2077"))
     reload = os.getenv("GW_RELOAD", "true").lower() in ("true", "1", "yes")

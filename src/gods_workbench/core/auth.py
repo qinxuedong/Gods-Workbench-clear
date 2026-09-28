@@ -10,7 +10,8 @@
   RS256 签名与 ``iss`` / ``aud`` / ``exp`` 校验，角色**只**由 IdP 组声明映射得出；
   请求头中的 ``X-User-Role`` 在该模式下被完全忽略，防止角色越权。
 
-生产部署前必须显式设置 ``GW_AUTH_MODE=oidc`` 并提供完整 OIDC 配置；
+``local_account`` 使用 SQLite 账户与服务端会话，忽略客户端角色头；
+外部身份部署仍可显式设置 ``GW_AUTH_MODE=oidc`` 并提供完整 OIDC 配置；
 配置缺失时一律失败关闭（拒绝请求），不静默降级为本地通行。
 """
 
@@ -19,7 +20,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from gods_workbench.core import audit as audit_log
-from gods_workbench.core.config import AUTH_MODE_LOCAL, AUTH_MODE_OIDC, load_runtime_auth_config
+from gods_workbench.core.config import AUTH_MODE_LOCAL, AUTH_MODE_OIDC, AUTH_MODE_LOCAL_ACCOUNT, load_runtime_auth_config
 from gods_workbench.core.errors import ForbiddenException, UnauthorizedException
 
 KNOWN_ROLES = frozenset({"admin", "governor", "editor", "reviewer", "readonly"})
@@ -34,6 +35,8 @@ class AuthContext:
     role: str
     subject: Optional[str] = None
     mode: str = AUTH_MODE_LOCAL
+    identity_domain: Optional[str] = None
+    display_name: Optional[str] = None
 
 
 def _extract_bearer_token(authorization: Optional[str]) -> str:
@@ -62,6 +65,16 @@ def require_authenticated(
     """
     runtime = load_runtime_auth_config()
 
+    if runtime.mode == AUTH_MODE_LOCAL_ACCOUNT:
+        from gods_workbench.core import session as session_store
+        principal = session_store.get_current_principal()
+        if not principal:
+            raise UnauthorizedException(message="请先登录本地账户")
+        role = str(principal.get("role") or "")
+        if role not in KNOWN_ROLES:
+            raise ForbiddenException(message="账户权限无效")
+        return AuthContext(role=role, subject=principal["user_id"], mode=AUTH_MODE_LOCAL_ACCOUNT, identity_domain="local_account", display_name=str(principal.get("display_name") or principal.get("username") or ""))
+
     if runtime.mode == AUTH_MODE_OIDC:
         # 优先使用中间件写入的服务端会话身份（Cookie 承载不透明会话标识）。
         from gods_workbench.core import session as session_store  # 延迟导入
@@ -79,10 +92,15 @@ def require_authenticated(
                     auth_mode=AUTH_MODE_OIDC,
                 )
                 raise ForbiddenException(message="会话角色不合法，已拒绝请求")
+            issuer = str(getattr(runtime.oidc, "issuer", "") or "").strip()
+            # Cookie 主体由服务端在已验签 OIDC 回调中写入 username=JWT sub。
+            subject = str(principal.get("username") or "") or None
             return AuthContext(
                 role=role,
-                subject=str(principal.get("username") or "") or None,
+                subject=subject,
                 mode=AUTH_MODE_OIDC,
+                identity_domain=f"oidc:{issuer}" if issuer else None,
+                display_name=str(principal.get("display_name") or subject or ""),
             )
 
     token = _extract_bearer_token(authorization)
@@ -130,7 +148,7 @@ def require_authenticated(
                 auth_mode=AUTH_MODE_OIDC,
             )
             raise ForbiddenException(message="IdP 角色映射未授权，已拒绝请求")
-        return AuthContext(role=role, subject=identity.subject, mode=AUTH_MODE_OIDC)
+        return AuthContext(role=role, subject=identity.subject, mode=AUTH_MODE_OIDC, identity_domain=f"oidc:{runtime.oidc.issuer}", display_name=identity.subject)
 
     # 本地/测试模式：仅用于开发期，凭证内容不作真实性校验。
     if token.lower() in {"invalid", "expired"}:
@@ -140,7 +158,7 @@ def require_authenticated(
         raise ForbiddenException(message="未知用户角色，已拒绝请求")
     # 本地模式不暴露 Bearer 原文；用摘要作为进程内稳定主体，供资源范围过滤。
     subject = hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
-    return AuthContext(role=role, subject=f"local:{subject}", mode=AUTH_MODE_LOCAL)
+    return AuthContext(role=role, subject=f"local:{subject}", mode=AUTH_MODE_LOCAL, identity_domain="local_dev", display_name=f"local:{subject}")
 
 
 def require_edit_access(authorization: Optional[str], user_role: Optional[str] = "editor") -> AuthContext:

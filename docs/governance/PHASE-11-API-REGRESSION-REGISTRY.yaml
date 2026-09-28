@@ -168,7 +168,7 @@ blocks:
     risk_note: "提示词条目版本、来源、许可、删除与恢复语义需要先冻结。"
   B9:
     module: "分享与公开访问"
-    path_count: 4
+    path_count: 5
     backend_target:
       - "src/gods_workbench/api/routes_public_b9.py"
     frontend_files:

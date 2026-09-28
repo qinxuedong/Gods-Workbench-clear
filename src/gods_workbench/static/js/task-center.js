@@ -140,7 +140,7 @@
     text: 'var(--asset-type-text, #e3a51a)',
     other: 'var(--asset-type-other, #7654b8)',
   });
-  const canEdit = () => ['editor', 'admin'].includes(String(window.__taskCenterPrincipal?.role || ''));
+  const canEdit = () => ['editor', 'admin', 'governor'].includes(String(window.__taskCenterPrincipal?.role || ''));
   const LONG_TASK_KEYS = { import: 'taskCenter.longTaskImport', thumbnail: 'taskCenter.longTaskThumbnail', transcode: 'taskCenter.longTaskTranscode' };
   const LONG_TASK_JOB_TYPES = Object.freeze(['asset.index', 'asset.ingest.legacy', 'asset.import', 'asset.thumbnail', 'asset.proxy', 'asset.transcode', 'video.transcode']);
   const LONG_TASK_PATTERNS = [['thumbnail', /thumbnail|storyboard/i], ['transcode', /transcode|convert|proxy|ffmpeg/i], ['import', /import|ingest|index|scan|register/i]];
@@ -212,6 +212,8 @@
 
   function statusText(status) {
     const value = String(status || 'pending').toLowerCase();
+    if (value === 'paused') return locale() === 'en-US' ? 'Paused' : '已暂停';
+    if (value === 'cancelled') return tr('taskCenter.status.canceled');
     return tr(STATUS_KEYS[value] || 'taskCenter.status.pending');
   }
 
@@ -970,7 +972,7 @@
 
   function detailTask() { return knownTasks().find(task => task.id === state.selectedJobId) || null; }
   function detailRows(job) {
-    const rows = [[tr('taskCenter.taskId'), job.id], [tr('taskCenter.type'), job.job_type || detailTask()?.title || ''], [tr('taskCenter.status'), statusText(job.status)], [tr('taskCenter.attempt'), `${Number(job.attempt || 1)} / ${Number(job.max_attempts || 1)}`], [tr('taskCenter.created'), dateTime(job.created_at)], [tr('taskCenter.updated'), dateTime(job.updated_at)], [tr('taskCenter.started'), dateTime(job.started_at)], [tr('taskCenter.finished'), dateTime(job.finished_at)]];
+    const rows = [[tr('taskCenter.taskId'), job.job_id], [tr('taskCenter.type'), job.job_type || detailTask()?.title || ''], [tr('taskCenter.status'), statusText(job.status)], [tr('taskCenter.attempt'), `${Number(job.attempt || 1)} / ${Number(job.max_attempts || 1)}`], [tr('taskCenter.created'), dateTime(job.created_at)], [tr('taskCenter.updated'), dateTime(job.updated_at)], [tr('taskCenter.started'), dateTime(job.started_at)], [tr('taskCenter.finished'), dateTime(job.finished_at)]];
     if (job.root_job_id) rows.push([tr('taskCenter.rootTask'), job.root_job_id]); if (job.retry_of_job_id) rows.push([tr('taskCenter.retryOf'), job.retry_of_job_id]);
     return `<dl class="task-detail-grid">${rows.filter(([, value]) => value && value !== '—').map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`;
   }
@@ -997,7 +999,7 @@
     if (!canEdit()) return '';
     const disabled = state.actionBusy ? ' disabled aria-disabled="true"' : '';
     if (state.pendingAction === 'cancel') return `<section class="task-inline-confirm"><strong>${esc(tr('taskCenter.cancelConfirm'))}</strong><p>${esc(tr('taskCenter.cancelHint'))}</p><div><button class="btn" type="button" data-clear-task-confirm${disabled}>${esc(tr('taskCenter.keepTask'))}</button><button class="btn danger" type="button" data-run-task-action="cancel"${disabled}>${esc(tr('taskCenter.confirmCancel'))}</button></div></section>`;
-    const buttons = `${actions.cancel ? `<button class="btn danger" type="button" data-confirm-task-action="cancel"${disabled}>${esc(tr('taskCenter.cancelTask'))}</button>` : ''}${actions.retry ? `<button class="btn" type="button" data-run-task-action="retry"${disabled}>${esc(tr('taskCenter.retryTask'))}</button>` : ''}${actions.resume ? `<button class="btn primary" type="button" data-run-task-action="resume"${disabled}>${esc(tr('taskCenter.resumeTask'))}</button>` : ''}`;
+    const buttons = `${actions.pause ? `<button class="btn" type="button" data-run-task-action="pause"${disabled}>${locale() === 'en-US' ? 'Pause' : '暂停任务'}</button>` : ''}${actions.cancel ? `<button class="btn danger" type="button" data-confirm-task-action="cancel"${disabled}>${esc(tr('taskCenter.cancelTask'))}</button>` : ''}${actions.retry ? `<button class="btn" type="button" data-run-task-action="retry"${disabled}>${esc(tr('taskCenter.retryTask'))}</button>` : ''}${actions.resume ? `<button class="btn primary" type="button" data-run-task-action="resume"${disabled}>${esc(tr('taskCenter.resumeTask'))}</button>` : ''}`;
     return `${buttons ? `<div class="task-detail-actions">${buttons}</div>` : ''}${reasons}`;
   }
 
@@ -1008,7 +1010,7 @@
     if (state.detailError) { body.innerHTML = `<div class="task-detail-error"><strong>${esc(tr('taskCenter.detailUnavailable'))}</strong><p>${esc(state.detailError)}</p>${detailRows(task)}</div>`; return; }
     if (!state.detail) { body.innerHTML = `<div class="task-detail-readonly"><p>${esc(tr('taskCenter.readOnlyDetail'))}</p>${detailRows(task)}</div>`; return; }
     const job = state.detail; const progress = Object.entries(job.progress || {}).filter(([, value]) => ['number', 'boolean'].includes(typeof value)).slice(0, 8);
-    body.innerHTML = `<div class="task-detail-status">${renderStatus(job.status)}<span>${esc(trf('taskCenter.taskTypeLabel', {type: job.job_type || task.title}))}</span></div>${detailRows(job)}${job.has_error ? `<p class="task-safe-error">${esc(tr('taskCenter.safeError'))}</p>` : ''}${progress.length ? `<section class="task-detail-section"><h3>${esc(tr('taskCenter.progress'))}</h3><dl class="task-progress-list">${progress.map(([key, value]) => `<div><dt>${esc(key)}</dt><dd>${esc(String(value))}</dd></div>`).join('')}</dl></section>` : ''}<section class="task-detail-section"><h3>${esc(tr('taskCenter.related'))}</h3>${renderRelated(job)}</section>${renderEventsDetail(job)}${renderActions()}`;
+    body.innerHTML = `<div class="task-detail-status">${renderStatus(job.status)}<span>${esc(trf('taskCenter.taskTypeLabel', {type: job.job_type || task.title}))}</span></div>${detailRows(job)}${job.has_error ? `<p class="task-safe-error">${esc(tr('taskCenter.safeError'))} · ${esc(job.error_code || '')}</p>` : ''}${job.result ? `<section class="task-detail-section"><h3>实际执行结果</h3><pre>${esc(JSON.stringify(job.result, null, 2))}</pre></section>` : ''}${progress.length ? `<section class="task-detail-section"><h3>${esc(tr('taskCenter.progress'))}</h3><dl class="task-progress-list">${progress.map(([key, value]) => `<div><dt>${esc(key)}</dt><dd>${esc(String(value))}</dd></div>`).join('')}</dl></section>` : ''}<section class="task-detail-section"><h3>${esc(tr('taskCenter.related'))}</h3>${renderRelated(job)}</section>${renderEventsDetail(job)}${renderActions()}`;
     if (window.lucide?.createIcons) window.lucide.createIcons({attrs: {'aria-hidden': 'true'}});
   }
 
@@ -1054,7 +1056,7 @@
 
   async function runTaskAction(action) {
     const job = state.detail; if (!job || !state.detailActions?.[action] || state.actionBusy) return; state.actionBusy = action; renderDetail();
-    try { const options = {method: 'POST', headers: {'Content-Type': 'application/json'}}; if (action === 'cancel') options.body = JSON.stringify({expected_version: Number(job.version || 0)}); const data = await api(`/api/asset-registry/workspace-jobs/${encodeURIComponent(job.id)}/${action}`, options); state.pendingAction = ''; showToast(tr('taskCenter.actionAccepted')); await load(); await openTaskDetail(String(data.job?.id || job.id)); }
+    try { const options = {method: 'POST', headers: {'Content-Type': 'application/json'}}; options.body = JSON.stringify({expected_version: Number(job.version || 0)}); const data = await api(`/api/asset-registry/workspace-jobs/${encodeURIComponent(job.job_id)}/${action}`, options); state.pendingAction = ''; showToast(tr('taskCenter.actionAccepted')); await load(); await openTaskDetail(String(data.job?.job_id || job.job_id)); }
     catch (error) { showToast(error.message || tr('taskCenter.actionFailed'), 'error'); }
     finally { state.actionBusy = ''; if (q('#taskDetail')?.open) renderDetail(); }
   }
@@ -1112,6 +1114,14 @@
       if (series.status === 'fulfilled') { state.series = series.value; noteDataStatus(series.value, tr('taskCenter.seriesUnavailable')); } else failed(series, tr('taskCenter.seriesUnavailable'));
       if (events.status === 'fulfilled') { state.events = firstArray(events.value, ['events', 'items', 'data']).map(eventRecord); state.eventWindow = responseWindow(events.value); noteDataStatus(events.value, tr('taskCenter.eventsUnavailable')); state.nextCursor = cleanId(events.value.next_cursor || events.value.cursor?.next || events.value.meta?.next_cursor); state.hasMore = Boolean(events.value.has_more || state.nextCursor); } else failed(events, tr('taskCenter.eventsUnavailable'));
       if (tasks.status === 'fulfilled') { state.tasks = firstArray(tasks.value, ['items', 'tasks']).map(persistentTask).filter(item => item.id); state.taskWindow = responseWindow(tasks.value); noteDataStatus(tasks.value, tr('taskCenter.tasksUnavailable')); state.taskNextCursor = cleanId(tasks.value.next_cursor || tasks.value.cursor?.next || tasks.value.meta?.next_cursor); state.taskHasMore = Boolean(tasks.value.has_more || state.taskNextCursor); } else failed(tasks, tr('taskCenter.tasksUnavailable'));
+      // 后台索引是独立持久任务；发现源不能用观测日志代替。
+      try {
+        const indexData = await api('/api/asset-registry/status');
+        const indexTasks = firstArray(indexData, ['jobs']).map(persistentTask);
+        const byId = new Map(state.tasks.map(item => [item.job_id, item]));
+        indexTasks.forEach(item => { if (!state.jobId || item.job_id === state.jobId) byId.set(item.job_id, item); });
+        state.tasks = [...byId.values()];
+      } catch (error) { pushDegraded('索引任务暂不可读取', error.message || ''); }
       const longTaskResults = [longRunning, longQueued, longSucceeded, longFailed, longCanceled];
       longTaskResults.forEach(result => failed(result, tr('taskCenter.longTasksUnavailable')));
       const longTaskDegraded = longTaskResults.some(result => result.status === 'fulfilled' && result.value?.data_status === 'degraded');
@@ -1202,6 +1212,28 @@
     } finally { const shouldReload = finishDataRequest('asset-volumes-page'); state.assetVolumeLoading = false; render(); runQueuedReload(shouldReload); }
   }
 
+  let indexRequestKey = '';
+  let indexRequestBusy = false;
+  async function startIndexJob() {
+    if (!canEdit() || indexRequestBusy) return;
+    indexRequestBusy = true;
+    const button = q('[data-start-index]');
+    button.disabled = true;
+    // 传输结果未知时保留同一个幂等键，下一次点击只回读原请求。
+    if (!indexRequestKey) indexRequestKey = 'task-center-index:' + crypto.randomUUID();
+    try {
+      const data = await api('/api/asset-registry/reindex', {method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Idempotency-Key': indexRequestKey},
+        body: JSON.stringify({background: true})});
+      indexRequestKey = '';
+      state.jobId = data.job_id;
+      setView('tasks');
+      await load();
+      await openTaskDetail(data.job_id);
+    } catch (error) { showToast(error.message || '索引提交结果未确认，请用同一按钮重试确认', 'error'); }
+    finally { indexRequestBusy = false; button.disabled = false; }
+  }
+
   function setView(view) { if (!['overview', 'tasks', 'logs', 'metrics'].includes(view)) return; state.view = view; syncUrl(); render(); }
   function resetAndLoad() { if (dataRequestOwner) { queuedReload = true; return; } queuedReload = false; resetPaginationState(); void load(); }
 
@@ -1210,6 +1242,7 @@
     const viewTarget = event.target.closest('[data-view-target]'); if (viewTarget) return setView(viewTarget.dataset.viewTarget);
     const target = event.target.closest('button,[data-nav]'); if (!target) return;
     if (target.matches('[data-refresh]')) return load();
+    if (target.matches('[data-start-index]')) return startIndexJob();
     if (target.matches('[data-open-event]')) { const id = target.dataset.openEvent; state.eventId = id; state.view = 'logs'; syncUrl(); render(); return focusEventDeepLink(id); }
     if (target.matches('[data-open-task]')) return openTaskDetail(target.dataset.openTask, target);
     if (target.matches('[data-close-task-detail]')) return closeTaskDetail();
@@ -1307,5 +1340,5 @@
       }
     }, { passive: true });
   }
-  (async function initialize(){ syncAutoRefresh(); await loadPrincipal(); setView(state.view); await load(); })().catch(error => { state.loadError = taskCenterDegradationNotice(error); state.loading = false; render(); });
+  (async function initialize(){ syncAutoRefresh(); await loadPrincipal(); q('[data-start-index]').hidden = !canEdit(); setView(state.view); await load(); })().catch(error => { state.loadError = taskCenterDegradationNotice(error); state.loading = false; render(); });
 })();

@@ -17,19 +17,19 @@ version: p10e-frozen-1
 
 decisions:
   stable_ids:
-    decision: "对外稳定 ID：画布用 canvas_id，共享文件夹用 folder_id（fold_NNNN），视频任务用 video_task_id，素材用 asset_id"
+    decision: "对外稳定 ID：画布用 canvas_id，共享文件夹用 folder_id（fold_NNNN），视频任务用 job_id，素材用 asset_id"
     rationale: "根 AGENTS.md 3.1 强制统一稳定 ID；禁止 pid / cid / id 等别名作为生产实体字段。"
     id_format: "folder_id 为确定性前缀序号字符串（4 位补零，fold_0001 起），禁止随机数、uuid 或时间戳作为外部 ID。"
     frontend_compat: "前端 canvas-list.js 的 normalizeCanvas() 读取 value.id || value.canvas_id、value.project || value.project_id；asset-manager.js 读取 data.folder.id、canvas.id。故画布与文件夹投影**额外**输出 id/project 兼容字段，权威字段 canvas_id/project_id/folder_id 同时存在，服务端判定一律以权威字段为准。"
   forbidden_fabrication:
     decision: "不得伪造画布闭环数据"
     rationale: "洁净室零伪造口径（对齐 Phase 10B/10C/10D）。"
-    enforcement: "GET /api/canvas-assets 的 items 在素材注册表未接入时必须为空数组并给 data_gaps；GET /api/reference-canvases 与 GET /api/shared-folders、GET /api/video-tasks、GET /api/canvases/trash 无内容时必须是空数组，不得预置演示条目；禁止 random / uuid4 生成业务内容。"
-  video_not_integrated:
-    decision: "视频任务 fail-closed：POST /api/video-tasks 一律 503 VIDEO_RENDERER_NOT_INTEGRATED"
-    rationale: "本阶段无真实渲染后端；返回 task_id、进度百分比或预计耗时都属于伪造可执行状态。"
-    error_code: "VIDEO_RENDERER_NOT_INTEGRATED（503）"
-    list_semantics: "GET /api/video-tasks 返回 video_tasks: [] 与 data_status: not_integrated；GET /api/video-tasks/{video_task_id} 对不存在的任务返回 404 VIDEO_TASK_NOT_FOUND。"
+    enforcement: "GET /api/canvas-assets 的 items 在素材注册表未接入时必须为空数组并给 data_gaps；GET /api/reference-canvases、GET /api/shared-folders 与 GET /api/canvases/trash 无内容时必须是空数组，不得预置演示条目；视频任务依 VIDEO-TASKS 独立契约执行。"
+  video_contract_superseded:
+    decision: "视频端点已由 docs/contracts/VIDEO-TASKS-INTERFACE-CATALOG.yaml 冻结契约取代；仅本节旧视频语义停止适用，其他画布闭环语义不变。"
+    rationale: "Phase 12 新增真实远端生成和本地 FFmpeg 导出，必须使用持久 job_id 状态机而非旧 503 占位。"
+    legacy_error_code: "VIDEO_RENDERER_NOT_INTEGRATED（仅历史版本）"
+    list_semantics: "视频列表返回当前主体可见任务；任务状态、错误和产物按 VIDEO-TASKS 契约执行。"
   fail_closed_capabilities:
     decision: "下列能力本阶段无真实后端，必须 503 fail-closed，禁止假成功"
     rationale: "无真实实现时返回 200/201 会让前端误以为文件已生成、目录已扫描或素材已挂接。"
@@ -277,13 +277,12 @@ interfaces:
       - 403
     schema:
       response_200:
-        video_tasks: array
-        data_status: "string（not_integrated）"
-        data_gaps: array
+        items: "当前主体可见视频任务数组"
+        data_status: "ok"
     errors:
       401: "未认证"
       403: "角色不合法"
-    acceptance: "无渲染后端时 video_tasks 必须为 [] 且 data_status 为 not_integrated；禁止伪造任务。"
+    acceptance: "兼容路径已由 VIDEO-TASKS-INTERFACE-CATALOG.yaml 取代；不再返回 data_status=not_integrated。"
 
   - name: create_video_task
     method: POST
@@ -296,18 +295,23 @@ interfaces:
       aspect_ratio: "string | optional"
       production_context: "object | optional"
     status:
+      - 202
+      - 400
       - 401
       - 403
+      - 409
+      - 422
       - 503
     errors:
       401: "未认证"
-      403: "无写权限（只读角色）"
-      503: "VIDEO_RENDERER_NOT_INTEGRATED 渲染后端未接入"
-    acceptance: "无真实渲染后端时必须 503；绝不返回 task_id / job_id / 进度 / 预估耗时 / 输出 URL。"
+      403: "无项目视频访问权限（只读角色或无项目 owner 授权）"
+      409: "IDEMPOTENCY_CONFLICT 同键异参"
+      503: "VIDEO_PROVIDER_NOT_CONFIGURED 无服务端视频 Provider 配置"
+    acceptance: "新视频生成请求、幂等、job_id、poll_hint 与状态转换以 VIDEO-TASKS-INTERFACE-CATALOG.yaml 为准。"
 
   - name: get_video_task
     method: GET
-    path: /api/video-tasks/{video_task_id}
+    path: /api/video-tasks/{job_id}
     body: null
     status:
       - 401
@@ -317,7 +321,7 @@ interfaces:
       401: "未认证"
       403: "角色不合法"
       404: "VIDEO_TASK_NOT_FOUND 任务不存在"
-    acceptance: "无真实任务来源时一律 404；绝不编造进度或输出。"
+    acceptance: "任务仅对创建主体可见；详情和产物授权规则以 VIDEO-TASKS-INTERFACE-CATALOG.yaml 为准。"
 
   - name: update_canvas_meta
     method: POST

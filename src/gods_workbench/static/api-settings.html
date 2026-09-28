@@ -172,19 +172,20 @@
                             <div id="jimengCliPanel" class="jimeng-cli-panel" hidden>
                                 <div class="jimeng-cli-head">
                                     <div>
-                                        <div class="provider-key-title">即梦 CLI 账户</div>
-                                        <div class="provider-key-desc">使用本机 dreamina 登录态，无需 API Key。</div>
+                                        <div class="provider-key-title">Dreamina CLI 账户</div>
+                                        <div class="provider-key-desc">使用服务器本机 Dreamina 登录态，无需在项目保存 API Key。</div>
                                     </div>
                                     <div id="jimengCliStatus" class="jimeng-status-pill">未检测</div>
                                 </div>
+                                <p class="jimeng-credit" role="note">这是服务器本机共享账户：治理角色的登录、退出和余额查询会影响同一服务器上的其他使用者。仅支持单进程/单worker部署，不保证多worker或多实例互斥。登录只会启动一次；关闭页面仅停止本页等待，不会取消服务器进程。</p>
                                 <div class="jimeng-actions">
-                                    <button class="action-btn primary-btn" type="button" onclick="startJimengLogin()"><i data-lucide="qr-code" class="w-3.5 h-3.5"></i><span>扫码登录</span></button>
-                                    <button class="action-btn" type="button" onclick="refreshJimengCredit()"><i data-lucide="wallet-cards" class="w-3.5 h-3.5"></i><span>查询积分</span></button>
+                                    <button id="jimengLoginBtn" class="action-btn primary-btn" type="button" onclick="startJimengLogin()"><i data-lucide="log-in" class="w-3.5 h-3.5"></i><span>登录</span></button>
+                                    <button id="jimengCreditBtn" class="action-btn" type="button" onclick="refreshJimengCredit()"><i data-lucide="wallet-cards" class="w-3.5 h-3.5"></i><span>查询余额</span></button>
                                     <button id="openJimengHelpBtn" class="action-btn" type="button" onclick="openJimengHelp()" aria-controls="jimengHelpOverlay" data-floating-trigger="jimengHelpOverlay"><i data-lucide="terminal" class="w-3.5 h-3.5"></i><span>帮助</span></button>
-                                    <button class="action-btn danger-btn" type="button" onclick="logoutJimeng()"><i data-lucide="log-out" class="w-3.5 h-3.5"></i><span>退出登录</span></button>
+                                    <button id="jimengLogoutBtn" class="action-btn danger-btn" type="button" onclick="logoutJimeng()"><i data-lucide="log-out" class="w-3.5 h-3.5"></i><span>退出登录</span></button>
                                 </div>
-                                <div id="jimengCredit" class="jimeng-credit"></div>
-                                <div id="jimengLoginBox" class="jimeng-output" hidden></div>
+                                <div id="jimengCredit" class="jimeng-credit" aria-live="polite"></div>
+                                <div id="jimengLoginBox" class="jimeng-output" role="status" aria-live="polite" hidden></div>
                             </div>
                             <div id="codexCliPanel" class="jimeng-cli-panel" hidden>
                                 <div class="jimeng-cli-head">

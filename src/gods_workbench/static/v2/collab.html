@@ -36,6 +36,11 @@
     .collab-task-item p, .collab-feed-item p, .collab-approval-item p { margin:4px 0 0; color:#94a3b8; font-size:9px; line-height:1.45; overflow-wrap:anywhere; }
     .collab-feed-item { border-color:rgba(45,212,191,.25); }
     .collab-approval-item { border-color:rgba(245,158,11,.25); }
+    .collab-message-toolbar { flex-shrink:0; display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding-top:8px; }
+    .collab-message-toolbar label { color:#cbd5e1; font-size:10px; }
+    .collab-message-toolbar select { flex:1 1 120px; min-width:0; min-height:32px; padding:4px 8px; border:1px solid #454650; border-radius:6px; background:#0a0c10; color:#e6eaf2; font-family:inherit; font-size:11px; }
+    .collab-message-toolbar select:focus-visible, .collab-message-toolbar button:focus-visible { outline:2px solid #dfc384; outline-offset:2px; }
+    .collab-message-notice { flex-shrink:0; margin:6px 0 0; color:#aeb7c5; font-size:10px; line-height:1.4; }
     .collab-message-composer { flex-shrink:0; display:grid; gap:8px; padding-top:10px; border-top:1px solid rgba(255,255,255,.1); }
     .collab-message-composer textarea { width:100%; min-height:72px; max-height:120px; resize:vertical; padding:10px; border:1px solid #454650; border-radius:6px; background:#0a0c10; color:#e6eaf2; font-family:inherit; font-size:12px; line-height:1.5; }
     .collab-message-composer textarea::placeholder { color:#a8adba; }
@@ -87,7 +92,7 @@
           <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 border border-[#dfc384]/30 text-[#eddab3]">SYS.02 PRO</span>
         </div>
         <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" id="gwOnlineStatus" data-gw-degradation="not_integrated" title="读取真实探针 GET /api/observability/health">探测中…</span>
             <span class="relative flex h-2 w-2">
               <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
             </span>
@@ -115,7 +120,7 @@
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
           <div class="flex items-center space-x-2 px-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-[#dfc384] shadow-[0_0_6px_#dfc384] animate-pulse"></span>
-            <span class="text-[10px] font-mono font-bold text-[#eddab3] tracking-wider" data-gw-degradation="not_integrated">TEAM COLLABORATION &amp; AUDIT DECK · 协同端点未接入</span>
+            <span class="text-[10px] font-mono font-bold text-[#eddab3] tracking-wider" id="collabDeckStatus" title="真实数据源：/api/asset-auth/users|teams|operation-approvals 与 /api/observability/tasks|events">TEAM COLLABORATION &amp; AUDIT DECK · 读取中…</span>
           </div>
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
         </div>
@@ -202,7 +207,7 @@
             <div class="hw-fader-glow-bar" style="width: 0%;"></div>
             <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[9px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实流程管线遥测数据源，未读取任何指标">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-bold" id="flowPipelineReadout" data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health">未接入</span>
         </div>
         <div class="flex items-center space-x-2">
           <span class="text-[9px] font-mono text-slate-400 font-bold">BUFFER</span>
@@ -210,7 +215,7 @@
             <div class="hw-fader-glow-bar" style="width: 0%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
             <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[9px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实缓冲遥测数据源，未读取任何指标">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-bold" id="bufferReadout" data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health">未接入</span>
         </div>
       </div>
 
@@ -268,7 +273,7 @@
               <i data-lucide="git-commit" class="w-4 h-4 text-[#dfc384]"></i>
               <h3 class="font-bold text-slate-100">影视工程快照与变更审计历史 (Commit Stream)</h3>
             </div>
-            <span class="text-[10px] text-slate-400">快照 API 未接入</span>
+            <span class="text-[10px] text-slate-400" id="collabTimelineSource" title="真实数据源：GET /api/observability/events?source=audit_logs">变更审计 · /api/observability/events</span>
           </div>
 
           <!-- 时间轴流 -->
@@ -286,16 +291,24 @@
         <div class="grid grid-cols-12 gap-2 flex-1 min-h-0">
           <section class="champagne-card p-2.5 col-span-8 flex flex-col min-h-0">
             <div class="flex items-center justify-between pb-1.5 border-b border-white/5 shrink-0">
-              <div class="flex items-center space-x-2"><i data-lucide="message-square-more" class="w-4 h-4 text-[#dfc384]"></i><h3 class="text-xs font-bold text-slate-100">团队审片实时动态</h3></div>
-              <span class="text-[10px] text-slate-400">团队消息 · 未接入</span>
+              <div class="flex items-center space-x-2"><i data-lucide="message-square-more" class="w-4 h-4 text-[#dfc384]"></i><h3 class="text-xs font-bold text-slate-100">团队消息</h3></div>
+              <span id="collabMessageState" class="text-[10px] text-slate-400" role="status" aria-live="polite">正在读取身份与团队…</span>
             </div>
-            <div id="collabReviewFeed" class="flex-1 min-h-0 overflow-y-auto py-2" aria-live="polite"><div class="collab-empty">团队消息服务尚未接入，暂不可收发消息。</div></div>
+            <div class="collab-message-toolbar" role="group" aria-label="团队消息目标">
+              <label for="collabTeamSelect">团队</label>
+              <select id="collabTeamSelect" disabled aria-describedby="collabTeamNotice"><option value="">正在读取可见团队…</option></select>
+              <button type="button" id="collabIdentityBind" class="collab-more" hidden>启用团队协作身份</button>
+              <button type="button" id="collabTeamManage" class="collab-more">团队管理</button>
+            </div>
+            <p id="collabTeamNotice" class="collab-message-notice" aria-live="polite">身份绑定只创建当前登录身份引用，不会自动加入团队。</p>
+            <div id="collabReviewFeed" class="flex-1 min-h-0 overflow-y-auto py-2" aria-live="polite"><div class="collab-empty">正在读取团队消息…</div></div>
+            <button type="button" id="collabMessageHistoryMore" class="collab-more" hidden>加载更多消息</button>
             <div class="collab-message-composer" role="group" aria-label="团队消息入口">
               <label class="text-xs text-slate-300" for="collabMessageInput">团队消息</label>
               <textarea id="collabMessageInput" rows="2" maxlength="2000" placeholder="输入团队消息" aria-describedby="collabMessageStatus"></textarea>
               <div class="collab-message-actions">
-                <p id="collabMessageStatus">消息 API 未接入，输入内容不会发送或保存。</p>
-                <button type="button" id="collabMessageSend" class="collab-message-send" disabled title="团队消息 API 未接入" aria-describedby="collabMessageStatus"><i data-lucide="send" class="w-3.5 h-3.5" aria-hidden="true"></i><span>发送</span></button>
+                <p id="collabMessageStatus" role="status" aria-live="polite">正在读取团队消息权限…</p>
+                <button type="button" id="collabMessageSend" class="collab-message-send" disabled title="选择可写团队后可发送" aria-describedby="collabMessageStatus"><i data-lucide="send" class="w-3.5 h-3.5" aria-hidden="true"></i><span>发送</span></button>
               </div>
             </div>
           </section>

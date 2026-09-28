@@ -127,7 +127,7 @@
 
         <!-- 在线状态胶囊 -->
         <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" id="gwOnlineStatus" data-gw-degradation="not_integrated" title="读取真实探针 GET /api/observability/health">探测中…</span>
             <span class="relative flex h-2 w-2">
               <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
             </span>
@@ -253,9 +253,9 @@
 
       <!-- CENTER & RIGHT: 状态指示 -->
       <div class="flex items-center space-x-3 shrink-0">
-        <div class="flex items-center space-x-1 text-[9px] font-mono text-slate-400" data-gw-degradation="not_integrated">
+        <div class="flex items-center space-x-1 text-[9px] font-mono text-slate-400" id="workshopBusStatus" data-gw-degradation="not_integrated" title="真实数据源：GET /api/episode-pipelines">
           <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-          <span>PIPELINE ENGINE BUS: 未接入状态端点</span>
+          <span id="workshopBusStatusText">PIPELINE ENGINE BUS: 探测中…</span>
         </div>
         <button type="button" id="topbarUnifiedTrashBtn" class="hw-mini-knob-box group cursor-pointer relative" title="统一回收站（制片工程与素材库全局回收池）" aria-label="打开统一回收站">
           <div class="hw-mini-knob border border-[#dfc384]/40 hover:border-[#dfc384] transition">
@@ -770,11 +770,27 @@
           if (episodesRequestController === controller) episodesRequestController = null;
           if (requestIsCurrent(generation, epoch, requestProjectId)) {
             isLoadingEpisodes = false;
+        syncWorkshopBusStatus();
             renderEpisodes();
             updateStepButtons(currentStep);
           }
         }
       }
+
+  // 真实总线状态位：只依据 fetchEpisodes 的真实结果（episodes / episodesDegradation）。
+  function syncWorkshopBusStatus() {
+    const box = document.getElementById('workshopBusStatus');
+    const text = document.getElementById('workshopBusStatusText');
+    if (!box || !text) return;
+    if (episodesDegradation) {
+      const kind = episodesDegradation.kind === 'service_unavailable' ? 'service_unavailable' : 'not_integrated';
+      box.setAttribute('data-gw-degradation', kind);
+      text.textContent = 'PIPELINE ENGINE BUS: ' + (kind === 'service_unavailable' ? '暂不可用' : '未接入') + '（' + episodesDegradation.message + '）';
+      return;
+    }
+    box.removeAttribute('data-gw-degradation');
+    text.textContent = 'PIPELINE ENGINE BUS: 已接入 · ' + episodes.length + ' 条流水线';
+  }
 
       function renderEpisodes() {
         const grid = document.getElementById('episodesGrid');
@@ -1300,6 +1316,7 @@
     document.addEventListener('DOMContentLoaded', V2Workshop.init);
   </script>
 <script src="/static/js/degradation.js?v=v0.0.1-alpha-2026"></script>
+<script src="/static/js/hardware-telemetry.js"></script>
 <script src="/static/v2/js/v2-shell.js"></script>
 </body>
 </html>

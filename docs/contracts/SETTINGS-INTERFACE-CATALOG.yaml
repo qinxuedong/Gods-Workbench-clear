@@ -5,15 +5,21 @@ meta:
   cleanroom_notice: "仅记录 method/path/body/status/schema/错误/验收语义；不含旧仓源码结构或实现细节。"
 
 service: settings
-version: p10d-frozen-1
+version: p12-r3-1
 
 # 冻结说明（Phase 10D，2026-09-22）
-# 本契约是「设置页」阶段的最小实现授权范围，仅覆盖下列 8 条归一化路径 / 13 个方法。
+# 本契约是「设置页」阶段的最小实现授权范围，仅覆盖下列 9 条归一化路径 / 14 个方法。
 # 其余相邻端点（尤其 /api/asset-registry/assets*、/api/local-assets*、/api/storage-files*、
 # /api/asset-registry/reindex、/api/asset-registry/project-directory*）仍属 KNOWN_UNIMPLEMENTED，
 # 未获契约授权，本阶段不得顺带实现，并由契约测试显式反向断言其保持 404/405。
 
 decisions:
+  provider_runtime_references:
+    decision: "运行时 Provider 仅由进程环境 GW_PROVIDER_RUNTIME_JSON 提供的 JSON 映射解析；每项只含 base_url、api_key_env 环境变量名、model 或 models/default_model，以及可选 video_protocol。base_url 可为 API 根或以单个 /v1 结尾，公共路径拼接器不得形成 /v1/v1。禁止在此映射或 API 响应保存/返回凭据值。"
+    rationale: "Provider 管理页当前不持久化凭据；服务端必须以明确运行配置引用验证 provider_id 与模型，不能把任意客户端 provider 标签绑定默认 GW_CHAT_* 环境配置。"
+    legacy_compatibility: "GW_CHAT_BASE_URL/GW_CHAT_API_KEY/GW_CHAT_MODEL 仅作为固定 legacy_environment 单模型兼容项；无 provider_id 的旧调用可使用，显式未知 provider_id 绝不回退到旧默认配置。"
+    video_protocol: "共享解析器只登记 newapi_video 作为可识别视频协议；本轮此设置契约不授权视频端点实现。"
+    secret_policy: "api_key_env 仅是环境变量名称，密钥只在请求执行时读取，不写盘、不回显、不记日志；状态 GET 不返回 URL 或环境变量名。"
   stable_ids:
     decision: "对外稳定 ID：结构体用 structure_id（strc_NNNN），存储设置用 revision，provider 用 provider_id"
     rationale: "根 AGENTS.md 3.1 强制统一稳定 ID；禁止 pid / cid / sid 等别名。"
@@ -27,7 +33,7 @@ decisions:
     decision: "providers 空列表口径：默认 GET /api/providers 返回 providers: []、configured: false 与 data_gaps"
     rationale: "无真实厂商数据源时不得预置演示条目；空列表是唯一诚实取值。"
   probe_fail_closed:
-    decision: "探测端点 fail-closed：POST /api/providers/{fetch-models,probe-async,test-connection} 本阶段无真实外网探测能力"
+    decision: "探测端点真实接入：POST /api/providers/{fetch-models,probe-async,test-connection} 对 https 或本机 http 做真实 HTTP 探测，失败时 fail-closed"
     rationale: "无真实出网探测实现时，绝不允许返回伪造的模型列表、伪造的连通性成功或伪造的延迟数字。"
     error_code: "PROVIDER_PROBE_NOT_INTEGRATED（503）"
     real_probe_note: "如未来接入真实探测，必须默认关闭并在未启用时如实降级为同一错误码，不得静默放行。"
@@ -162,70 +168,103 @@ endpoints:
     path: /api/providers/fetch-models
     body:
       provider_id: "string | optional"
-      base_url: "string | optional"
+      base_url: "string（https 或 http://127.0.0.1）"
       protocol: "string | optional"
       image_request_mode: "string | optional"
-      credential_fields: "任意凭据字段一律忽略且不回显"
+      credential_fields: "凭据只用不存：不入库、不回显；仅用于一次真实请求"
     status:
+      - 200
+      - 400
       - 401
       - 403
       - 503
     schema:
+      response_200:
+        ok: true
+        protocol: string
+        all: "array(上游真实模型 ID)"
+        total: integer
+        image_models: array
+        chat_models: array
+        video_models: array
+        data_status: ok
       response_503:
         detail:
-          code: PROVIDER_PROBE_NOT_INTEGRATED
-          message: string
+          code: "PROVIDER_PROBE_FAILED | PROVIDER_PROBE_NOT_INTEGRATED"
     errors:
+      400: "INVALID_REQUEST 缺少 base_url / INVALID_URL 非绝对地址或不可解析"
       401: "未认证"
-      403: "无写权限（只读角色）"
-      503: "PROVIDER_PROBE_NOT_INTEGRATED 本阶段无真实出网探测能力"
-    acceptance: "必须 fail-closed 返回 503 + PROVIDER_PROBE_NOT_INTEGRATED；绝不允许返回伪造的模型列表。"
+      403: "无写权限或 URL_NOT_ALLOWED（非本机地址未使用 https）/ SSRF_BLOCKED（内网/保留网段）"
+      503: "httpx 缺失 → PROVIDER_PROBE_NOT_INTEGRATED；上游/网络失败 → PROVIDER_PROBE_FAILED"
+    acceptance: "真实 GET {base_url}/v1/models；模型列表只能来自上游响应，网络或解析失败必须 503，绝不伪造模型条目。"
 
   - name: probe_provider_async
     method: POST
     path: /api/providers/probe-async
     body:
       provider_id: "string | optional"
-      base_url: "string | optional"
+      base_url: "string（https 或 http://127.0.0.1）"
       protocol: "string | optional"
-      credential_fields: "任意凭据字段一律忽略且不回显"
+      credential_fields: "凭据只用不存：不入库、不回显"
     status:
+      - 200
+      - 400
       - 401
       - 403
       - 503
     schema:
-      response_503:
-        detail:
-          code: PROVIDER_PROBE_NOT_INTEGRATED
-          message: string
+      response_200:
+        job_id: "pjob_NNNN（确定性序号，落盘可回读）"
+        poll_hint: "/api/providers/probe-async/jobs/{job_id}"
+        ok: boolean
+        protocol: string
+        status_code: integer
+        raw: "上游响应（已剥离凭据）"
     errors:
+      400: "INVALID_REQUEST / INVALID_URL"
       401: "未认证"
-      403: "无写权限（只读角色）"
-      503: "PROVIDER_PROBE_NOT_INTEGRATED 本阶段无真实出网探测能力"
-    acceptance: "必须 fail-closed 返回 503 + PROVIDER_PROBE_NOT_INTEGRATED；绝不允许返回伪造的协议判定成功。"
+      403: "无写权限或 URL_NOT_ALLOWED / SSRF_BLOCKED"
+      503: "httpx 缺失或上游不可达 → PROVIDER_PROBE_NOT_INTEGRATED / PROVIDER_PROBE_FAILED"
+    acceptance: "真实请求后登记可回读任务，返回稳定 pjob_NNNN 与 poll_hint；不得伪造协议判定成功。"
+
+  - name: get_provider_probe_job
+    method: GET
+    path: /api/providers/probe-async/jobs/{job_id}
+    body: null
+    status: [200, 401, 404]
+    errors:
+      404: "PROVIDER_PROBE_JOB_NOT_FOUND 目标任务不存在"
+    acceptance: "返回 probe-async 登记的真实任务；不存在必须 404，不返回伪造状态。"
 
   - name: test_provider_connection
     method: POST
     path: /api/providers/test-connection
     body:
       provider_id: "string | optional"
-      base_url: "string | optional"
+      base_url: "string（https 或 http://127.0.0.1）"
       protocol: "string | optional"
-      credential_fields: "任意凭据字段一律忽略且不回显"
+      credential_fields: "凭据只用不存：不入库、不回显"
     status:
+      - 200
+      - 400
       - 401
       - 403
       - 503
     schema:
-      response_503:
-        detail:
-          code: PROVIDER_PROBE_NOT_INTEGRATED
-          message: string
+      response_200:
+        ok: true
+        status: integer
+        latency_ms: "integer（实测往返毫秒）"
+        protocol: string
+        model_count: integer
+        all: array
+        data_status: ok
     errors:
+      400: "INVALID_REQUEST / INVALID_URL"
       401: "未认证"
-      403: "无写权限（只读角色）"
-      503: "PROVIDER_PROBE_NOT_INTEGRATED 本阶段无真实出网探测能力"
-    acceptance: "必须 fail-closed 返回 503 + PROVIDER_PROBE_NOT_INTEGRATED；绝不允许返回伪造的连通性成功或延迟数字。"
+      403: "无写权限或 URL_NOT_ALLOWED / SSRF_BLOCKED"
+      503: "httpx 缺失或上游不可达 → 不返回连通性结论或延迟数字"
+    acceptance: "真实往返并记录实测延迟；失败必须 503，绝不伪造连通性成功或延迟数字。"
 
   - name: list_asset_structures
     method: GET

@@ -690,7 +690,8 @@ export function createAssetManagerApi(http) {
             });
         },
         getRegistryProject(projectId, init = {}) {
-            return transport.request(`/api/asset-registry/projects/${encodeURIComponent(projectId)}`, {
+            // 项目详情 GET 使用冻结的平台读取接口；注册表单项路径仅供 PATCH/DELETE。
+            return transport.request(`/api/projects/${encodeURIComponent(projectId)}`, {
                 ...init,
                 credentials: 'same-origin',
             });

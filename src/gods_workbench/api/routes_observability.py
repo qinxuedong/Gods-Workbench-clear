@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
-"""观测 API 路由实现（Phase 10B）。
+"""观测 API 路由实现（Phase 10B；契约版本 p12-a4-1）。
 
-严格对齐 docs/contracts/OBSERVABILITY-INTERFACE-CATALOG.yaml（p10b-frozen-1），
+严格对齐 docs/contracts/OBSERVABILITY-INTERFACE-CATALOG.yaml（p12-a4-1），
 只实现下列 8 个 **GET** 端点：
 
 - ``GET /api/observability``               资源索引
 - ``GET /api/observability/overview``      真实项目/任务计数总览
-- ``GET /api/observability/series``        指标序列（未接入 → 空 + not_integrated）
+- ``GET /api/observability/series``        指标采样序列（observability_samples，按真实采样求值）
 - ``GET /api/observability/events``        已脱敏认证审计事件
 - ``GET /api/observability/tasks``         真实内存任务投影
 - ``GET /api/observability/health``        本进程组件可用性（如实，不谎报 ok）
-- ``GET /api/observability/sources``       数据源注册表（未接入 → 空数组）
-- ``GET /api/observability/asset-volumes`` 素材体积索引（未接入 → 空数组）
+- ``GET /api/observability/sources``       数据源注册表（真实登记本进程来源路径）
+- ``GET /api/observability/asset-volumes`` 素材体积索引（真实遍历 GW_ALLOWED_ROOTS）
 
 边界：本模块**不得**实现任何其它 ``/api/*`` 端点（含 ``/api/asset-library/*``
-的 items/libraries 明细）；未接入数据源一律返回空 + ``data_status=not_integrated``。
+的 items/libraries 明细）；已真实接入的数据源按真实求值返回，
+仅当数据源本身不可求值时才返回空 + ``data_status=not_integrated``。
 
 认证：全部端点要求认证，未认证返回 401 且错误码复用 ``core.errors.UnauthorizedException``；
 只读角色（readonly/reviewer）可读，不做写权限要求。
@@ -161,7 +162,7 @@ def get_observability_series(
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """无真实时间序列数据源：返回空序列 + data_status=not_integrated，绝不伪造波形。"""
+    """读取真实采样存储；样本不足 2 点返回 degraded，绝不插值伪造波形。"""
     require_authenticated(authorization, x_user_role)
     return default_observability_service.series(
         _filters(request, range=range, metrics=metrics, start_ms=start_ms, end_ms=end_ms)
@@ -273,7 +274,7 @@ def get_observability_health(
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """如实反映本进程组件可用性；未接入组件标 not_integrated，绝不无条件返回 ok。"""
+    """如实反映本进程组件可用性；不可求值组件标 not_integrated，绝不无条件返回 ok。"""
     require_authenticated(authorization, x_user_role)
     return default_observability_service.health(_filters(request))
 
@@ -294,7 +295,7 @@ def get_observability_sources(
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """未接入数据源注册表：返回空数组 + data_status=not_integrated。"""
+    """返回真实登记的数据源注册表；登记为空才降级说明。"""
     require_authenticated(authorization, x_user_role)
     return default_observability_service.sources(
         _filters(request, range=range, limit=limit, cursor=cursor, start_ms=start_ms, end_ms=end_ms)
@@ -317,7 +318,7 @@ def get_observability_asset_volumes(
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """未接入素材体积索引：返回空数组 + data_status=not_integrated。"""
+    """真实遍历 GW_ALLOWED_ROOTS 统计素材体积；未配置根目录才返回空 + not_integrated。"""
     require_authenticated(authorization, x_user_role)
     return default_observability_service.asset_volumes(
         _filters(request, range=range, limit=limit, cursor=cursor, start_ms=start_ms, end_ms=end_ms)

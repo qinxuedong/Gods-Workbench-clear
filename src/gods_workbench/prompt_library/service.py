@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """提示词库服务层实现（Phase 10C）。
 
-严格遵循 docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml（p10c-frozen-1）：
+严格遵循 docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml（p12-a3-2）：
 
 - 稳定 ID：library_id（plib_NNNN）/ category_id（pcat_NNNN），确定性且不含随机数；
 - CAS：创建库校验顶层目录 version；创建分类校验父库 version；
@@ -12,8 +12,10 @@
 - **零伪造**：本服务不产生任何提示词文本（positive/negative/scene 与条目均不存在），
   种子只注入结构（空库 / 空分类），绝不注入演示或随机内容。
 
-证据边界：本服务为**进程内内存**存储（与 ProjectsService / AssetLibraryService 同口径）。
-重启即丢失、多 worker 不共享；持久化 / 多实例一致性属部署方职责，本切片未闭环。
+证据边界：提示词库树（库、分类、活动库、目录版本与 ID 高水位）使用
+``core.storage.JsonState`` 命名空间 ``prompt_library_tree`` 落盘；同一数据目录重启可恢复，
+同进程父子写通过共享域锁串行；多 worker / 多进程并发写一致性仍属部署方职责。历史条目命名空间不删除；首次升级读取其父 ID
+高水位，防止新父库/分类复用旧 ID 并误接收遗留条目。
 """
 
 from __future__ import annotations
@@ -23,7 +25,9 @@ from datetime import datetime, timezone
 import threading
 from typing import Dict, List, Optional, Tuple
 
+from gods_workbench.core import storage
 from gods_workbench.core.errors import CleanroomException, VersionConflictException
+from gods_workbench.prompt_library import coordination
 from gods_workbench.prompt_library.models import (
     PromptCategoryCreateRequest,
     PromptCategoryItem,
@@ -79,26 +83,128 @@ def _assert_expected_version(expected_version: Optional[int], current_version: i
         )
 
 
+NS_PROMPT_TREE = "prompt_library_tree"
+NS_PROMPT_ITEMS = "prompt_library"
+
+
+def _blank_prompt_tree() -> Dict[str, object]:
+    return {
+        "schema_version": 1,
+        "directory_version": 1,
+        "active_library_id": None,
+        "libraries": {},
+        "library_sequence": 0,
+        "category_sequence": 0,
+    }
+
+
+def _sequence_for(prefix: str, values: List[str]) -> int:
+    maximum = 0
+    for value in values:
+        tail = str(value or "").removeprefix(prefix)
+        if tail.isdigit():
+            maximum = max(maximum, int(tail))
+    return maximum
+
+
 class PromptLibraryService:
-    """提示词库内存存储与 CAS 状态服务。"""
+    """提示词库持久化与 CAS 状态服务。"""
 
     def __init__(self, seed_structural_fixture: bool = False) -> None:
         self._lock = threading.Lock()
+        self._seed_structural_fixture = seed_structural_fixture
+        self._loaded_root: Optional[str] = None
         self._directory_version = 1
         self._active_library_id: Optional[str] = None
         self._libraries: Dict[str, PromptLibraryItem] = {}
         self._library_seq = 0
         self._category_seq = 0
 
-        if seed_structural_fixture:
-            self._seed()
+    def _legacy_id_highwaters(self) -> Tuple[int, int]:
+        """读取升级前只落盘条目中的父 ID，仅用作高水位，不猜测恢复父对象。"""
+        raw = storage.JsonState(NS_PROMPT_ITEMS, lambda: {"items": {}}).read()
+        library_ids, category_ids = [], []
+        for item in raw.get("items", {}).values():
+            library_ids.append(str(item.get("library_id") or ""))
+            category_ids.append(str(item.get("category_id") or ""))
+        return _sequence_for("plib_", library_ids), _sequence_for("pcat_", category_ids)
+
+    def _ensure_loaded_locked(self) -> None:
+        root = str(storage.data_root().resolve())
+        if self._loaded_root == root:
+            return
+
+        state_path = storage.data_root() / (NS_PROMPT_TREE + ".json")
+        state = storage.JsonState(NS_PROMPT_TREE, _blank_prompt_tree)
+        raw = state.read()
+        legacy_library_seq, legacy_category_seq = self._legacy_id_highwaters()
+        if state_path.exists():
+            if not isinstance(raw, dict) or raw.get("schema_version") != 1:
+                raise CleanroomException(503, "PROMPT_LIBRARY_STATE_INVALID", "提示词库持久化数据格式不受支持")
+            try:
+                libraries = {
+                    key: PromptLibraryItem.model_validate(value)
+                    for key, value in raw.get("libraries", {}).items()
+                }
+                active_library_id = raw.get("active_library_id")
+                if active_library_id is not None and active_library_id not in libraries:
+                    raise ValueError("活动提示词库不存在")
+                self._directory_version = max(1, int(raw.get("directory_version", 1)))
+                self._active_library_id = active_library_id
+                self._libraries = libraries
+                self._library_seq = max(
+                    int(raw.get("library_sequence", 0) or 0),
+                    _sequence_for("plib_", list(libraries.keys())),
+                    legacy_library_seq,
+                )
+                categories = [
+                    category.category_id
+                    for library in libraries.values()
+                    for category in library.categories
+                ]
+                self._category_seq = max(
+                    int(raw.get("category_sequence", 0) or 0),
+                    _sequence_for("pcat_", categories),
+                    legacy_category_seq,
+                )
+            except Exception as exc:
+                raise CleanroomException(503, "PROMPT_LIBRARY_STATE_INVALID", "提示词库持久化数据无法读取") from exc
+        else:
+            self._directory_version = 1
+            self._active_library_id = None
+            self._libraries = {}
+            self._library_seq = legacy_library_seq
+            self._category_seq = legacy_category_seq
+            if self._seed_structural_fixture:
+                self._seed()
+                self._library_seq = max(self._library_seq, legacy_library_seq)
+                self._category_seq = max(self._category_seq, legacy_category_seq)
+
+        self._loaded_root = root
+        if not state_path.exists() and self._seed_structural_fixture:
+            self._persist_locked()
+
+    def _persist_locked(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "directory_version": self._directory_version,
+            "active_library_id": self._active_library_id,
+            "libraries": {
+                library_id: item.model_dump(mode="json")
+                for library_id, item in self._libraries.items()
+            },
+            "library_sequence": self._library_seq,
+            "category_sequence": self._category_seq,
+        }
+        storage.JsonState(NS_PROMPT_TREE, _blank_prompt_tree).write(payload)
 
     # ------------------------------------------------------------------
     # 查询
     # ------------------------------------------------------------------
     def get_snapshot(self) -> PromptLibrarySnapshot:
         """返回提示词库顶层目录快照（深拷贝，避免调用方改写内部状态）。"""
-        with self._lock:
+        with coordination.PROMPT_LIBRARY_DOMAIN_LOCK, self._lock:
+            self._ensure_loaded_locked()
             return self._build_snapshot_locked()
 
     def _build_snapshot_locked(self) -> PromptLibrarySnapshot:
@@ -116,7 +222,8 @@ class PromptLibraryService:
         self, payload: PromptLibraryCreateRequest
     ) -> Tuple[PromptLibraryItem, PromptLibrarySnapshot]:
         """创建提示词库；目录 CAS 冲突或重名失败关闭。"""
-        with self._lock:
+        with coordination.PROMPT_LIBRARY_DOMAIN_LOCK, self._lock:
+            self._ensure_loaded_locked()
             _assert_expected_version(payload.expected_version, self._directory_version, "提示词库目录")
             name = _require_name(payload.name, "提示词库名称")
             self._assert_unique_library_name_locked(name)
@@ -137,13 +244,15 @@ class PromptLibraryService:
             if self._active_library_id is None:
                 self._active_library_id = library_id
             self._directory_version += 1
+            self._persist_locked()
             return copy.deepcopy(item), self._build_snapshot_locked()
 
     def rename_library(
         self, library_id: str, payload: PromptLibraryRenameRequest
     ) -> Tuple[PromptLibraryItem, PromptLibrarySnapshot]:
         """重命名提示词库；目标不存在、重名或 CAS 冲突失败关闭。"""
-        with self._lock:
+        with coordination.PROMPT_LIBRARY_DOMAIN_LOCK, self._lock:
+            self._ensure_loaded_locked()
             target = self._libraries.get(library_id)
             if target is None:
                 raise self._library_not_found(library_id)
@@ -156,28 +265,33 @@ class PromptLibraryService:
             target.version += 1
             target.updated_at = _now_iso()
             self._directory_version += 1
+            self._persist_locked()
             return copy.deepcopy(target), self._build_snapshot_locked()
 
     def delete_library(self, library_id: str, expected_version: Optional[int]) -> PromptLibrarySnapshot:
         """删除提示词库；非空库（仍有分类）返回 409 LIBRARY_NOT_EMPTY，禁止静默级联。"""
-        with self._lock:
+        with coordination.PROMPT_LIBRARY_DOMAIN_LOCK, self._lock:
+            self._ensure_loaded_locked()
             _require_positive_version(expected_version, f"提示词库 {library_id}")
             target = self._libraries.get(library_id)
             if target is None:
                 raise self._library_not_found(library_id)
             _assert_expected_version(expected_version, target.version, f"提示词库 {library_id}")
 
-            if target.categories:
+            stored_items = storage.JsonState(NS_PROMPT_ITEMS, lambda: {"items": {}}).read().get("items", {})
+            has_items = any(item.get("library_id") == library_id for item in stored_items.values())
+            if target.categories or has_items:
                 raise CleanroomException(
                     status_code=409,
                     code="LIBRARY_NOT_EMPTY",
-                    message=f"提示词库 {library_id} 仍包含 {len(target.categories)} 个分类，请先清空后再删除",
+                    message=f"提示词库 {library_id} 仍包含分类或条目，请先移除引用后再删除",
                 )
 
             del self._libraries[library_id]
             self._directory_version += 1
             if self._active_library_id == library_id:
                 self._active_library_id = next(iter(sorted(self._libraries)), None)
+            self._persist_locked()
             return self._build_snapshot_locked()
 
     # ------------------------------------------------------------------
@@ -187,7 +301,8 @@ class PromptLibraryService:
         self, payload: PromptCategoryCreateRequest
     ) -> Tuple[PromptCategoryItem, PromptLibrarySnapshot]:
         """在指定提示词库下创建分类；父库不存在或父库 CAS 冲突失败关闭。"""
-        with self._lock:
+        with coordination.PROMPT_LIBRARY_DOMAIN_LOCK, self._lock:
+            self._ensure_loaded_locked()
             parent = self._libraries.get(payload.library_id)
             if parent is None:
                 raise self._library_not_found(payload.library_id)
@@ -211,13 +326,15 @@ class PromptLibraryService:
             parent.version += 1
             parent.updated_at = timestamp
             self._directory_version += 1
+            self._persist_locked()
             return copy.deepcopy(category), self._build_snapshot_locked()
 
     def rename_category(
         self, category_id: str, payload: PromptCategoryRenameRequest
     ) -> Tuple[PromptCategoryItem, PromptLibrarySnapshot]:
         """重命名分类；目标不存在、同库重名或 CAS 冲突失败关闭。"""
-        with self._lock:
+        with coordination.PROMPT_LIBRARY_DOMAIN_LOCK, self._lock:
+            self._ensure_loaded_locked()
             parent, target = self._locate_category_locked(category_id)
             _assert_expected_version(payload.expected_version, target.version, f"分类 {category_id}")
 
@@ -230,19 +347,30 @@ class PromptLibraryService:
             parent.version += 1
             parent.updated_at = target.updated_at
             self._directory_version += 1
+            self._persist_locked()
             return copy.deepcopy(target), self._build_snapshot_locked()
 
     def delete_category(self, category_id: str, expected_version: Optional[int]) -> PromptLibrarySnapshot:
         """删除分类；目标分类 CAS 冲突失败关闭。"""
-        with self._lock:
+        with coordination.PROMPT_LIBRARY_DOMAIN_LOCK, self._lock:
+            self._ensure_loaded_locked()
             _require_positive_version(expected_version, f"分类 {category_id}")
             parent, target = self._locate_category_locked(category_id)
             _assert_expected_version(expected_version, target.version, f"分类 {category_id}")
 
+            stored_items = storage.JsonState(NS_PROMPT_ITEMS, lambda: {"items": {}}).read().get("items", {})
+            has_items = any(item.get("category_id") == category_id for item in stored_items.values())
+            if has_items:
+                raise CleanroomException(
+                    status_code=409,
+                    code="CATEGORY_NOT_EMPTY",
+                    message=f"分类 {category_id} 仍被提示词条目引用，请先移除引用后再删除",
+                )
             parent.categories = [item for item in parent.categories if item.category_id != category_id]
             parent.version += 1
             parent.updated_at = _now_iso()
             self._directory_version += 1
+            self._persist_locked()
             return self._build_snapshot_locked()
 
     # ------------------------------------------------------------------

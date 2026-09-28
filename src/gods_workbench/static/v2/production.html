@@ -31,7 +31,7 @@
           <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 border border-[#dfc384]/30 text-[#eddab3]">SYS.02 PRO</span>
         </div>
         <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" id="gwOnlineStatus" data-gw-degradation="not_integrated" title="读取真实探针 GET /api/observability/health">探测中…</span>
             <span class="relative flex h-2 w-2">
               <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
             </span>
@@ -144,7 +144,7 @@
             <div class="hw-fader-glow-bar" style="width: 0%;"></div>
             <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[9px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实阶段进度数据源，未读取任何指标">未接入</span>
+          <span class="text-[9px] font-mono font-bold text-amber-300" id="prodStageReadout" data-gw-degradation="not_integrated" title="真实数据源：GET /api/episode-pipelines">读取中…</span>
         </div>
         <div class="flex items-center space-x-2">
           <span class="text-[9px] font-mono text-slate-400 font-bold">VRAM</span>
@@ -152,7 +152,7 @@
             <div class="hw-fader-glow-bar" style="width: 0%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%);"></div>
             <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[9px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实显存遥测数据源，未读取任何指标">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-bold" id="gpuVramReadout" data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health 的 gpu_telemetry 检查项">未接入</span>
         </div>
       </div>
 
@@ -476,24 +476,16 @@
     </div>
 
     <div class="p-3 overflow-y-auto space-y-2 flex-1 text-xs">
-      <div class="bay-inset p-2.5 rounded-xl border-l-2 border-[#dfc384]">
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-bold text-slate-200">暂无真实渲染任务</span>
-          <span class="text-[8px] font-mono text-amber-300" data-gw-degradation="not_integrated">未接入</span>
-        </div>
-        <div class="hw-fader-track-horizontal w-full h-1 mb-1.5">
-          <div class="hw-fader-glow-bar" style="width: 0%;"></div>
-        </div>
-        <div class="flex items-center justify-between text-[8px] font-mono text-slate-500">
-          <span>无真实作业数据源</span>
-          <span class="text-amber-300" data-gw-degradation="not_integrated">渲染遥测未接入</span>
-        </div>
+      <!-- 任务中心抽屉内容：由 /api/observability/tasks 真实驱动。 -->
+      <div class="space-y-2" id="v2TaskCenterDrawerList">
+        <div class="bay-inset p-2.5 rounded-xl border border-white/10 text-center text-[10px] font-mono text-slate-400" role="status">读取真实作业队列…</div>
       </div>
     </div>
   </aside>
 
   <script src="/static/js/degradation.js?v=v0.0.1-alpha-2026"></script>
   <script src="/static/js/hardware-telemetry.js"></script>
+<script src="/static/js/v2-task-queue.js"></script>
   <script src="/static/v2/js/production-controller.js"></script>
 <script src="/static/v2/js/v2-shell.js"></script>
 </body>

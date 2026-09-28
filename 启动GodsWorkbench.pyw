@@ -48,22 +48,20 @@ def start(wait_seconds: int, no_browser: bool) -> None:
     logs = ROOT / "logs"
     logs.mkdir(exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    stdout_log = logs / f"gods-workbench-{stamp}.out.log"
-    stderr_log = logs / f"gods-workbench-{stamp}.err.log"
+    log_path = logs / f"gods-workbench-{stamp}-{os.getpid()}.log"
     env = os.environ.copy()
     env.update(GW_HOST="127.0.0.1", GW_PORT=str(PORT), GW_RELOAD="false")
 
-    # pythonw 无控制台；服务输出重定向到日志，避免窗口闪烁与错误不可见。
-    with stdout_log.open("wb") as stdout, stderr_log.open("wb") as stderr:
-        process = subprocess.Popen(
-            [sys.executable, str(ROOT / "run.py")],
-            cwd=ROOT,
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=stderr,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
+    # 双击入口由 pythonw 执行，但后台必须用 python.exe 创建独立可见控制台。
+    python = Path(sys.executable)
+    if python.name.lower() == "pythonw.exe":
+        python = python.with_name("python.exe")
+    process = subprocess.Popen(
+        [str(python), "-u", str(ROOT / "tools" / "run_visible_server.py"), str(log_path)],
+        cwd=ROOT,
+        env=env,
+        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+    )
 
     deadline = time.monotonic() + wait_seconds
     while time.monotonic() < deadline:
@@ -72,9 +70,9 @@ def start(wait_seconds: int, no_browser: bool) -> None:
                 open_home()
             return
         if process.poll() is not None:
-            raise RuntimeError(f"服务退出（代码 {process.returncode}）。请查看 {stderr_log}")
+            raise RuntimeError(f"服务退出（代码 {process.returncode}）。请查看后台控制台或日志 {log_path}")
         time.sleep(0.5)
-    raise RuntimeError(f"服务 {wait_seconds} 秒内未就绪。请查看 {stderr_log}")
+    raise RuntimeError(f"服务 {wait_seconds} 秒内未就绪。请查看后台控制台或日志 {log_path}")
 
 
 if __name__ == "__main__":

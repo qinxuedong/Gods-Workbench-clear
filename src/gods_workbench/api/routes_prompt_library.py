@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""提示词库 API 路由实现（Phase 10C）。
+"""提示词库 API 路由实现（Phase 10C / Phase 12 持久化修订）。
 
-严格对齐 docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml（p10c-frozen-1）的 7 个端点：
+严格对齐 docs/contracts/PROMPT-LIBRARY-INTERFACE-CATALOG.yaml（p12-a3-2）的 7 个端点：
 
 - ``GET    /api/prompt-libraries``                         读取提示词库树
 - ``POST   /api/prompt-libraries``                         创建提示词库
@@ -11,8 +11,8 @@
 - ``PATCH  /api/prompt-libraries/categories/{category_id}`` 重命名分类
 - ``DELETE /api/prompt-libraries/categories/{category_id}`` 删除分类
 
-边界：``/api/prompt-libraries/items*`` 等条目 CRUD 仍属 KNOWN_UNIMPLEMENTED，
-未获契约授权，本模块**不得**顺带实现（由契约测试反向断言其不可用）。
+边界：本路由只管理库/分类目录；条目 CRUD 由 Phase 12 A3 独立路由及其契约提供，
+不得在本模块重复实现或绕过条目父库/分类引用校验。
 
 认证：读端点需认证；写端点需 ``require_edit_access``（只读角色 403）。
 删除端点的 CAS 期望值经查询串 ``expected_version`` 传入（前端以空体 DELETE 调用）。

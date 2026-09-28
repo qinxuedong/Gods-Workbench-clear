@@ -1,0 +1,44 @@
+# Phase 12 块 A1｜未接入操作清单（运行时实测 2026-09-26）
+
+共 40 条。
+
+- `GET /api/asset-classification-prompt` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `PATCH /api/asset-classification-prompt` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `DELETE /api/asset-classification/background` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `POST /api/asset-classification/background` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `GET /api/asset-classification/jobs/{job_id}` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `GET /api/asset-content` → 当前 `ASSET_CONTENT_NOT_INTEGRATED`
+- `PATCH /api/asset-content` → 当前 `ASSET_CONTENT_NOT_INTEGRATED`
+- `GET /api/asset-content/pdf` → 当前 `ASSET_CONTENT_NOT_INTEGRATED`
+- `GET /api/asset-content/versions` → 当前 `ASSET_CONTENT_NOT_INTEGRATED`
+- `DELETE /api/asset-content/versions/{version_id}` → 当前 `ASSET_CONTENT_NOT_INTEGRATED`
+- `GET /api/asset-content/versions/{version_id}` → 当前 `ASSET_CONTENT_NOT_INTEGRATED`
+- `PATCH /api/asset-content/versions/{version_id}` → 当前 `ASSET_CONTENT_NOT_INTEGRATED`
+- `POST /api/asset-content/versions/{version_id}/restore` → 当前 `ASSET_CONTENT_NOT_INTEGRATED`
+- `GET /api/asset-file-info` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `POST /api/asset-file-reveal` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `DELETE /api/asset-library/categories/{category_id}` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `PATCH /api/asset-library/categories/{category_id}` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `POST /api/asset-library/items/batch` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `POST /api/asset-library/items/classify` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `POST /api/asset-library/items/delete` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `POST /api/asset-library/items/move` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `DELETE /api/asset-library/items/{item_id}` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `PATCH /api/asset-library/items/{item_id}` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `POST /api/asset-library/items/{item_id}/avatar-status` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `POST /api/asset-library/items/{item_id}/register-avatar` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `DELETE /api/asset-library/libraries/{library_id}` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `PATCH /api/asset-library/libraries/{library_id}` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `POST /api/asset-library/workflows/upload` → 当前 `ASSET_LIBRARY_NOT_INTEGRATED`
+- `GET /api/local-assets` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `PATCH /api/local-assets/caption` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `POST /api/local-assets/caption` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `POST /api/local-assets/classify` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `POST /api/local-assets/delete` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `PATCH /api/local-assets/folders` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `POST /api/local-assets/folders` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `PATCH /api/local-assets/items` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `POST /api/local-assets/move` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `POST /api/local-assets/upload` → 当前 `LOCAL_ASSETS_NOT_INTEGRATED`
+- `GET /api/storage-files` → 当前 `STORAGE_FILES_NOT_INTEGRATED`
+- `POST /api/storage-files/delete` → 当前 `STORAGE_FILES_NOT_INTEGRATED`

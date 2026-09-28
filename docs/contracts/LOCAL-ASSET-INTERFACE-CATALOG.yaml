@@ -1,12 +1,19 @@
 # -*- coding: utf-8 -*-
 # Phase 11 B4 洁净室接口目录：未接入数据源的能力必须失败关闭。
 meta:
-  version: p11-b4-1
+  version: p12-a1-2
   distribution: NOT AUTHORIZED FOR PUBLIC DISTRIBUTION
-  data_policy: "不读取任意本机路径；不伪造资产、任务、内容或文件。"
+  data_policy: "本机文件仅限 GW_ALLOWED_ROOTS 内的真实路径；未配置即拒绝一切本机文件访问。"
   auth_policy: "所有接口先完成认证；写接口先完成编辑权限检查。"
   unavailable_status: 503
   unavailable_code: LOCAL_ASSETS_NOT_INTEGRATED
+  persistence: "索引使用 core.storage.JsonState 命名空间 local_asset_index；asset_id 在记录内按 local_NNNN 单调分配，重新索引同一对象保留 ID。"
+  duplicate_id_migration: "检测到历史重复 asset_id 时，按展示路径稳定排序为所有冲突记录重新分配唯一 ID；返回修复映射。修复前按歧义 ID 更新必须 409 LOCAL_ASSET_ID_AMBIGUOUS。"
+  file_index_consistency: "移动成功后索引路径同步更新且 asset_id 保留；删除成功后索引移除。索引写失败先补偿磁盘操作；不能补偿时显式返回部分失败与实际路径状态。"
+# ---------------------------------------------------------------------------
+# Phase 12 真实接入说明（2026-09-26）
+# 相位 12 起：上传/移动/删除均对真实文件生效；本地索引落盘；越界路径一律 403。
+# ---------------------------------------------------------------------------
 interfaces:
   - name: get_api_local_assets
     method: GET
@@ -17,7 +24,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: post_api_local_assets_caption
     method: POST
     path: /api/local-assets/caption
@@ -27,7 +34,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: patch_api_local_assets_caption
     method: PATCH
     path: /api/local-assets/caption
@@ -37,7 +44,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: post_api_local_assets_classify
     method: POST
     path: /api/local-assets/classify
@@ -47,7 +54,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: post_api_local_assets_delete
     method: POST
     path: /api/local-assets/delete
@@ -57,7 +64,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: post_api_local_assets_folders
     method: POST
     path: /api/local-assets/folders
@@ -67,7 +74,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: patch_api_local_assets_folders
     method: PATCH
     path: /api/local-assets/folders
@@ -77,7 +84,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: patch_api_local_assets_items
     method: PATCH
     path: /api/local-assets/items
@@ -87,7 +94,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: post_api_local_assets_move
     method: POST
     path: /api/local-assets/move
@@ -97,7 +104,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: post_api_local_assets_upload
     method: POST
     path: /api/local-assets/upload
@@ -107,7 +114,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: get_api_storage_files
     method: GET
     path: /api/storage-files
@@ -117,7 +124,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"
   - name: post_api_storage_files_delete
     method: POST
     path: /api/storage-files/delete
@@ -127,4 +134,4 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后执行真实文件操作；未配置允许根目录返回 403 LOCAL_FILE_ACCESS_NOT_ADMITTED，越界返回 403，且不回显原始路径。"

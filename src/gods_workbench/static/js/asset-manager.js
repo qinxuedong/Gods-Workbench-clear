@@ -1252,7 +1252,7 @@ async function reindexAssetSource(sourceId){
     if(assetReindexRequests.has(sourceId)) return assetReindexRequests.get(sourceId);
     const nonce = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     // 【修复问题7】索引任务启动失败不再吞成 null：结构化返回 {ok,error} 供调用方回显
-    const request = apiJsonResponse(assetManagerApi.reindexAssetSource({roots:[sourceId], hash_files:true, max_files:250000}, {
+    const request = apiJsonResponse(assetManagerApi.reindexAssetSource({roots:[sourceId], hash_files:true, max_files:250000, background:true}, {
         headers:{'Idempotency-Key':`asset-reindex:${sourceId}:${nonce}`},
     })).then(data => ({ok:true, data})).catch(err => ({ok:false, error:err?.message || '索引任务启动失败'})).finally(() => assetReindexRequests.delete(sourceId));
     assetReindexRequests.set(sourceId, request);
@@ -1498,7 +1498,13 @@ async function apiJsonResponse(response){
     const res = await response;
     const data = await res.json().catch(() => ({}));
     if(res.status === 401) window.dispatchEvent(new CustomEvent('asset-auth-needed'));
-    if(!res.ok) throw new Error(data.detail || data.message || '操作失败');
+    if(!res.ok){
+        const detail = data.detail;
+        const error = new Error((typeof detail === 'object' ? detail?.message : detail) || data.message || '操作失败');
+        error.status = res.status;
+        error.code = typeof detail === 'object' ? detail?.code : null;
+        throw error;
+    }
     return data;
 }
 const STORAGE_KIND_LABELS = {upload:'\u4e0a\u4f20\u7d20\u6750', generated:'\u751f\u6210\u7d20\u6750', local:'\u672c\u5730\u7d20\u6750'};
@@ -2341,10 +2347,9 @@ async function setProjectDirectoryTemplateDefault(templateId){
     projectDirectoryTemplateManagerState = {...projectDirectoryTemplateManagerState, saving:true, error:''};
     renderProjectDirectoryTemplateManagerSheet();
     try {
-        const defaultRevision = Number.isFinite(Number(template.default_revision))
-            ? Number(template.default_revision)
-            : Number(projectDirectoryTemplateManagerState.revision);
-        const payload = Number.isFinite(defaultRevision) ? {expected_revision:defaultRevision} : {};
+        const expectedVersion = Number(template.version);
+        if(!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error('目录模板版本无效，请重新读取');
+        const payload = {expected_version:expectedVersion};
         await apiJsonResponse(assetManagerApi.setDefaultProjectDirectoryTemplate(template.id, payload));
         await loadProjectDirectoryTemplatesForManager();
         chooseProjectDirectoryTemplate(template.id);
@@ -5011,7 +5016,11 @@ async function loadMoreRegistryAssets(){
             appendRegistryAssetPageCards(appendedItems, appendContext);
         }
     } catch(err) {
-        if(requestId === registryRequestSeq && !isRegistryAbortError(err)) setStatus(err.message || '加载更多资产失败');
+        if(requestId === registryRequestSeq && err.status === 409 && err.code === 'VERSION_CONFLICT'){
+            // 集合变化后丢弃旧游标、预取与缓存，重新读取第一页，不拼接不同快照。
+            await refreshRegistryAssets();
+            setStatus('资产列表已变化，已重新读取第一页');
+        } else if(requestId === registryRequestSeq && !isRegistryAbortError(err)) setStatus(err.message || '加载更多资产失败');
     } finally {
         if(requestId !== registryRequestSeq) return;
         registryRequestAbortController = null;

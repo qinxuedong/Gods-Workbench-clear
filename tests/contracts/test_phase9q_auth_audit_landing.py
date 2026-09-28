@@ -177,11 +177,12 @@ def local_idp(rsa_keypair, jwks):
 
 
 @pytest.fixture()
-def clean_env(monkeypatch):
+def clean_env(monkeypatch, tmp_path):
     """清空 GW_* 环境变量与全部内存态（含审计缓冲），保证用例互不污染。"""
     for name in list(os.environ):
         if name.startswith("GW_"):
             monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GW_VIDEO_DATA_DIR", str(tmp_path / "gw-video"))
     gw_config.reset_runtime_auth_config_cache()
     gw_config.reset_discovery_cache()
     session_store.reset_stores()

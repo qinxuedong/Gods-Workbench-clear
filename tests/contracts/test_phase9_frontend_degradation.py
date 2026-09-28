@@ -41,10 +41,14 @@ def test_asset_share_direct_open_shows_missing_token_hint():
     js = _read(SHARE_JS)
     assert "isDirectOpen" in js, "asset-share.js 应识别无令牌直开"
     assert re.search(r"缺少分享令牌", js), "应给出中文缺参提示文案"
-    anchor = js.find("async function load()")
-    assert anchor != -1, "未找到 load()"
-    region = js[anchor : anchor + 400]
-    assert "if(!token)" in region, "load() 应在发起请求前拦截缺少 token 的情况"
+    match = re.search(r"async function load\([^\n]*\)\s*\{", js)
+    assert match is not None, "未找到带生命周期上下文参数的 load()"
+    region = js[match.end() : match.end() + 600]
+    token_guard = region.find("if(!token)")
+    request_call = region.find("getPublicShare(token")
+    assert token_guard != -1, "load() 应保留缺少 token 的拦截"
+    assert request_call != -1 and token_guard < request_call, "无 token 分支必须先于元信息请求，不得发起公开分享请求"
+    assert "缺少分享令牌" in region, "无 token 分支必须显示中文缺参提示"
 
 
 def test_asset_share_html_keeps_loading_placeholder():
@@ -256,22 +260,50 @@ def test_storyboard_controller_has_no_fake_generating_progress():
     assert "未接入" in js
 
 
-def test_v2_task_center_marked_not_integrated():
-    """任务中心链路整体未实现：相关页面必须明说未接入，而非显示真实队列。"""
+def test_v2_task_center_is_driven_by_real_endpoint():
+    """Phase 12：任务中心已真实接入 GET /api/observability/tasks。
+
+    本用例由旧「整体未接入」守卫改写而来（Phase 12 门禁第 6 条：原 *_NOT_INTEGRATED
+    断言必须改为断言新真实语义）。要求：
+    1. 三页存在由共享模块驱动的真实容器，且不再保留静态示例任务；
+    2. 共享模块只消费 /api/observability/tasks，且不含任何随机数或伪造百分比；
+    3. 后端不可达时仍必须走显式降级（不得静默伪造队列）。
+    """
     for path in (INDEX_HTML, PROJECTS_HTML, PRODUCTION_HTML):
         html = _read(path)
-        assert "未接入" in html, f"{path.name} 必须明说未接入"
+        assert "v2-task-queue.js" in html, f"{path.name} 必须引入任务队列共享模块"
+        assert "v2TaskCenterDrawerList" in html, f"{path.name} 必须有真实队列容器"
     index = _read(INDEX_HTML)
-    assert 'id="activeTasksCountBadge"' in index
-    assert "任务中心未接入" in index, "首页活跃任务徽标必须标注未接入"
+    assert 'id="activeTasksCountBadge"' in index, "首页必须有活跃任务计数位"
+    assert "暂无真实任务" not in index, "首页不得残留静态示例任务卡片"
+    assert "v2ActiveTasksContainer" in index, "首页必须有真实活跃任务容器"
+
+    queue_js = _read(STATIC_JS / "v2-task-queue.js")
+    assert "/api/observability/tasks" in queue_js, "共享模块必须消费真实任务端点"
+    assert "Math.random" not in queue_js, "任务渲染不得使用随机数"
+    assert "job_id" in queue_js and "poll_hint" in queue_js, "必须消费契约字段"
+    assert "data-gw-degradation" in queue_js, "降级路径必须带结构化标记"
+    assert "未接入" in queue_js, "端点缺失时必须明说未接入"
 
 
 def test_v2_gpu_telemetry_not_faked():
-    """GPU 集群卡不得伪造设备型号/显存/利用率。"""
+    """GPU 集群卡不得伪造设备型号/显存/利用率。
+
+    Phase 12 收口：后端已真实接入 nvidia-smi GPU 遥测
+    （/api/observability/health 的 gpu_telemetry 检查项），
+    原「静态未接入」断言按门禁要求改为断言新真实语义：
+    设备卡必须由真实 devices 数组渲染，静态不得残留任何伪造型号/占用。
+    """
     html = _read(PROJECTS_HTML)
-    assert "硬件遥测未接入" in html
     assert "22.4G" not in html and "18.2G" not in html, "不得伪造显存占用"
     assert "IDLE</span>" not in html, "不得伪造 GPU 空闲/占用状态"
+    assert 'id="gpuDeviceGrid"' in html, "GPU 设备卡必须由真实 devices 渲染"
+    assert "4090 #1" not in html and "A100 #1" not in html, "不得静态写死伪造型号"
+    assert 'id="gpuClusterStatus"' in html, "必须有可被真实 gpu_telemetry 驱动的集群状态位"
+    js = _read(TELEMETRY_JS)
+    assert "gpu_telemetry" in js, "必须消费真实 GPU 检查项"
+    assert "applyGpuTelemetry" in js, "必须存在真实 GPU 写入方法"
+    assert "nvidia-smi" in js, "GPU 读数来源必须是 nvidia-smi 真实读数"
 
 
 def test_v2_collab_and_settings_no_fake_latency_claim():
@@ -314,6 +346,25 @@ def test_v2_pages_have_no_static_online_green_led():
         assert "uv-hub-percent" in text
         offenders.append(name)
     assert len(offenders) == 9
+
+
+def test_v2_online_capsule_is_driven_by_real_health_probe():
+    """Phase 12：顶栏在线胶囊已真实接入 /api/observability/health。
+
+    旧口径「本切片无任何真实在线状态探针」已不成立（后端 health 探针可用），
+    本用例断言新真实语义：9 页共用同一 ID，由共享模块按后端真实字段判定，
+    且绝不在未接入/异常时渲染绿色在线灯。
+    """
+    for name in V2_PAGES:
+        text = (V2_DIR / name).read_text(encoding="utf-8")
+        assert 'id="gwOnlineStatus"' in text, f"{name} 在线胶囊必须可被真实探针驱动"
+        assert "无任何真实在线状态探针" not in text, f"{name} 不得再断言无在线探针"
+
+    js = _read(TELEMETRY_JS)
+    assert "/api/observability/health" in js, "在线胶囊必须消费真实 health 探针"
+    assert "syncOnlineStatus" in js, "必须存在真实在线状态同步方法"
+    assert "data-gw-degradation" in js, "降级态必须带结构化标记"
+    assert "Math.random" not in js, "在线状态不得由随机数决定"
 
 
 def test_v2_pages_vu_reading_is_explicitly_not_integrated():
@@ -395,13 +446,36 @@ def test_v2_topbar_faders_have_no_stale_readouts():
 
 
 def test_v2_shell_injected_faders_have_no_stale_readouts():
-    """v2-shell.js 注入的顶栏不得残留具体读数或非零推子位移。"""
+    """v2-shell.js 注入的顶栏不得残留具体读数或非零推子位移。
+
+    本轮修正口径：注入推子**不得**永久写死「未接入」，因为它旁边的真实 GPU 遥测已接入；
+    必须改为可被真实读数驱动的钩子（初值「读取中…」），否则就是自相矛盾的假降级。
+    """
     js = _read(V2_JS / "v2-shell.js")
     for token in STALE_FADER_READOUTS:
         assert token not in js, f"v2-shell.js 不得残留具体读数 {token}"
     assert "width:78%" not in js.replace(" ", ""), "注入推子宽度必须为 0%"
-    assert "未接入" in js, "注入推子读数必须明说未接入"
-    assert "not_integrated" in js, "注入推子必须带结构化降级标记"
+    assert "data-gw-gpu-util" in js, "注入的 FLUX 推子必须提供可被真实 GPU 读数驱动的钩子"
+    assert "data-gw-gpu-vram" in js, "注入的 VRAM 推子必须提供可被真实 GPU 读数驱动的钩子"
+    assert "读取中" in js, "注入推子初值应为读取中"
+    # 只有推子读数位不得写死未接入；头像「认证状态未接入」等其它语义不在此范围。
+    for hook in ("data-gw-gpu-util", "data-gw-gpu-vram"):
+        begin = js.find(hook)
+        assert begin != -1, hook
+        region = js[begin : begin + 400]
+        assert "未接入" not in region, f"{hook} 推子不得永久写死未接入（真实 GPU 遥测已可驱动）"
+
+
+def test_v2_shell_injected_faders_are_driven_by_real_gpu_telemetry():
+    """注入推子的钩子必须真的被 applyGpuTelemetry 消费，且写入真实百分比。"""
+    telemetry = _read(STATIC_JS / "hardware-telemetry.js")
+    assert "data-gw-' + key + '" in telemetry or "data-gw-gpu-util" in telemetry, \
+        "必须按钩子选择器写入真实读数"
+    assert "data-gw-gpu-util" in telemetry, "FLUX 推子钩子必须被真实遥测消费"
+    assert "data-gw-gpu-vram" in telemetry, "VRAM 推子钩子必须被真实遥测消费"
+    assert "lastGpuCheck" in telemetry, "必须缓存最近一次真实读数供后注入推子回放"
+    shell = _read(V2_JS / "v2-shell.js")
+    assert "lastGpuCheck" in shell, "注入推子后必须立即回放最近真实读数，不得停在读取中"
 
 
 def test_v2_topbar_fader_readouts_are_marked_not_integrated():
@@ -1067,3 +1141,165 @@ def test_tailwind_self_hosted_snapshot_hash_is_pinned():
     manifest_hashes = re.findall(r"\b[A-Fa-f0-9]{64}\b", row)
     assert manifest_hashes, "MANIFEST.md 缺少 Tailwind 快照 SHA-256"
     assert digest == manifest_hashes[0].upper()
+
+
+# ---------------------------------------------------------------------------
+# Phase 12 收口：顶栏状态位 / 阶段汇总位 / 渲染总线 / 立项状态位「真实接线」守卫
+#
+# 背景：这些位置原先静态写死「未接入」（假缺口），Phase 12 已改为由真实端点驱动。
+# 本组用例锁死新语义：初值只能是「读取中…」，真实读数/降级文案必须由共享模块
+# 依据后端应答写入；同时不得回退成静态绿色在线灯或写死读数。
+# 证据边界：静态守卫 != 真实浏览器 E2E（真机验证另见 wire_e2e / hdr_e2e）。
+# ---------------------------------------------------------------------------
+TELEMETRY_JS = STATIC_JS / "hardware-telemetry.js"
+
+
+def test_v2_pages_all_load_hardware_telemetry_module():
+    """9 个 v2 页都必须引入共享遥测模块，否则 CPU/RAM/在线/阶段位无法真实接线。"""
+    for name in V2_PAGES:
+        text = (V2_DIR / name).read_text(encoding="utf-8")
+        assert "/static/js/hardware-telemetry.js" in text, f"{name} 必须引入共享遥测模块"
+    js = _read(TELEMETRY_JS)
+    assert "applyHeaderTelemetryLabels" in js, "遥测模块必须实现顶栏状态位同步方法"
+    assert "data-gw-header-prefix" in js, "顶栏状态位必须按前缀真实改写"
+
+
+def test_v2_header_prefixes_are_not_static_not_integrated():
+    """顶栏标题状态位不得静态写死「未接入」，初值只能是「读取中…」。"""
+    prefixed = []
+    for name in V2_PAGES:
+        text = (V2_DIR / name).read_text(encoding="utf-8")
+        for match in re.finditer(r'data-gw-header-prefix="[^"]*"[^>]*>([^<]*)<', text):
+            prefixed.append(name)
+            body = match.group(1)
+            assert "未接入" not in body, f"{name} 顶栏状态位不得静态写死未接入：{body!r}"
+            assert "读取中" in body, f"{name} 顶栏状态位初值应为读取中：{body!r}"
+    assert prefixed, "至少应有页面提供可被真实驱动的顶栏状态位"
+
+
+def test_v2_production_stage_readout_is_driven_by_real_endpoint():
+    """制片页 STAGE 汇总位必须由真实 /api/episode-pipelines 阶段计数驱动。"""
+    html = _read(PRODUCTION_HTML)
+    assert 'id="prodStageReadout"' in html, "制片页必须有真实阶段汇总位"
+    assert "未接入</span>" not in html.split('id="prodStageReadout"')[1][:160], (
+        "阶段汇总位不得静态写死未接入"
+    )
+    js = _read(TELEMETRY_JS)
+    assert "syncStageProgress" in js and "/api/episode-pipelines" in js, "必须消费真实阶段端点"
+    assert "['prodStageReadout', '*']" in js, "汇总位必须注册到真实阶段探针"
+    assert "__summary" in js and "已完成" in js, "汇总位必须由后端阶段状态聚合，不得伪造百分比"
+
+
+def test_v2_render_bus_status_is_driven_by_real_queue():
+    """首页渲染总线状态位必须由真实任务队列驱动，不得静态写死未接入。"""
+    html = _read(INDEX_HTML)
+    assert 'id="renderBusStatus"' in html and 'id="renderBusLed"' in html, "首页必须有渲染总线状态位与灯"
+    assert "渲染总线 · 未接入" not in html, "渲染总线不得静态写死未接入"
+    js = _read(STATIC_JS / "v2-task-queue.js")
+    assert "renderBusStatus" in js, "共享任务队列必须改写渲染总线状态位"
+    assert "state.loaded" in js and "进行中" in js, "总线必须按真实队列结果写入进行中/总数"
+    assert "data-gw-degradation" in js, "队列失败路径必须带结构化降级标记"
+
+
+def test_v2_project_dispatch_status_is_driven_by_real_create():
+    """立项状态位不得静态谎称已接入；只能按真实创建结果写入。"""
+    html = _read(PROJECTS_HTML)
+    assert 'id="projectDispatchStatus"' in html and 'id="projectDispatchLed"' in html, "立项页必须有调度状态位"
+    segment = html.split('id="projectDispatchStatus"')[1][:200]
+    assert "已接入" not in segment, "状态位初始不得断言已接入"
+    assert "待命" in segment or "读取中" in segment, "状态位初值应为待命/读取中"
+    js = _read(V2_JS / "projects-controller.js")
+    assert "function setDispatchStatus" in js, "必须由控制器按真实结果写状态位"
+    assert "/api/asset-registry/projects" in js, "必须消费真实立项端点"
+    create_anchor = js.find("const res = await fetch('/api/asset-registry/projects'")
+    assert create_anchor != -1, "必须存在真实立项请求"
+    region = js[create_anchor : create_anchor + 4000]
+    assert "setDispatchStatus('ok'" in region, "创建成功后才能写已接入"
+    assert "404" in region and "501" in region, "端点缺失必须走显式降级分支"
+
+
+def test_v2_home_asset_overview_distinguishes_empty_from_failure():
+    """真实空集合必须给中性空态，不得把 200+空 渲染成「未接入（HTTP 0）」。"""
+    js = _read(V2_JS / "home-controller.js")
+    assert "assetOverviewDegradation" in js, "必须有显式降级状态"
+    assert "后端已接入并如实返回空集合" in js, "必须区分真实空集合与未接入"
+    assert "(HTTP 0)" not in js, "不得把成功空集合伪造成 HTTP 0 未接入"
+
+
+def test_v2_agents_metrics_are_driven_by_real_chat_usage_and_config_only_load():
+    """配置读取不触发生成；用户动作后的吞吐只取服务端 Chat metrics。"""
+    html = (V2_DIR / "agents.html").read_text(encoding="utf-8")
+    assert 'id="agentLatencyReadout"' in html and 'id="agentThroughputReadout"' in html
+    assert 'id="agentProviderSelect"' in html and 'id="agentModelSelect"' in html
+    assert "可能产生费用" in html and "不会自动重试" in html
+    js = _read(V2_JS / "agents-controller.js")
+    assert "loadChatConfiguration" in js and "'/api/chat/config'" in js
+    assert "applyAgentMetrics" in js and "tokens_per_second" in js
+    assert "usage_source" in js and "unavailable_reason" in js
+    assert "performance.now()" not in js, "吞吐/服务端耗时必须来自同一次后端请求metrics"
+    assert "probeAgentProvider" not in js and "body: JSON.stringify({message: 'ping'" not in js
+    assert "window.confirm(" in js and "requestInFlight" in js, "计费提示与重复提交保护必须真实实现"
+    assert "configuration_changed" in js and "clearAgentMetrics" in js, "切换Provider/模型必须清除陈旧读数"
+
+def test_v2_pages_have_no_static_connected_assertion():
+    """v2 静态页的 HTML 文本节点不得写死「已接入」断言（必须由真实接口结果驱动）。
+
+    独立审核（GPT-6-Astra high）在 index.html 发现静态
+    「AURA 核心神经元已接入制片总线」——未认证/接口失败时仍显示「已接入」，属伪造断言。
+    本用例只检查 **HTML 文本节点**（先剥掉 <script>/<style> 块），避免把 JS 里的运行期
+    状态映射误判为静态断言。
+    """
+    offenders = {}
+    for path in sorted(V2_DIR.glob("*.html")):
+        text = path.read_text(encoding="utf-8")
+        # 先剥离脚本/样式块，只保留真正的 HTML 标记文本。
+        stripped = re.sub(r"<script\b.*?</script>", "", text, flags=re.S | re.I)
+        stripped = re.sub(r"<style\b.*?</style>", "", stripped, flags=re.S | re.I)
+        hits = re.findall(r">([^<>{}]*已接入[^<>{}]*)<", stripped)
+        hits = [h.strip() for h in hits if h.strip()]
+        if hits:
+            offenders[path.name] = hits
+    assert not offenders, f"v2 静态 HTML 文本节点仍存在写死「已接入」断言: {offenders}"
+
+
+def test_v2_aura_bus_status_is_driven_by_read_only_chat_configuration():
+    """首页总线只消费配置状态 GET；初始化不得发送可能计费的 POST。"""
+    html = _read(INDEX_HTML)
+    assert 'id="auraBusStatus"' in html, "首页必须有 AURA 配置状态位"
+    assert "AURA 智能体总线 · 读取中…" in html, "状态位初值必须是读取中"
+    assert "home-controller.js" in html, "首页必须引入控制器"
+    js = _read(V2_JS / "home-controller.js")
+    assert "syncAuraBusStatus" in js, "必须实现 AURA 配置状态同步"
+    anchor = js.find("async function syncAuraBusStatus()")
+    end = js.find("function init()", anchor)
+    probe = js[anchor:end]
+    assert "'/api/chat/config'" in probe and "method: 'GET'" in probe, "初始化只读Provider配置摘要"
+    assert "method: 'POST'" not in probe, "首页加载不得发送可能计费的模型请求"
+    assert "auraBusStatus" in js, "必须写入 AURA 状态位"
+    assert "data-gw-degradation" in probe, "不可用路径必须带结构化降级标记"
+
+def test_v2_project_card_compute_and_asset_cells_are_real():
+    """项目卡「算力集群 / 资产规模」必须由真实端点驱动，不得静态写死未接入。"""
+    js = _read(V2_JS / "projects-controller.js")
+    assert "data-gw-gpu-cluster" in js, "算力集群格必须可被真实 GPU 遥测驱动"
+    assert "data-gw-asset-scale" in js, "资产规模格必须可被真实素材端点驱动"
+    assert "syncAssetScale" in js, "必须实现真实资产规模同步"
+    assert "/api/asset-registry/assets" in js, "必须消费真实素材登记端点"
+    assert "total" in js, "必须消费后端返回的真实 total"
+
+
+def test_v2_project_card_readouts_run_after_render():
+    """真实读数的写入点必须在 render() 之后。
+
+    回归背景：`syncAssetScale()` 原先只在 `init()` 里调用一次，早于 `load() -> render()`
+    重建卡片 innerHTML；浏览器实测「资产规模」格永远停留在静态初值「未接入」（假降级）。
+    """
+    js = _read(V2_JS / "projects-controller.js")
+    render_anchor = js.find("function render()")
+    assert render_anchor != -1, "必须存在 render()"
+    render_body = js[render_anchor:js.find("function selectProject", render_anchor)]
+    assert "syncAssetScale()" in render_body, "render() 重建卡片后必须重跑资产规模真实读数"
+    # 且不得把调用点只留在 init()：init() 早于 render()，会命中 0 个节点。
+    init_anchor = js.find("function init()")
+    init_body = js[init_anchor:js.find("if (document.readyState", init_anchor)]
+    assert "syncAssetScale()" not in init_body, "初始化阶段读取会命中 0 个节点，必须在 render() 之后"

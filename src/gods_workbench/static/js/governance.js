@@ -317,15 +317,22 @@
   });
 
   q('#btnReconcileAudit')?.addEventListener('click', async () => {
+    const button = q('#btnReconcileAudit');
+    if (button?.disabled) return;
+    if (button) button.disabled = true;
     try {
       const res = await api('/api/asset-registry/governance/audit-outbox/reconcile', { method: 'POST' });
-      const outbox = res.outbox || {};
-      currentOverview.outbox = { ...(currentOverview.outbox || {}), ...outbox };
-      currentOverview.outbox.pending = Number(outbox.remaining || 0);
-      renderAuditOutbox();
-      showToast(trf('governance.auditReconciled', { replayed: outbox.replayed || 0, remaining: outbox.remaining || 0 }));
+      // 计数来自实际ACK结果；重新读回概览，不把failed误写成pending或伪报已全部送达。
+      await loadOverview();
+      const replayed = Number(res.count || 0);
+      const remaining = Number(res.remaining || 0);
+      const partial = res.data_status === 'partial';
+      showToast(partial ? `本地审计收据部分失败：已确认 ${replayed} 项，剩余 ${remaining} 项；可重试。`
+        : trf('governance.auditReconciled', { replayed, remaining }), partial);
     } catch (err) {
       showToast(trf('governance.auditReplayFailed', { message: err.message }), true);
+    } finally {
+      if (button) button.disabled = false;
     }
   });
 

@@ -864,6 +864,8 @@
     function openShare(){
         const assetIds = shareAssetIds();
         if(!assetIds.length){ toast('请先选择资产',true); return; }
+        const activeSession = state.detail?.session;
+        const sessionId = activeSession && assetIds.includes(activeSession.asset_id) ? activeSession.session_id : '';
         const layer = ensureLayer();
         layer.className = 'asset-review-layer share-open';
         layer.innerHTML = '<div class="asset-review-backdrop" data-review-close></div><section class="asset-share-modal" data-floating-content><header><div><strong>创建审阅分享</strong><span>'+assetIds.length+' 个资产</span></div><button data-review-close>'+icon('x')+'</button></header>' +
@@ -871,7 +873,7 @@
             '<div class="share-form-grid"><label>访问密码<input name="password" type="password" placeholder="留空则无需密码"></label><label>有效天数<input name="days" type="number" value="7" min="1" max="3650"></label>' +
             '<label>最多访问次数<input name="max_access_count" type="number" value="0" min="0"><small>0 表示不限</small></label><label>水印文字<input name="watermark_text" value="仅供审阅"></label></div>' +
             '<div class="share-permissions"><label><input name="can_comment" type="checkbox" checked> 允许评论与审批</label><label><input name="can_download" type="checkbox"> 允许下载原文件</label></div>' +
-            '<input name="asset_ids" type="hidden" value="'+attr(assetIds.join(','))+'"><button class="review-primary" type="submit">'+icon('link')+'创建链接</button><div id="shareCreateResult"></div></form></section>';
+            '<input name="asset_ids" type="hidden" value="'+attr(assetIds.join(','))+'"><input name="session_id" type="hidden" value="'+attr(sessionId)+'"><button class="review-primary" type="submit">'+icon('link')+'创建链接</button><div id="shareCreateResult"></div></form></section>';
         window.lucide?.createIcons();
     }
 
@@ -880,6 +882,7 @@
         const days = Math.max(1,Number(values.get('days')||7));
         const payload = {
             asset_ids:String(values.get('asset_ids')||'').split(',').filter(Boolean),
+            session_id:String(values.get('session_id')||'')||null,
             title:String(values.get('title')||'素材审阅'),
             password:String(values.get('password')||''),
             expires_at:Date.now()+days*86400000,
@@ -890,7 +893,9 @@
         };
         try {
             const data = await reviewJsonResponse(assetReviewApi().createReviewShare(payload));
-            const url = location.origin + '/share/' + data.secret;
+            const token = String(data.token || '');
+            if (!token) throw new Error('分享未返回一次性令牌，不能生成访问链接');
+            const url = location.origin + '/share/' + encodeURIComponent(token);
             const result = q('#shareCreateResult');
             if(result) result.innerHTML = '<div class="share-result"><span>链接已创建，密钥不会再次显示</span><code>'+esc(url)+'</code><button type="button" data-review-copy="'+attr(url)+'">'+icon('copy')+'复制链接</button></div>';
             window.lucide?.createIcons();

@@ -34,6 +34,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 STATIC_DIR = REPO_ROOT / "src" / "gods_workbench" / "static"
 API_DIR = REPO_ROOT / "src" / "gods_workbench" / "api"
+VIDEO_TASKS_DIR = REPO_ROOT / "src" / "gods_workbench" / "video_tasks"
 CONTRACTS = [
     REPO_ROOT / "docs" / "contracts" / "PROJECTS-HUB-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "CANVAS-INTERFACE-CATALOG.yaml",
@@ -42,8 +43,11 @@ CONTRACTS = [
     REPO_ROOT / "docs" / "contracts" / "PROMPT-LIBRARY-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "SETTINGS-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "AUTH-INTERFACE-CATALOG.yaml",
+    REPO_ROOT / "docs" / "contracts" / "LOCAL-ACCOUNT-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "CANVAS-CLOSURE-INTERFACE-CATALOG.yaml",
+    REPO_ROOT / "docs" / "contracts" / "VIDEO-TASKS-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "PLATFORM-INTERFACE-CATALOG.yaml",
+    REPO_ROOT / "docs" / "contracts" / "CHAT-METRICS-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "ASSET-REGISTRY-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "ASSET-LIBRARY-B4-INTERFACE-CATALOG.yaml",
     REPO_ROOT / "docs" / "contracts" / "LOCAL-ASSET-INTERFACE-CATALOG.yaml",
@@ -65,11 +69,16 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/asset-library/libraries',
     '/api/asset-auth/callback',
     '/api/asset-auth/login',
+    # 2026-09-26 用户确认增补本地数据库账户登录，不替代 OIDC 路径。
+    '/api/asset-auth/local/login',
+    '/api/asset-auth/local/setup',
     '/api/asset-auth/logout',
     '/api/asset-auth/status',
     '/api/asset-registry/governance/projects/{p}/restore',
     '/api/asset-registry/projects',
     '/api/asset-registry/projects/{p}',
+    # 2026-09-27 项目持久化阶段门已接入受权集合GET与创建后回读。
+    '/api/asset-registry/projects/{p}/gates',
     '/api/asset-registry/projects/{p}/trash',
     '/api/asset-registry/projects/{p}/trash/restore',
     '/api/canvases',
@@ -107,6 +116,9 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/shared-folders/{p}/tree',
     '/api/video-tasks',
     '/api/video-tasks/{p}',
+    # 2026-09-27 Phase 12：逐镜生成、任务取消与本地合并导出接入。
+    '/api/video-tasks/{p}/cancel',
+    '/api/video-exports',
     '/api/canvases/trash',
     '/api/canvases/assets',
     '/api/canvases/{p}/meta',
@@ -118,6 +130,9 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/asset-auth/operation-approvals/{p}',
     '/api/asset-auth/teams',
     '/api/asset-auth/teams/{p}',
+    # 2026-09-27 Phase 12：团队消息身份绑定、历史读取与发送已从真实前端调用。
+    '/api/asset-auth/identity-binding',
+    '/api/asset-auth/teams/{p}/messages',
     '/api/asset-auth/teams/{p}/members',
     '/api/asset-auth/teams/{p}/members/{p}',
     '/api/asset-auth/tokens',
@@ -127,6 +142,8 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/ai/upload',
     '/api/app-info',
     '/api/chat',
+    # 2026-09-27：页面仅读取真实服务端配置，不在加载时发起计费生成。
+    '/api/chat/config',
     '/api/chat/agent',
     '/api/codex/help',
     '/api/codex/status',
@@ -251,6 +268,8 @@ KNOWN_IMPLEMENTED = frozenset([
     '/api/public/shares/{p}/access',
     '/api/public/shares/{p}/approvals',
     '/api/public/shares/{p}/comments',
+    # 分享票据鉴权媒体已真实接线；仅追加精确路径，不放宽差集断言。
+    '/api/public/shares/{p}/assets/{p}/media',
     # 2026-09-25 Phase 11 B6：资产审查与交付路径统一失败关闭。
     '/api/asset-reviews/comments/{p}',
     '/api/asset-reviews/deliveries/{p}/export',
@@ -269,14 +288,20 @@ KNOWN_UNIMPLEMENTED = frozenset([
 ])
 
 #: 契约声明但**前端无调用方**的端点（仅后端能力，前端尚未接入；见 P8-A1 报告 §2.2 说明）
-KNOWN_CONTRACT_WITHOUT_FRONTEND_CALLER = frozenset([
+KNOWN_CONTRACT_WITHOUT_FRONTEND_PATH_LITERAL = frozenset([
+    # 视频产物经 content_url 动态返回；静态路径扫描看不到完整字面量，但页面确有播放器/下载调用。
+    "GET /api/video-tasks/{p}/content",
     "POST /api/canvases/{p}/workflow/import",
     "POST /api/canvases/{p}/workflow/export",
     "POST /api/canvases/{p}/tasks",
+    # 2026-09-26 Phase 12 A4：probe-async 返回 poll_hint，但前端当前只读一次性响应，
+    # 尚未轮询该任务端点；后端能力已实现，前端侧端到端覆盖待补。
+    "GET /api/providers/probe-async/jobs/{p}",
 ])
 
 #: 后端已实现路由的归一化路径（用于断言后端集合未被意外缩小）
 KNOWN_BACKEND_PATHS = frozenset([
+    '/api/chat/config',
     '/api/asset-library',
     '/api/asset-library/categories',
     '/api/asset-library/libraries',
@@ -330,6 +355,12 @@ KNOWN_BACKEND_PATHS = frozenset([
     '/api/shared-folders/{p}/tree',
     '/api/video-tasks',
     '/api/video-tasks/{p}',
+    '/api/video-tasks/{p}/cancel',
+    '/api/video-tasks/{p}/content',
+    '/api/video-exports',
+    '/api/video-project-access/{p}/claim',
+    '/api/video-projects/{p}/assets/authorize',
+    '/api/asset-registry/projects/{p}/gates',
     '/api/canvases/trash',
     '/api/canvases/assets',
     '/api/canvases/{p}/meta',
@@ -749,8 +780,10 @@ def _frontend_api_paths() -> set:
 def _backend_routes() -> dict:
     """解析后端路由，返回 {归一化路径: [(METHOD, 文件名, 行号), ...]}。"""
     assert API_DIR.is_dir(), f"缺少后端 API 目录: {API_DIR}"
+    assert VIDEO_TASKS_DIR.is_dir(), f"缺少视频任务路由目录: {VIDEO_TASKS_DIR}"
     routes = {}
-    for path in sorted(API_DIR.glob("*.py")):
+    route_files = sorted(API_DIR.glob("*.py")) + sorted(VIDEO_TASKS_DIR.glob("*.py"))
+    for path in route_files:
         text = path.read_text(encoding="utf-8")
         prefixes = dict(
             re.findall(r'(\w+)\s*=\s*APIRouter\(\s*\n?\s*prefix\s*=\s*"([^"]*)"', text)
@@ -864,27 +897,26 @@ def test_every_contract_endpoint_has_backend_implementation():
     )
 
 
-def test_contract_endpoints_without_frontend_caller_match_baseline():
-    """契约端点中**没有前端调用方**的集合必须与冻结基线一致。
+def test_contract_endpoints_without_frontend_path_literal_match_baseline():
+    """静态契约扫描找不到完整前端路径字面量的端点集合必须与基线一致。
 
-    本轮实测发现 3 条契约端点在 `src/gods_workbench/static/` 中**找不到任何调用方**
-    （画布工作流导入/导出、智能任务受理）。这**不是缺陷**——它们是后端契约能力，
-    但意味着：① 前端尚未接入这些能力；② 因此**没有前端侧的端到端覆盖**。
-    冻结为基线，任何变化（新增未接入契约，或前端补上调用）都会使本用例失败，迫使显式复核。
+    其中画布工作流导入/导出、智能任务受理目前确无前端调用；视频产物端点则由任务响应的
+    content_url 动态驱动播放器与下载，属于已接入但无法从源码字面量恢复的路径。此清单不等价于
+    “无前端调用”，用于区分静态证据与运行时数据流。
     """
     front = _frontend_api_paths()
     actual = []
     for method, route, source in _contract_pairs():
         if route not in front:
             actual.append(f"{method} {route}")
-    expected = set(KNOWN_CONTRACT_WITHOUT_FRONTEND_CALLER)
+    expected = set(KNOWN_CONTRACT_WITHOUT_FRONTEND_PATH_LITERAL)
     new_dead = sorted(set(actual) - expected)
     resolved = sorted(expected - set(actual))
     assert not new_dead, (
-        "以下契约端点**新出现**「无前端调用方」状态：\n  " + "\n  ".join(new_dead) +
+        "以下契约端点**新出现**「无完整前端路径字面量」状态：\n  " + "\n  ".join(new_dead) +
         "\n请确认是前端接入被移除，还是契约新增了未被前端使用的端点。"
     )
     assert not resolved, (
-        "以下契约端点**已被前端接入**（不再是「无调用方」）：\n  " + "\n  ".join(resolved) +
+        "以下契约端点**新增了完整前端路径字面量**：\n  " + "\n  ".join(resolved) +
         "\n这是期望的改进，请更新 KNOWN_CONTRACT_WITHOUT_FRONTEND_CALLER 基线。"
     )

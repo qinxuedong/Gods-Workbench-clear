@@ -31,8 +31,15 @@
     if (old?.classList.contains('gw-shell-right')) return;
     const right = document.createElement('div');
     right.className = 'gw-shell-right';
-    right.innerHTML = '<div class="gw-shell-fader"><span>FLUX</span><div class="hw-fader-track-horizontal gw-shell-fader-track"><div class="hw-fader-glow-bar" style="width:0%"></div><div class="hw-fader-thumb-3d" style="left:0%"></div></div><span class="text-amber-300" data-gw-degradation="not_integrated" title="本切片无任何真实算力/GPU 遥测数据源，未读取任何指标">未接入</span></div><div class="gw-shell-fader"><span>VRAM</span><div class="hw-fader-track-horizontal gw-shell-fader-track"><div class="hw-fader-glow-bar" style="width:0%;background:linear-gradient(90deg,#38bdf8,#2dd4bf)"></div><div class="hw-fader-thumb-3d" style="left:0%"></div></div><span class="text-amber-300" data-gw-degradation="not_integrated" title="本切片无任何真实显存遥测数据源，未读取任何指标">未接入</span></div><span class="h-4 w-px bg-white/10"></span><span class="text-[9px] font-mono text-slate-400">PRE</span><div class="hw-slide-toggle active" aria-label="PRE/POST"><div class="hw-slide-peg"></div></div><span class="text-[9px] font-mono text-[#dfc384]">POST</span><span class="h-4 w-px bg-white/10"></span><a id="topbarUnifiedTrashBtn" class="gw-shell-trash" href="projects.html?openTrash=1" onclick="if(window.V2Projects?.openGlobalTrashDrawer){event.preventDefault();window.V2Projects.openGlobalTrashDrawer();}" title="统一回收站" aria-label="打开统一回收站"><span class="hw-mini-knob"><span class="hw-mini-knob-arc" style="border-top-color:#ef4444;border-right-color:#f59e0b"></span><span class="hw-mini-knob-inner"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></span></span><span id="topbarTrashBadge" class="gw-shell-trash-badge" hidden>0</span></a><div class="h-4 w-px bg-white/10"></div><div class="hw-avatar-keycap" title="认证状态未接入：点击打开认证中心查看真实登录状态" role="button" tabindex="0" aria-label="打开认证中心" data-gw-identity="unverified"><div class="hw-avatar-keycap-inner"><i data-lucide="shield-check" class="w-4 h-4 text-[#eddab3]"></i></div><span class="hw-avatar-keycap-status"></span></div>';
+    right.innerHTML = '<div class="gw-shell-fader"><span>FLUX</span><div class="hw-fader-track-horizontal gw-shell-fader-track"><div class="hw-fader-glow-bar" data-gw-gpu-util-fill style="width:0%"></div><div class="hw-fader-thumb-3d" data-gw-gpu-util-thumb style="left:0%"></div></div><span class="text-amber-300" data-gw-gpu-util title="真实数据源：GET /api/observability/health 的 gpu_telemetry（读取中）">读取中…</span></div><div class="gw-shell-fader"><span>VRAM</span><div class="hw-fader-track-horizontal gw-shell-fader-track"><div class="hw-fader-glow-bar" data-gw-gpu-vram-fill style="width:0%;background:linear-gradient(90deg,#38bdf8,#2dd4bf)"></div><div class="hw-fader-thumb-3d" data-gw-gpu-vram-thumb style="left:0%"></div></div><span class="text-amber-300" data-gw-gpu-vram title="真实数据源：GET /api/observability/health 的 gpu_telemetry（读取中）">读取中…</span></div><span class="h-4 w-px bg-white/10"></span><span class="text-[9px] font-mono text-slate-400">PRE</span><div class="hw-slide-toggle active" aria-label="PRE/POST"><div class="hw-slide-peg"></div></div><span class="text-[9px] font-mono text-[#dfc384]">POST</span><span class="h-4 w-px bg-white/10"></span><a id="topbarUnifiedTrashBtn" class="gw-shell-trash" href="projects.html?openTrash=1" onclick="if(window.V2Projects?.openGlobalTrashDrawer){event.preventDefault();window.V2Projects.openGlobalTrashDrawer();}" title="统一回收站" aria-label="打开统一回收站"><span class="hw-mini-knob"><span class="hw-mini-knob-arc" style="border-top-color:#ef4444;border-right-color:#f59e0b"></span><span class="hw-mini-knob-inner"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></span></span><span id="topbarTrashBadge" class="gw-shell-trash-badge" hidden>0</span></a><div class="h-4 w-px bg-white/10"></div><div class="hw-avatar-keycap" title="认证状态未接入：点击打开认证中心查看真实登录状态" role="button" tabindex="0" aria-label="打开认证中心" data-gw-identity="unverified"><div class="hw-avatar-keycap-inner"><i data-lucide="shield-check" class="w-4 h-4 text-[#eddab3]"></i></div><span class="hw-avatar-keycap-status"></span></div>';
     old.replaceWith(right);
+    // 顶栏推子是后注入的：用最近一次真实 GPU 读数立即回放，
+    // 否则会一直停在「读取中」直到 15s 周期刷新（fake-degradation 空窗）。
+    try {
+      if (window.HardwareDeck && typeof window.HardwareDeck.applyGpuTelemetry === 'function') {
+        window.HardwareDeck.applyGpuTelemetry(window.HardwareDeck.lastGpuCheck || null);
+      }
+    } catch (e) {}
     if (window.lucide?.createIcons) window.lucide.createIcons();
   }
   function injectTrash() {
@@ -146,8 +153,11 @@
     const pageName = new URL(href, location.href).pathname.split('/').pop() || 'index.html';
     const nextPageName = new URL(nextHref, location.href).pathname.split('/').pop() || 'index.html';
     if (pageName === nextPageName) return;
-    if (pageName === 'workshop.html') {
-      try { window.V2Workshop?.dispose?.(); } catch (error) {
+    if (pageName === 'workshop.html' || pageName === 'collab.html') {
+      try {
+        if (pageName === 'workshop.html') window.V2Workshop?.dispose?.();
+        if (pageName === 'collab.html') window.V2Collab?.dispose?.();
+      } catch (error) {
         console.warn('[GW shell] route controller dispose failed', pageName, error);
       }
     }

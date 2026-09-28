@@ -71,6 +71,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = REPO_ROOT / "src" / "gods_workbench" / "static"
 GUARD_PATH = REPO_ROOT / "tests" / "contracts" / "test_phase8_frontend_backend_api_gap.py"
 
+def _new_context(browser, context_factory=None, **kwargs):
+    if context_factory is None:
+        return browser.new_context(**kwargs)
+    return context_factory(browser, **kwargs)
+
 # 受检页面：v2 主壳层全部页面（与 v2-shell.js 的 ROUTES 一致）。
 PAGES = (
     "index.html",
@@ -252,7 +257,7 @@ INTERACTIONS: tuple[dict, ...] = (
 )
 
 
-def run_interactions(base_url: str, implemented, unimplemented) -> dict:
+def run_interactions(base_url: str, implemented, unimplemented, context_factory=None) -> dict:
     """在真实浏览器里执行确定性交互，断言真实 DOM 变化。"""
     from playwright.sync_api import sync_playwright
 
@@ -265,7 +270,7 @@ def run_interactions(base_url: str, implemented, unimplemented) -> dict:
         browser = pw.chromium.launch(**launch_kwargs)
         try:
             for item in INTERACTIONS:
-                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                context = _new_context(browser, context_factory, viewport={"width": 1600, "height": 1000})
                 page = context.new_page()
                 page_errors: list[str] = []
                 api_errors: list[dict] = []
@@ -403,6 +408,7 @@ def run_topbar_accessibility(
     base_url: str,
     ignore_registry: bool = False,
     mutate_targets: bool = False,
+    context_factory=None,
 ) -> dict:
     """第 8 项：顶栏可达性——溢出是否被静默裁剪、必达控件是否真的能用鼠标点到。
 
@@ -436,7 +442,7 @@ def run_topbar_accessibility(
                 key = f"{width}x{height}"
                 registered_overflow = KNOWN_TOPBAR_OVERFLOW.get(key, frozenset())
                 for page_name in PAGES:
-                    context = browser.new_context(viewport={"width": width, "height": height})
+                    context = _new_context(browser, context_factory, viewport={"width": width, "height": height})
                     page = context.new_page()
                     page.goto(
                         f"{base_url}/static/v2/{page_name}",
@@ -533,7 +539,7 @@ def run_topbar_accessibility(
     return {"topbar": results, "failures": failures}
 
 
-def run_shell_route_consistency(base_url: str) -> dict:
+def run_shell_route_consistency(base_url: str, context_factory=None) -> dict:
     """对比整页加载 vs 壳层部分路由，检查 deck 内页级元素是否丢失。
 
     为什么需要：v2 壳层的部分路由只替换 `.topbar-master-deck` 之后的 `<main>` 工作区，
@@ -556,7 +562,7 @@ def run_shell_route_consistency(base_url: str) -> dict:
         try:
             module_baselines: dict[str, list[str]] = {}
             for page_name in PAGES:
-                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                context = _new_context(browser, context_factory, viewport={"width": 1600, "height": 1000})
                 page = context.new_page()
                 page.goto(f"{base_url}/static/v2/{page_name}", wait_until="networkidle")
                 page.wait_for_timeout(900)
@@ -565,7 +571,7 @@ def run_shell_route_consistency(base_url: str) -> dict:
                 context.close()
 
             for page_name in PAGES:
-                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                context = _new_context(browser, context_factory, viewport={"width": 1600, "height": 1000})
                 page = context.new_page()
                 page_errors: list[str] = []
                 page.on("pageerror", lambda exc: page_errors.append(str(exc)))
@@ -665,7 +671,7 @@ def run_shell_route_consistency(base_url: str) -> dict:
     }
 
 
-def run_shell_route_repeat_nav(base_url: str) -> dict:
+def run_shell_route_repeat_nav(base_url: str, context_factory=None) -> dict:
     """第 7 项：同一 context 内连续壳层导航，检查脚本元素累积与未捕获异常。
 
     为什么需要：第 6 项每个目标页只做**一次**壳层导航，因此 runRouteScripts() 的
@@ -684,7 +690,7 @@ def run_shell_route_repeat_nav(base_url: str) -> dict:
         browser = pw.chromium.launch(**launch_kwargs)
         try:
             for target_name in REPEAT_NAV_TARGETS:
-                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                context = _new_context(browser, context_factory, viewport={"width": 1600, "height": 1000})
                 context.add_init_script(ROUTE_LIFECYCLE_INIT_JS)
                 page = context.new_page()
                 errors: list[dict] = []
@@ -812,8 +818,14 @@ def _load_guard_baseline() -> tuple[frozenset[str], frozenset[str]]:
     spec.loader.exec_module(module)
     implemented = frozenset(module.KNOWN_IMPLEMENTED)
     unimplemented = frozenset(module.KNOWN_UNIMPLEMENTED)
-    if not implemented or not unimplemented:
-        raise SystemExit("冻结缺口守卫基线为空，拒绝据此判定通过")
+    # Phase 12 收口：未实现缺口已被真实接入清零，空集合是**合法终态**，不再据此拒绝。
+    # 仍要求「已实现」基线非空，否则说明守卫被清空了，无法作为判定依据。
+    if not implemented:
+        raise SystemExit("冻结缺口守卫的已实现基线为空，拒绝据此判定通过")
+    # 两条基线不得重叠，否则口径自相矛盾。
+    overlap = implemented & unimplemented
+    if overlap:
+        raise SystemExit(f"冻结缺口守卫基线自相矛盾（同名既实现又未实现）：{sorted(overlap)[:5]}")
     return implemented, unimplemented
 
 
@@ -896,7 +908,7 @@ def start_server(base_url: str, log_path: Path | None = None) -> tuple[subproces
     return proc, handle
 
 
-def run_checks(base_url: str, artifacts_dir: Path, implemented, unimplemented) -> dict:
+def run_checks(base_url: str, artifacts_dir: Path, implemented, unimplemented, context_factory=None) -> dict:
     """逐个页面驱动真实浏览器并汇总判定结果。"""
     try:
         from playwright.sync_api import sync_playwright
@@ -916,7 +928,7 @@ def run_checks(base_url: str, artifacts_dir: Path, implemented, unimplemented) -
         browser = pw.chromium.launch(**launch_kwargs)
         try:
             for page_name in PAGES:
-                context = browser.new_context(viewport={"width": 1600, "height": 1000})
+                context = _new_context(browser, context_factory, viewport={"width": 1600, "height": 1000})
                 page = context.new_page()
                 page_errors: list[str] = []
                 failed_requests: list[dict] = []

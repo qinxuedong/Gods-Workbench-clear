@@ -979,7 +979,8 @@ function renderEditor(){
     if(jimengCliPanel){
         jimengCliPanel.hidden = !isJimeng;
         jimengCliPanel.style.display = isJimeng ? 'flex' : 'none';
-        if(isJimeng) refreshJimengStatus(false);
+        if(isJimeng) refreshJimengStatus();
+        else stopJimengWaitingOnPageLeave();
     }
     if(codexCliPanel){
         codexCliPanel.hidden = !isCodex;
@@ -1025,95 +1026,208 @@ function jimengCreditText(raw){
 }
 function setJimengStatus(text, ok=null){
     if(!jimengCliStatus) return;
-    jimengCliStatus.textContent = text || '未检测';
+    jimengCliStatus.textContent = text || '状态未知';
     jimengCliStatus.classList.toggle('ok', ok === true);
     jimengCliStatus.classList.toggle('bad', ok === false);
 }
-function renderJimengLoginBox(data){
-    if(!jimengLoginBox) return;
-    const text = data?.text || '';
-    const qrUrl = data?.qr_url || '';
-    const qrHtml = qrUrl && qrUrl.startsWith('http')
-        ? `<img class="jimeng-qr-img" src="${escapeHtml(qrUrl)}" alt="即梦登录二维码">`
-        : '';
-    jimengLoginBox.hidden = false;
-    jimengLoginBox.innerHTML = `${qrHtml}<pre>${escapeHtml(text || '等待 CLI 输出登录二维码...')}</pre>`;
-}
 let jimengLoginTimer = null;
-async function refreshJimengStatus(showCredit=true){
-    if(!jimengCliPanel || jimengCliPanel.hidden) return;
-    setJimengStatus('检测中...');
-    try {
-        const {data} = await requestJson('/api/jimeng/status', undefined, '读取即梦 CLI 状态失败');
-        setJimengStatus(data.logged_in ? '已登录' : (data.installed ? '未登录' : '未安装'), data.logged_in === true);
-        if(data.installed && data.version_ok === false && jimengCredit){
-            jimengCredit.textContent = `⚠ 检测到 dreamina CLI 版本 ${data.cli_version || '未知'}，低于推荐的 ${data.min_version || '1.4.2'}。旧版本任务状态可能无法更新，请升级 CLI。`;
-        } else if(showCredit && data.raw && jimengCredit){
-            jimengCredit.textContent = jimengCreditText(data.raw);
-        }
-    } catch(e){
-        setJimengStatus(degradationLabel(e, '检测失败'), false);
-        if(jimengCredit) jimengCredit.textContent = e.message || String(e);
+let jimengFlowGeneration = 0;
+let jimengPollingEnabled = false;
+let jimengPollAbort = null;
+let jimengPollScheduled = false;
+let jimengActionBusy = false;
+function setJimengActionBusy(busy){
+    jimengActionBusy = Boolean(busy);
+    ['jimengLoginBtn', 'jimengCreditBtn', 'jimengLogoutBtn'].forEach(id => {
+        const button = document.getElementById(id);
+        if(button) button.disabled = jimengActionBusy;
+    });
+}
+function clearJimengPoll({invalidate=false, clearBox=false}={}){
+    if(jimengLoginTimer) clearTimeout(jimengLoginTimer);
+    jimengLoginTimer = null;
+    jimengPollScheduled = false;
+    jimengPollingEnabled = false;
+    if(invalidate){
+        jimengFlowGeneration += 1;
+        if(jimengPollAbort) jimengPollAbort.abort();
+        jimengPollAbort = null;
+    }
+    if(clearBox && jimengLoginBox){
+        jimengLoginBox.replaceChildren();
+        jimengLoginBox.hidden = true;
     }
 }
+function renderJimengLoginBox(data){
+    if(!jimengLoginBox) return;
+    jimengLoginBox.replaceChildren();
+    if(!data?.running){
+        jimengLoginBox.hidden = true;
+        return;
+    }
+    jimengLoginBox.hidden = false;
+    const uri = typeof data.verification_uri === 'string' ? data.verification_uri : '';
+    const userCode = typeof data.user_code === 'string' ? data.user_code : '';
+    if(uri && userCode){
+        try {
+            const parsed = new URL(uri);
+            if(parsed.protocol === 'https:' && !parsed.username && !parsed.password && !parsed.search && !parsed.hash){
+                const note = document.createElement('p');
+                note.textContent = '请在新标签页打开 Dreamina 授权页面，并输入下方用户代码。不要将代码分享给他人。';
+                const link = document.createElement('a');
+                link.href = parsed.href;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = '打开 Dreamina 授权页面';
+                const codeLabel = document.createElement('strong');
+                codeLabel.textContent = `用户代码：${userCode}`;
+                jimengLoginBox.append(note, link, codeLabel);
+                return;
+            }
+        } catch(_) {}
+    }
+    const note = document.createElement('p');
+    note.textContent = data.output_seen
+        ? 'CLI 输出格式无法识别，请在服务器本机终端完成登录。'
+        : '登录进程已启动，正在等待授权材料；不会伪造二维码或链接。';
+    jimengLoginBox.appendChild(note);
+}
+function applyJimengObservation(data){
+    renderJimengLoginBox(data);
+    if(data?.running){
+        setJimengStatus(data.state === 'awaiting_authorization' ? '等待本人授权...' : '登录操作运行中...', null);
+    } else if(data?.logged_in === true){
+        setJimengStatus('最近一次 login 成功（非实时状态）', true);
+    } else if(data?.logged_in === false && data?.last_operation === 'logout'){
+        setJimengStatus('最近一次 logout 成功（非实时状态）', false);
+    } else if(data?.last_operation_failed || data?.result_unknown){
+        setJimengStatus('最近操作失败或结果未知', null);
+    } else {
+        setJimengStatus('登录状态未知（仅观察本进程最近操作）', null);
+    }
+}
+async function refreshJimengStatus(){
+    if(!jimengCliPanel || jimengCliPanel.hidden || jimengPollAbort) return;
+    const generation = jimengFlowGeneration;
+    const abortController = new AbortController();
+    jimengPollAbort = abortController;
+    try {
+        const {data} = await requestJson('/api/jimeng/status', {signal:abortController.signal}, '读取 Dreamina CLI 状态失败');
+        if(generation === jimengFlowGeneration) applyJimengObservation(data);
+    } catch(e){
+        if(generation === jimengFlowGeneration && e.name !== 'AbortError'){
+            setJimengStatus(`${degradationMessage(e.data, e.message || '读取状态失败')}；账户状态未知`, null);
+        }
+    } finally {
+        if(jimengPollAbort === abortController) jimengPollAbort = null;
+    }
+}
+function jimengSharedActionConfirmed(action){
+    return window.confirm(`${action}会修改服务器本机的 Dreamina 共享账户状态，影响同一服务器上的其他使用者。继续吗？`);
+}
 async function startJimengLogin(){
-    setJimengStatus('等待扫码...');
+    if(jimengActionBusy || !jimengSharedActionConfirmed('登录')) return;
+    clearJimengPoll({invalidate:true, clearBox:true});
+    const generation = jimengFlowGeneration;
+    jimengPollingEnabled = true;
+    setJimengActionBusy(true);
+    setJimengStatus('正在启动本机登录操作...', null);
     if(jimengCredit) jimengCredit.textContent = '';
     try {
         const {data} = await requestJson('/api/jimeng/login/start', {method:'POST'}, '启动登录失败');
-        renderJimengLoginBox(data);
-        clearInterval(jimengLoginTimer);
-        jimengLoginTimer = setInterval(pollJimengLogin, 2500);
-        refreshIcons();
+        if(generation !== jimengFlowGeneration) return;
+        applyJimengObservation(data);
+        if(data.running) scheduleJimengPoll(generation);
+        else jimengPollingEnabled = false;
     } catch(e){
-        setJimengStatus(degradationLabel(e, '登录失败'), false);
-        if(jimengLoginBox){
-            jimengLoginBox.hidden = false;
-            jimengLoginBox.innerHTML = `<pre>${escapeHtml(e.message || String(e))}</pre>`;
+        if(generation === jimengFlowGeneration){
+            jimengPollingEnabled = false;
+            setJimengStatus(`${degradationMessage(e.data, e.message || '登录操作失败')}；账户状态未知`, null);
+            if(jimengLoginBox){
+                jimengLoginBox.replaceChildren();
+                jimengLoginBox.hidden = true;
+            }
         }
+    } finally {
+        setJimengActionBusy(false);
     }
 }
-async function pollJimengLogin(){
+function scheduleJimengPoll(generation){
+    if(!jimengPollingEnabled || generation !== jimengFlowGeneration || jimengPollScheduled) return;
+    jimengPollScheduled = true;
+    jimengLoginTimer = setTimeout(() => {
+        jimengPollScheduled = false;
+        jimengLoginTimer = null;
+        pollJimengLogin(generation);
+    }, 2500);
+}
+async function pollJimengLogin(generation= jimengFlowGeneration){
+    if(!jimengPollingEnabled || generation !== jimengFlowGeneration || jimengPollAbort) return;
+    const abortController = new AbortController();
+    jimengPollAbort = abortController;
+    let shouldContinue = false;
     try {
-        const {data} = await requestJson('/api/jimeng/login/status', undefined, '读取登录状态失败');
-        renderJimengLoginBox(data);
-        if(data.logged_in){
-            clearInterval(jimengLoginTimer);
-            setJimengStatus('已登录', true);
-            if(jimengCredit) jimengCredit.textContent = jimengCreditText(data.raw);
-        } else if(data.running){
-            setJimengStatus('等待扫码...');
-        } else {
-            setJimengStatus('未登录', false);
-        }
+        const {data} = await requestJson('/api/jimeng/login/status', {signal:abortController.signal}, '读取登录状态失败');
+        if(generation !== jimengFlowGeneration) return;
+        applyJimengObservation(data);
+        shouldContinue = data.running === true;
+        if(!shouldContinue) jimengPollingEnabled = false;
     } catch(e){
-        clearInterval(jimengLoginTimer);
-        setJimengStatus(degradationLabel(e, '登录检测失败'), false);
+        if(generation === jimengFlowGeneration && e.name !== 'AbortError'){
+            jimengPollingEnabled = false;
+            setJimengStatus(`${degradationMessage(e.data, e.message || '登录检测失败')}；账户状态未知`, null);
+            if(jimengLoginBox){
+                jimengLoginBox.replaceChildren();
+                jimengLoginBox.hidden = true;
+            }
+        }
+    } finally {
+        if(jimengPollAbort === abortController) jimengPollAbort = null;
+        if(shouldContinue && jimengPollingEnabled && generation === jimengFlowGeneration){
+            scheduleJimengPoll(generation);
+        }
     }
 }
 async function refreshJimengCredit(){
-    setJimengStatus('查询余额...');
+    if(jimengActionBusy) return;
+    setJimengActionBusy(true);
+    setJimengStatus('正在查询余额...', null);
     try {
         const {data} = await requestJson('/api/jimeng/credit', undefined, '查询余额失败');
-        setJimengStatus('已登录', true);
-        if(jimengCredit) jimengCredit.textContent = jimengCreditText(data.raw);
+        if(jimengCredit) jimengCredit.textContent = `余额查询完成（不代表实时登录状态）：${jimengCreditText(data.raw)}`;
+        setJimengStatus('余额查询完成；登录状态仍以操作观察为准', null);
     } catch(e){
-        setJimengStatus(degradationLabel(e, '未登录'), false);
-        if(jimengCredit) jimengCredit.textContent = e.message || String(e);
+        setJimengStatus(`${degradationMessage(e.data, e.message || '查询余额失败')}；登录状态未知`, null);
+        if(jimengCredit) jimengCredit.textContent = '';
+    } finally {
+        setJimengActionBusy(false);
     }
 }
 async function logoutJimeng(){
-    if(!confirm('确认退出即梦 CLI 登录？')) return;
+    if(jimengActionBusy || !jimengSharedActionConfirmed('退出登录')) return;
+    clearJimengPoll({invalidate:true, clearBox:true});
+    setJimengActionBusy(true);
+    setJimengStatus('正在执行本机 logout...', null);
     try {
         const {data} = await requestJson('/api/jimeng/logout', {method:'POST'}, '退出登录失败');
-        setJimengStatus('已退出', false);
-        if(jimengCredit) jimengCredit.textContent = prettyJson(data.raw);
-        if(jimengLoginBox) jimengLoginBox.hidden = true;
+        if(data.logged_in === false && data.last_operation === 'logout'){
+            setJimengStatus('最近一次 logout 成功（不代表其他终端状态）', false);
+        } else {
+            setJimengStatus('退出命令已结束，账户状态未知', null);
+        }
+        if(jimengCredit) jimengCredit.textContent = '';
     } catch(e){
-        setJimengStatus(degradationLabel(e, '退出失败'), false);
-        if(jimengCredit) jimengCredit.textContent = e.message || String(e);
+        setJimengStatus(`${degradationMessage(e.data, e.message || '退出操作失败')}；账户状态未知`, null);
+        if(jimengCredit) jimengCredit.textContent = '';
+    } finally {
+        setJimengActionBusy(false);
     }
 }
+function stopJimengWaitingOnPageLeave(){
+    // 只取消本页等待和轮询，不会隐式终止服务器已接管的登录进程。
+    clearJimengPoll({invalidate:true, clearBox:true});
+}
+window.addEventListener('pagehide', stopJimengWaitingOnPageLeave);
 function openJimengHelp(){
     if(!jimengHelpOverlay) return;
     jimengHelpOverlay.style.display = 'flex';

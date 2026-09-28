@@ -174,7 +174,7 @@
           <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 border border-[#dfc384]/30 text-[#eddab3]">SYS.02 PRO</span>
         </div>
         <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" id="gwOnlineStatus" data-gw-degradation="not_integrated" title="读取真实探针 GET /api/observability/health">探测中…</span>
             <span class="relative flex h-2 w-2">
               <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
             </span>
@@ -203,7 +203,7 @@
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
           <div class="flex items-center space-x-2 px-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-[#dfc384] shadow-[0_0_6px_#dfc384] animate-pulse"></span>
-        <span class="text-[10px] font-mono font-bold text-[#eddab3] tracking-wider" data-gw-degradation="not_integrated">SYSTEM CONFIGURATION &amp; HARDWARE DECK · 遥测未接入</span>
+        <span class="text-[10px] font-mono font-bold text-[#eddab3] tracking-wider" data-gw-header-prefix="SYSTEM CONFIGURATION &amp; HARDWARE DECK" data-gw-degradation="not_integrated">SYSTEM CONFIGURATION &amp; HARDWARE DECK · 读取中…</span>
           </div>
           <button class="text-slate-400 hover:text-[#dfc384] p-0.5 transition"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
         </div>
@@ -622,20 +622,20 @@
                 <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
                 <span>当前席位凭据与治理策略</span>
               </div>
-              <span class="text-[9px] font-mono text-amber-300 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20" data-gw-degradation="not_integrated">SESSION 未接入</span>
+              <span class="text-[9px] font-mono text-amber-300 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20" id="settingsSessionBadge" data-gw-degradation="not_integrated">SESSION 读取中…</span>
             </div>
             <div class="grid grid-cols-3 gap-2 text-xs">
               <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                 <div class="text-[9px] text-slate-400 font-mono">席位角色</div>
-                <div class="font-bold text-slate-400 mt-0.5" data-gw-degradation="not_integrated">未接入（等待 /api/asset-auth/status）</div>
+                <div class="font-bold text-slate-400 mt-0.5" id="settingsSeatRole" data-gw-degradation="not_integrated">读取 /api/asset-auth/status…</div>
               </div>
               <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                 <div class="text-[9px] text-slate-400 font-mono">鉴权通道</div>
-                <div class="font-bold text-slate-400 mt-0.5" data-gw-degradation="not_integrated">未接入（无本地凭据回退）</div>
+                <div class="font-bold text-slate-400 mt-0.5" id="settingsAuthChannel" data-gw-degradation="not_integrated">读取中…</div>
               </div>
               <div class="p-2 rounded-lg bg-black/40 border border-white/5">
                 <div class="text-[9px] text-slate-400 font-mono">响应延时</div>
-                <div class="font-bold text-slate-400 font-mono mt-0.5" data-gw-degradation="not_integrated">未测量</div>
+                <div class="font-bold text-slate-400 font-mono mt-0.5" id="settingsAuthLatency" data-gw-degradation="not_integrated">未测量</div>
               </div>
             </div>
           </div>
@@ -697,30 +697,10 @@
       setInterval(updateClock, 1000);
       updateClock();
 
-      // 本切片没有任何真实 CPU/RAM 遥测数据源。
-      // 历史缺陷：这里曾用 Math.random() 每 3 秒伪造一个漂亮的 CPU/RAM 百分比并驱动指针，
-      // 属伪遥测（用户裁决 #3：无后端时必须显式降级，不得静默伪造）。
-      // 现状：固定为未接入的静态展示，指针回到零位，不再读写任何数值。
-      const cpuNeedle = document.getElementById('svgNeedleCPU');
-      const ramNeedle = document.getElementById('svgNeedleRAM');
-      const cpuText = document.getElementById('cpuValText');
-      const ramText = document.getElementById('ramValText');
-      if (cpuNeedle) {
-        cpuNeedle.setAttribute('transform', 'rotate(-20 74 48)');
-        cpuNeedle.setAttribute('data-gw-degradation', 'not_integrated');
-      }
-      if (ramNeedle) {
-        ramNeedle.setAttribute('transform', 'rotate(-20 74 48)');
-        ramNeedle.setAttribute('data-gw-degradation', 'not_integrated');
-      }
-      if (cpuText) {
-        cpuText.textContent = '未接入';
-        cpuText.setAttribute('data-gw-degradation', 'not_integrated');
-      }
-      if (ramText) {
-        ramText.textContent = '未接入';
-        ramText.setAttribute('data-gw-degradation', 'not_integrated');
-      }
+
+      // CPU/RAM 遥测由 /static/js/hardware-telemetry.js 统一接线（真实数据源
+      // GET /api/observability/health 的 hardware_telemetry 组件读数）。
+      // 此处不再重复写入「未接入」，避免覆盖真实读数或造成假降级。
     });
   </script>
 <script src="/static/v2/js/v2-shell.js"></script>

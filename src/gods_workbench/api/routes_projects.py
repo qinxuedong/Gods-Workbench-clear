@@ -16,7 +16,7 @@ from gods_workbench.projects_hub.models import (
     ProjectMutationResponse,
     ProjectUpdateRequest,
 )
-from gods_workbench.projects_hub.service import default_projects_service
+from gods_workbench.projects_hub.service import default_projects_service, owner_key_for_context
 
 router = APIRouter(prefix="/api/asset-registry", tags=["projects-hub"])
 
@@ -51,8 +51,15 @@ def create_project(
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
     """创建新项目。"""
-    require_edit_access(authorization, x_user_role)
-    result = default_projects_service.create_project(payload)
+    context = require_edit_access(authorization, x_user_role)
+    # ACL 绑定只接收服务端认证主体；service先持久预留不可复用ID，再原子发布项目真源。
+    from gods_workbench.video_tasks.service import get_video_service
+    video_service = get_video_service()
+    result = default_projects_service.create_project(
+        payload,
+        owner_key=owner_key_for_context(context),
+        before_publish=lambda project_id: video_service.register_project_owner(project_id, context),
+    )
     return ProjectMutationResponse(project=result)
 
 

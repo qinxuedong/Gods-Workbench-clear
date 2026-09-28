@@ -432,7 +432,7 @@ window.V2Production = (function () {
   //    注意：本切片**未接入任何渲染端点**。此处仅保留视觉降级演示，
   //    必须先显式告知用户「未接入」，不得让用户以为镜头已经真的生成完成。
   function triggerGenerate() {
-    window.alert('渲染未接入：本切片没有可用的渲染端点，未生成任何镜头。');
+    window.alert('渲染未接入：后端未提供镜头渲染端点，未生成任何镜头，也未伪造渲染结果。');
     const imgEl = document.getElementById('mainMonitorImage');
     if (imgEl) {
       imgEl.style.filter = 'brightness(0.65) blur(1.5px)';

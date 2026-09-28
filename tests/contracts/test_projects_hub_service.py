@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from gods_workbench.projects_hub.service import ProjectsService
 from gods_workbench.projects_hub.models import ProjectCreateRequest, ProjectType, ProjectUpdateRequest
-from gods_workbench.core.errors import VersionConflictException
+from gods_workbench.core.errors import CleanroomException, VersionConflictException
 
 
 def test_projects_service_crud_and_cas():
@@ -123,3 +123,36 @@ def test_api_static_and_projects_integration(client: TestClient):
     assert "projects" in data
     assert len(data["projects"]) >= 1
     assert data["projects"][0]["project_id"] == "prj-0001"
+
+
+def test_project_ids_do_not_repeat_when_api_service_restarts():
+    """全新服务实例沿用持久namespace与递增序号，绝不回收预留ID。"""
+    payload = ProjectCreateRequest(name="稳定 ID", project_type=ProjectType.OTHER)
+    owner_key = "a" * 64
+    first_service = ProjectsService(seed_golden_fixture=False, persistent=True)
+    first = first_service.create_project(payload, owner_key=owner_key).project_id
+    restarted_service = ProjectsService(seed_golden_fixture=False, persistent=True)
+    restarted = restarted_service.create_project(payload, owner_key=owner_key).project_id
+
+    assert first.startswith("prj-p-")
+    assert restarted.startswith("prj-p-")
+    assert first != restarted
+
+
+def test_project_is_not_published_when_pre_publish_binding_fails():
+    """持久 ACL 绑定失败时，不得留下已对外可见的半创建项目。"""
+    service = ProjectsService(seed_golden_fixture=False)
+    payload = ProjectCreateRequest(name="绑定失败", project_type=ProjectType.OTHER)
+    allocated = []
+
+    def reject_binding(project_id: str) -> None:
+        allocated.append(project_id)
+        raise RuntimeError("持久 ACL 写入失败")
+
+    with pytest.raises(RuntimeError, match="持久 ACL"):
+        service.create_project(payload, before_publish=reject_binding)
+
+    assert len(allocated) == 1
+    with pytest.raises(CleanroomException) as excinfo:
+        service.get_project(allocated[0])
+    assert excinfo.value.code == "PROJECT_NOT_FOUND"

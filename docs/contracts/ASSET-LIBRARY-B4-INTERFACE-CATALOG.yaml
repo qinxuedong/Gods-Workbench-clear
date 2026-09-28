@@ -1,12 +1,19 @@
+# PDF分页、中文、附件与限制详见 TEXT-PDF-EXPORT-CONTRACT.md。
 # -*- coding: utf-8 -*-
 # Phase 11 B4 洁净室接口目录：未接入数据源的能力必须失败关闭。
 meta:
-  version: p11-b4-1
+  version: p12-a1-2
   distribution: NOT AUTHORIZED FOR PUBLIC DISTRIBUTION
-  data_policy: "不读取任意本机路径；不伪造资产、任务、内容或文件。"
+  data_policy: "真实落盘素材库树；本机文件仅限 GW_ALLOWED_ROOTS，未配置即拒绝；不伪造资产或内容。"
   auth_policy: "所有接口先完成认证；写接口先完成编辑权限检查。"
   unavailable_status: 503
   unavailable_code: ASSET_LIBRARY_NOT_INTEGRATED
+  local_asset_index_contract: "本地素材索引与 LOCAL-ASSET-INTERFACE-CATALOG.yaml 共用 local_asset_index；asset_id 唯一且单调分配；移动/删除后磁盘、GET 与重启读回一致。"
+  migration_boundary: "历史重复本地 asset_id 仅可通过确定性映射显式修复，不根据歧义 ID 选择对象；旧提示词库/分类无持久化映射的条目保留其原始父引用且不得绑定新父库。"
+# ---------------------------------------------------------------------------
+# Phase 12 真实接入说明（2026-09-26）
+# 相位 12 起：素材库树经 core.storage 单实例 JSON 落盘（重启可恢复）；内容与版本真实落盘；PDF 用纯标准库生成；分类为确定性扩展名规则，禁止随机。
+# ---------------------------------------------------------------------------
 interfaces:
   - name: get_api_asset_classification_prompt
     method: GET
@@ -17,7 +24,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: patch_api_asset_classification_prompt
     method: PATCH
     path: /api/asset-classification-prompt
@@ -27,7 +34,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_classification_background
     method: POST
     path: /api/asset-classification/background
@@ -37,7 +44,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: delete_api_asset_classification_background
     method: DELETE
     path: /api/asset-classification/background
@@ -47,7 +54,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: get_api_asset_classification_jobs_id
     method: GET
     path: /api/asset-classification/jobs/{p}
@@ -57,7 +64,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: get_api_asset_content
     method: GET
     path: /api/asset-content
@@ -67,7 +74,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: patch_api_asset_content
     method: PATCH
     path: /api/asset-content
@@ -77,7 +84,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: get_api_asset_content_pdf
     method: GET
     path: /api/asset-content/pdf
@@ -87,7 +94,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: get_api_asset_content_versions
     method: GET
     path: /api/asset-content/versions
@@ -97,7 +104,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: get_api_asset_content_versions_id
     method: GET
     path: /api/asset-content/versions/{p}
@@ -107,7 +114,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: patch_api_asset_content_versions_id
     method: PATCH
     path: /api/asset-content/versions/{p}
@@ -117,7 +124,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: delete_api_asset_content_versions_id
     method: DELETE
     path: /api/asset-content/versions/{p}
@@ -127,7 +134,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_content_versions_id_restore
     method: POST
     path: /api/asset-content/versions/{p}/restore
@@ -137,7 +144,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: get_api_asset_file_info
     method: GET
     path: /api/asset-file-info
@@ -147,7 +154,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_file_reveal
     method: POST
     path: /api/asset-file-reveal
@@ -157,7 +164,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: patch_api_asset_library_categories_id
     method: PATCH
     path: /api/asset-library/categories/{p}
@@ -167,7 +174,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: delete_api_asset_library_categories_id
     method: DELETE
     path: /api/asset-library/categories/{p}
@@ -177,7 +184,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_library_items_batch
     method: POST
     path: /api/asset-library/items/batch
@@ -187,7 +194,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_library_items_classify
     method: POST
     path: /api/asset-library/items/classify
@@ -197,7 +204,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_library_items_delete
     method: POST
     path: /api/asset-library/items/delete
@@ -207,7 +214,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_library_items_move
     method: POST
     path: /api/asset-library/items/move
@@ -217,7 +224,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: patch_api_asset_library_items_id
     method: PATCH
     path: /api/asset-library/items/{p}
@@ -227,7 +234,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: delete_api_asset_library_items_id
     method: DELETE
     path: /api/asset-library/items/{p}
@@ -237,7 +244,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_library_items_id_avatar_status
     method: POST
     path: /api/asset-library/items/{p}/avatar-status
@@ -247,7 +254,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_library_items_id_register_avatar
     method: POST
     path: /api/asset-library/items/{p}/register-avatar
@@ -257,7 +264,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: patch_api_asset_library_libraries_id
     method: PATCH
     path: /api/asset-library/libraries/{p}
@@ -267,7 +274,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: delete_api_asset_library_libraries_id
     method: DELETE
     path: /api/asset-library/libraries/{p}
@@ -277,7 +284,7 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"
   - name: post_api_asset_library_workflows_upload
     method: POST
     path: /api/asset-library/workflows/upload
@@ -287,4 +294,4 @@ interfaces:
         code: *_NOT_INTEGRATED
         unavailable: true
         data_status: not_integrated
-    acceptance: "认证通过后，不可证明的实现返回统一 503；不读取请求中的文件路径。"
+    acceptance: "认证通过后返回真实数据；依赖缺失（未配置允许根目录）返回 403，任务不存在返回 404。"

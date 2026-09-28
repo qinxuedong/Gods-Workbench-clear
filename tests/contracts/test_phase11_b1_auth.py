@@ -11,7 +11,7 @@ from gods_workbench.core.auth_management import _Approval, store
 
 
 def client():
-    store.reset()
+    store.reset_for_tests()
     audit_log.reset_audit_log()
     return TestClient(app)
 

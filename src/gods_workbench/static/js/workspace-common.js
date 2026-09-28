@@ -59,7 +59,12 @@
     const detailMessage = detailValue && typeof detailValue === 'object'
       ? (detailValue.message || detailValue.msg || JSON.stringify(detailValue))
       : detailValue;
-    if(!response.ok) throw new Error(detailMessage || data.message || fallbackDetail);
+    if(!response.ok) {
+      const error = new Error(detailMessage || data.message || fallbackDetail);
+      error.status = response.status;
+      error.code = detailValue && typeof detailValue === 'object' ? String(detailValue.code || '') : '';
+      throw error;
+    }
     return data;
   };
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));

@@ -52,7 +52,7 @@ window.V2Storyboard = (function () {
         code: 'SC03_SH05',
         title: '动态摇镜 · 环形管道超载冷光脉冲',
         shotType: '运动镜头 · 50mm',
-        dialogue: '【警告音】核心显存压力告警，神经流即将反噬外部矩阵！（本切片无真实显存遥测，数值未接入）',
+        dialogue: '【警告音】核心显存压力告警，神经流即将反噬外部矩阵！',  // 示例台词（虚构剧情文本，非遥测读数）
         duration: '3.8s',
         img: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop',
         status: 'not_integrated'

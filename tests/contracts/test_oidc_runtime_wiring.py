@@ -97,11 +97,12 @@ def _claims(issuer: str = ISSUER, audience: str = AUDIENCE, **overrides) -> dict
 
 
 @pytest.fixture()
-def clean_env(monkeypatch):
+def clean_env(monkeypatch, tmp_path):
     """清空所有 GW_* 环境变量并重置运行期缓存，保证用例之间互不污染。"""
     for name in list(os.environ):
         if name.startswith("GW_"):
             monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GW_VIDEO_DATA_DIR", str(tmp_path / "gw-video"))
     gw_config.reset_runtime_auth_config_cache()
     yield monkeypatch
     gw_config.reset_runtime_auth_config_cache()
@@ -271,11 +272,13 @@ def isolated_projects_service():
     from gods_workbench.projects_hub.service import default_projects_service
 
     snapshot = dict(default_projects_service._projects)
+    sequence_snapshot = default_projects_service._seq
     try:
         yield default_projects_service
     finally:
         default_projects_service._projects.clear()
         default_projects_service._projects.update(snapshot)
+        default_projects_service._seq = sequence_snapshot
 
 
 @pytest.fixture()

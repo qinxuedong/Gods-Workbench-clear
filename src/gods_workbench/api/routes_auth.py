@@ -28,8 +28,10 @@ from fastapi import APIRouter, Cookie, Query, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from gods_workbench.core import session as session_store
+from gods_workbench.core import local_accounts
 from gods_workbench.core.config import (
     AUTH_MODE_OIDC,
+    AUTH_MODE_LOCAL_ACCOUNT,
     exchange_authorization_code,
     load_runtime_auth_config,
     resolve_endpoint,
@@ -153,6 +155,15 @@ def _clear_cookie(response: Response, name: str) -> None:
 def auth_status(gw_session: Optional[str] = Cookie(None)):
     """如实返回当前认证状态；未认证时 ``principal`` 必须为 null。"""
     runtime = load_runtime_auth_config()
+    if runtime.mode == AUTH_MODE_LOCAL_ACCOUNT:
+        principal = local_accounts.get_session(gw_session)
+        return JSONResponse({
+            "auth_mode": runtime.mode, "oidc_ready": False,
+            "authenticated": principal is not None, "principal": principal,
+            "setup_required": local_accounts.setup_required(),
+            "login_available": True, "logout_available": principal is not None,
+            "reason": "", "release_authorized": False,
+        }, headers={"Cache-Control": "no-store"})
     principal = session_store.get_session(gw_session)
     is_oidc = runtime.mode == AUTH_MODE_OIDC
     login_available = bool(is_oidc and runtime.ready and runtime.login_ready)
@@ -352,7 +363,9 @@ def auth_callback(
 @router.post("/logout", summary="登出并清除会话", status_code=status.HTTP_204_NO_CONTENT)
 def auth_logout(gw_session: Optional[str] = Cookie(None)):
     """删除服务端会话并清除 Cookie；未登录时同样幂等返回 204。"""
-    deleted = session_store.delete_session(gw_session)
+    deleted = (local_accounts.delete_session(gw_session)
+               if load_runtime_auth_config().mode == AUTH_MODE_LOCAL_ACCOUNT
+               else session_store.delete_session(gw_session))
     audit_log.record_auth_event(
         audit_log.EVENT_LOGOUT,
         outcome=audit_log.OUTCOME_SUCCEEDED,

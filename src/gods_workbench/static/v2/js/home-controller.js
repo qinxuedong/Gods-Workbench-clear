@@ -29,6 +29,8 @@ window.V2Home = (function () {
     projectsDegradation: null,
     assetOverviewDegradation: null,
     promptSourcesDegradation: null
+    // 注：活跃任务队列由共享模块 /static/js/v2-task-queue.js 独立渲染
+    // （真实数据源 GET /api/observability/tasks），本控制器不再维护重复状态。
   };
 
   // 切换视图模式 (grid / list)
@@ -146,6 +148,7 @@ window.V2Home = (function () {
 
     renderProjectsList();
   }
+
 
   function renderProjectsList() {
     const container = document.getElementById('v2RecentProjects');
@@ -528,7 +531,10 @@ window.V2Home = (function () {
   // AURA 智能体机舱控制逻辑 (对齐原系统路由: /api/ai/upload, /agents.html, /api/chat)
   // =========================================================================
   const auraState = {
-    chatModel: 'Claude-3.5-Sonnet',
+    chatModel: '',
+    providerId: '',
+    providers: [],
+    sending: false,
     imageModel: 'FLUX.1-DEV',
     ratio: '1:1',
     sizeSpec: '1024x1024',
@@ -570,23 +576,49 @@ window.V2Home = (function () {
     }
   }
 
-  // 设置模型
-  function setAuraModel(chatMdl, imgMdl) {
-    auraState.chatModel = chatMdl;
-    auraState.imageModel = imgMdl;
-
+  // 只允许选择服务端公开配置中的 Provider 与模型，不使用展示用预设冒名路由。
+  function setAuraModel(providerId, model) {
+    const provider = auraState.providers.find(item => item.provider_id === providerId);
+    if (!provider || !provider.models.includes(model)) return;
+    auraState.providerId = providerId;
+    auraState.chatModel = model;
     const lbl = document.getElementById('v2AuraApiLabel');
-    if (lbl) {
-      const shortChat = chatMdl.replace('-Sonnet', '').replace('-R1', '');
-      lbl.textContent = `API · ${shortChat}`;
-    }
-
+    if (lbl) lbl.textContent = `API · ${providerId} / ${model}`;
     const badge = document.getElementById('auraHeaderModelBadge');
-    if (badge) {
-      badge.textContent = `${imgMdl.split('-')[0]} + ${chatMdl.split('-')[0]}`;
-    }
-
+    if (badge) badge.textContent = model;
     toggleAuraApiPopover(false);
+  }
+
+  function applyAuraConfiguration(body) {
+    auraState.providers = Array.isArray(body && body.providers) ? body.providers.filter(item =>
+      item && item.configured === true && typeof item.provider_id === 'string' &&
+      Array.isArray(item.models) && item.models.every(model => typeof model === 'string')) : [];
+    const previous = auraState.providers.find(item => item.provider_id === auraState.providerId &&
+      item.models.includes(auraState.chatModel));
+    const provider = previous || auraState.providers.find(item => item.provider_id === body?.default_provider_id);
+    if (provider) setAuraModel(provider.provider_id, previous ? auraState.chatModel : provider.default_model);
+    else {
+      auraState.providerId = '';
+      auraState.chatModel = '';
+      const lbl = document.getElementById('v2AuraApiLabel');
+      if (lbl) lbl.textContent = 'API · 请选择已配置模型';
+      const badge = document.getElementById('auraHeaderModelBadge');
+      if (badge) badge.textContent = '尚未选择模型';
+    }
+    const options = document.getElementById('v2AuraModelOptions');
+    if (!options) return;
+    options.replaceChildren();
+    for (const item of auraState.providers) {
+      for (const model of item.models) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'w-full text-left px-2 py-1 rounded bg-[#161a24] text-slate-200';
+        button.textContent = `${item.provider_id} / ${model}`;
+        button.addEventListener('click', () => setAuraModel(item.provider_id, model));
+        options.appendChild(button);
+      }
+    }
+    if (!auraState.providers.length) options.textContent = '尚无可用服务端模型配置';
   }
 
   // 设置比例与尺寸
@@ -634,8 +666,8 @@ window.V2Home = (function () {
 
   // 处理附件上传 (对齐原系统路由 POST /api/ai/upload)
   // 处理附件上传 (对齐原系统路由 POST /api/ai/upload)
-  // 显式降级：本仓当前切片未实现该端点；本地 Blob 预览只用于界面预览，
-  // 必须明确告知用户「未上传到服务器」，绝不伪造上传成功。
+// 真实端点 POST /api/ai/upload（Phase 12 已接入：真实落盘并返回 file_id/url）。
+// 失败时本地 Blob 预览只用于界面预览，必须明确告知用户「未上传到服务器」，绝不伪造上传成功。
   async function handleAuraFilesUpload(files) {
     if (!files || files.length === 0) return;
 
@@ -678,7 +710,7 @@ window.V2Home = (function () {
       } else {
         const failure = await classifyFetchFailure(res);
         pushLocalPreviewAttachments();
-        uploadNotice = '附件上传 API 未接入，以下仅为本地预览，未上传到服务器。（' + failure.message + '）';
+      uploadNotice = '附件上传未成功，以下仅为本地预览，未上传到服务器。（' + failure.message + '）';
       }
     } catch (e) {
       console.warn('附件上传请求异常（网络异常）:', e);
@@ -764,7 +796,19 @@ window.V2Home = (function () {
 
     const query = input.value.trim();
     if (!query && auraState.attachments.length === 0) return;
-
+    if (auraState.sending) return;
+    if (!auraState.providerId || !auraState.chatModel) {
+      window.alert('请先选择服务端已配置的 Provider 和模型。');
+      toggleAuraApiPopover(true);
+      return;
+    }
+    if (!window.confirm('将向所选真实模型发送消息，可能产生费用；失败不会自动重试。是否继续？')) return;
+    const selectedProviderId = auraState.providerId;
+    const selectedModel = auraState.chatModel;
+    auraState.sending = true;
+    const requestAbort = new AbortController();
+    const requestTimeout = setTimeout(() => requestAbort.abort(), 40000);
+    try {
     const attachedCount = auraState.attachments.length;
     const currentAttachments = [...auraState.attachments];
 
@@ -811,7 +855,7 @@ window.V2Home = (function () {
               <span>AURA · 核心智能体</span>
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
             </div>
-            <span class="text-slate-500 font-normal">${auraState.chatModel}</span>
+            <span class="text-slate-500 font-normal">${esc(selectedModel)}</span>
           </div>
           <div class="text-slate-200 leading-relaxed font-sans aura-content">
             <span class="text-slate-500 flex items-center space-x-1">
@@ -832,9 +876,11 @@ window.V2Home = (function () {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
+        signal: requestAbort.signal,
         body: JSON.stringify({
           message: query,
-          model: auraState.chatModel,
+          provider_id: selectedProviderId,
+          model: selectedModel,
           image_model: auraState.imageModel,
           aspect_ratio: auraState.ratio,
           size_spec: auraState.sizeSpec,
@@ -869,6 +915,10 @@ window.V2Home = (function () {
 
     if (window.lucide) window.lucide.createIcons();
     stream.scrollTop = stream.scrollHeight;
+    } finally {
+      clearTimeout(requestTimeout);
+      auraState.sending = false;
+    }
   }
 
   // 5. 提示词芯片快速填入
@@ -1295,17 +1345,26 @@ window.V2Home = (function () {
             `;
           }).join('');
         }
-      } else {
-        // 显式降级：没有真实资产时绝不展示伪造的示例资产。
-        const degradation = state.assetOverviewDegradation || {
-          kind: 'not_integrated',
-          message: degradationMessage('not_integrated', 0)
-        };
+      } else if (state.assetOverviewDegradation) {
+        // 接口失败 / 未接入：显式降级，绝不展示伪造的示例资产。
         if (listContainer) {
-          listContainer.innerHTML = degradationNoticeHtml(degradation, '未取到真实资产；本页不会展示任何伪造的示例资产。');
+          listContainer.innerHTML = degradationNoticeHtml(
+            state.assetOverviewDegradation,
+            '未取到真实资产；本页不会展示任何伪造的示例资产。'
+          );
         }
         [statImages, statModels, statVideos, statAudios].forEach(el => { if (el) el.textContent = '—'; });
         if (poolSize) poolSize.textContent = '—';
+      } else {
+        // 端点已接入且后端如实应答「确实为空」：保留中性空态，不得谎称未接入。
+        if (listContainer) {
+          listContainer.innerHTML = `
+            <div class="bay-inset p-3 rounded-xl text-center text-[10px] font-mono text-slate-400" role="status">
+              暂无已登记资产；后端已接入并如实返回空集合，未展示任何伪造示例。
+            </div>`;
+        }
+        [statImages, statModels, statVideos, statAudios].forEach(el => { if (el) el.textContent = '0'; });
+        if (poolSize) poolSize.textContent = '0';
       }
     } catch (e) {
       // 网络异常：显式降级为「服务暂时不可用」，不得声称已挂载或已就绪。
@@ -1452,7 +1511,42 @@ window.V2Home = (function () {
   }
 
   // 初始化入口
+  // 首页只读服务端 Chat 配置状态；绝不在页面初始化时触发可能计费的模型调用。
+  async function syncAuraBusStatus() {
+    const node = document.getElementById('auraBusStatus');
+    if (!node) return;
+    try {
+      const res = await fetch('/api/chat/config', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin'
+      });
+      const body = await res.json().catch(() => null);
+      applyAuraConfiguration(res.ok ? body : null);
+      if (res.ok && body && body.configured === true) {
+        node.textContent = 'AURA 智能体总线 · Provider 已配置（未测连接）';
+        node.className = 'text-[9px] font-mono text-cyan-300 font-bold';
+        node.removeAttribute('data-gw-degradation');
+        node.title = '只读取 /api/chat/config；尚未验证上游连通性或发起计费请求';
+        return;
+      }
+      const status = String(body && body.configuration_status || '');
+      const kind = res.ok && status === 'not_configured' ? 'not_integrated' : 'service_unavailable';
+      node.textContent = 'AURA 智能体总线 · ' + (kind === 'not_integrated' ? 'Provider 未配置' : '配置状态不可用');
+      node.className = 'text-[9px] font-mono text-amber-300 font-bold';
+      node.setAttribute('data-gw-degradation', kind);
+      node.title = '只读取 /api/chat/config 的服务端配置状态（HTTP ' + res.status + '）；未触发模型生成';
+    } catch (_) {
+      applyAuraConfiguration(null);
+      node.textContent = 'AURA 智能体总线 · 配置状态不可用';
+      node.className = 'text-[9px] font-mono text-amber-300 font-bold';
+      node.setAttribute('data-gw-degradation', 'service_unavailable');
+      node.title = 'GET /api/chat/config 请求异常；未触发模型生成';
+    }
+  }
+
   function init() {
+    syncAuraBusStatus();
     reloadProjects();
     reloadAssetOverview();
     renderDirectives();

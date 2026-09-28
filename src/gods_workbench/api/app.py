@@ -24,10 +24,14 @@ from gods_workbench.api.routes_observability import router as observability_rout
 from gods_workbench.api.routes_projects import legacy_router as projects_compat_router
 from gods_workbench.api.routes_projects import router as projects_router
 from gods_workbench.api.routes_asset_registry import router as asset_registry_router
+from gods_workbench.video_tasks.routes import router as video_tasks_router
 from gods_workbench.api.routes_prompt_library import router as prompt_library_router
 from gods_workbench.api.routes_settings import router as settings_router
 from gods_workbench.core import session as session_store
-from gods_workbench.core.config import AUTH_MODE_OIDC, load_runtime_auth_config
+from gods_workbench.observability import telemetry as observability_telemetry
+from gods_workbench.core import local_accounts
+from gods_workbench.api.routes_local_accounts import router as local_accounts_router
+from gods_workbench.core.config import AUTH_MODE_OIDC, AUTH_MODE_LOCAL_ACCOUNT, load_runtime_auth_config
 from gods_workbench.core.errors import CleanroomException
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -90,18 +94,61 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/static/v2/projects.html", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     @app.middleware("http")
+    async def observability_http_middleware(request: Request, call_next):
+        """把真实 /api 请求的响应字节数与耗时计入观测采样（只测量真实值）。
+
+        不使用任何估算或随机值：字节数取响应声明的 Content-Length 或可读 body 长度，
+        耗时用单调时钟实测；无法测量时计 0，绝不编造。
+        """
+        if not request.url.path.startswith("/api/"):
+            return await call_next(request)
+        import time as _time
+        started = _time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = (_time.perf_counter() - started) * 1000.0
+        size = 0
+        try:
+            raw_length = response.headers.get("content-length")
+            if raw_length is not None:
+                size = int(raw_length)
+            else:
+                body = getattr(response, "body", None)
+                if isinstance(body, (bytes, bytearray)):
+                    size = len(body)
+        except Exception:
+            size = 0
+        try:
+            observability_telemetry.record_http_observation(
+                request.url.path, response_bytes=size, duration_ms=elapsed_ms
+            )
+        except Exception:
+            pass
+        return response
+
+    @app.middleware("http")
     async def session_principal_middleware(request: Request, call_next):
         """把 ``gw_session`` Cookie 解析出的服务端身份写入请求上下文。
 
-        只在 OIDC 模式下解析；未知/过期会话等价于未认证（不拒绝请求本身，
+        只在 OIDC 或数据库账户模式下解析；未知/过期会话等价于未认证（不拒绝请求本身，
         由各路由的权限检查决定 401/403）。上下文变量在响应后必须重置，
         避免跨请求泄漏。
         """
         token = None
-        if request.url.path.startswith("/api/") and load_runtime_auth_config().mode == AUTH_MODE_OIDC:
-            session_id = request.cookies.get(session_store.SESSION_COOKIE_NAME)
-            principal = session_store.get_session(session_id)
-            token = session_store.set_current_principal(principal)
+        mode = load_runtime_auth_config().mode
+        if request.url.path.startswith("/api/"):
+            if mode == AUTH_MODE_LOCAL_ACCOUNT:
+                if request.method not in {"GET", "HEAD", "OPTIONS"}:
+                    # Cookie 登录的全部写接口要求同源，拒绝跨站请求及缺失来源。
+                    origin = request.headers.get("origin")
+                    expected = str(request.base_url).rstrip("/")
+                    if origin != expected or request.headers.get("sec-fetch-site") == "cross-site":
+                        return JSONResponse(status_code=403, content={"detail": {
+                            "code": "CSRF_ORIGIN_REJECTED", "message": "请从当前应用页面执行操作（请求来源校验失败）"}})
+                principal = local_accounts.get_session(request.cookies.get(session_store.SESSION_COOKIE_NAME))
+                token = session_store.set_current_principal(principal)
+            elif mode == AUTH_MODE_OIDC:
+                principal = session_store.get_session(request.cookies.get(session_store.SESSION_COOKIE_NAME))
+                token = session_store.set_current_principal(principal)
         try:
             return await call_next(request)
         finally:
@@ -110,10 +157,13 @@ def create_app() -> FastAPI:
 
     # 挂载 API 路由
     app.include_router(auth_router)
+    app.include_router(local_accounts_router)
     app.include_router(ai_router)
     app.include_router(auth_management_router)
     app.include_router(projects_router)
     app.include_router(projects_compat_router)
+    # 视频端点在应用层独立挂载，避免与画布兼容路由重复注册。
+    app.include_router(video_tasks_router)
     # 必须先于 god_canvas_router 注册：/api/canvases/trash 不能被 /{canvas_id} 抢先匹配。
     app.include_router(canvas_closure_router)
     app.include_router(god_canvas_router)
@@ -130,6 +180,14 @@ def create_app() -> FastAPI:
     app.include_router(observability_router)
     app.include_router(prompt_library_router)
     app.include_router(settings_router)
+
+    @app.get("/share/{share_token}", include_in_schema=False)
+    async def public_share_page(share_token: str):
+        """公开分享只返回页面外壳；令牌/票据与资产授权由公开API验证。"""
+        return FileResponse(STATIC_DIR / "asset-share.html", headers={
+            "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+        })
 
     # 统一 V2 用户入口：根级业务页只保留给 V2 内部 iframe 使用。
     # `embedded=1` 是内部实现边界，不能重定向，否则会导致 iframe 循环。
@@ -164,6 +222,9 @@ def create_app() -> FastAPI:
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
+    # 后台索引暂停线程也必须随应用正常关闭；恢复由持久收据判定。
+    from gods_workbench.asset_registry.index_jobs import shutdown as shutdown_index_jobs
+    app.add_event_handler("shutdown", shutdown_index_jobs)
     return app
 
 

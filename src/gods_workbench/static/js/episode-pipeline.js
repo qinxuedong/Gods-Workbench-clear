@@ -29,11 +29,15 @@
   const STORYBOARD_OUTLINE_KEYS = ['coreConflict', 'protagonistMotivation', 'informationGain', 'fiveActs', 'sceneQuality', 'shots'];
   const STORYBOARD_SHOT_KEYS = ['index', 'title', 'scriptContent', 'shotType', 'keyBeats'];
   const params = new URLSearchParams(location.search);
-  const state = {projects: [], libraries: [], providers: [], projectId: params.get('project_id') || localStorage.getItem('workspace_project_id') || '', pipelines: [], selected: null, selectedPipelineId: params.get('pipeline_id') || '', activeStep: STAGES.some(item => item.key === params.get('step')) ? params.get('step') : 'script', busy: false, toastTimer: 0, uploadAssetId: '', uploadPipelineId: '', assetGroups: {}, focusedAsset: null, detailReturnFocus: null, pending: {}, assetRuns: {}, scriptEditorMode: 'preview', storyboardSubStep: 1};
+  const state = {projects: [], libraries: [], providers: [], projectId: params.get('project_id') || localStorage.getItem('workspace_project_id') || '', pipelines: [], selected: null, selectedPipelineId: params.get('pipeline_id') || '', activeStep: STAGES.some(item => item.key === params.get('step')) ? params.get('step') : 'script', busy: false, toastTimer: 0, uploadAssetId: '', uploadPipelineId: '', assetGroups: {}, focusedAsset: null, detailReturnFocus: null, pending: {}, assetRuns: {}, scriptEditorMode: 'preview', storyboardSubStep: 1, videoActorId: '', videoIdentityReadGeneration: 0};
   const WORKSPACE_KEY = 'gwb_episode_workspace_v2';
   const SCRIPT_ASSET_KEY = 'gwb_script_assets_v1';
   const ASSET_POLL_INTERVAL_MS = 2500;
   const ASSET_AUTO_STOP_MS = 120000;
+  const videoPolls = new Map();
+  const videoRequests = new Set();
+  const VIDEO_CONTEXT_STORAGE_PREFIX = 'gwb_video_production_context_v1';
+  const videoContext = {scopeKey: '', projectId: '', pipelineId: '', actorId: '', canvasId: '', entityId: '', canvases: [], nodes: [], loading: '', error: '', generation: 0, controller: null};
 
   const DEFAULT_ASSETS_DEMO = [
     { id: 'asset-01', name: '林浩', type: 'character', prompt: '根据剧本建立“林浩”的统一视觉设定，锁定面部五官与战术风衣材质，保持后续镜头连续性。', status: 'running', preview: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD05s7fKU3W0sxDtoNaPSvqhxs-sAyO3oNnRtpvgYnc72ryANA_h8I0BFAzb4B34cYDLzXlYt66FDdfHfIbjvOZvxb3G5Xg2O697SzeMXPmKxeo180L6jsYObIKp9OswOqPzSxXyjPNM7AwXZB29tLWpOoxlyeUW-mskOJ98PHrp6k6-ipnyJ04gizllKggww21os_o8bVcmgRZ62uex5rZN7mG5YNp-kL7R7Zn63wP-hYGlO0Qf_2A' },
@@ -59,7 +63,8 @@
   function stageFor(pipeline, key) { return pipeline?.stages?.find(item => item.stage === key) || {stage: key, label: STAGES.find(item => item.key === key)?.label || key, status: 'queued', result: {}}; }
   function scriptMode(pipeline) { const data = readWorkspace(pipeline); return SCRIPT_MODES.find(item => item.key === data.scriptMode) || SCRIPT_MODES[0]; }
   function stagePromptItem(pipeline, stage) { const spec = STAGES.find(item => item.key === stage?.stage); return stage?.stage === 'script' ? scriptMode(pipeline).prompt : stage?.prompt_item_id || spec?.prompt || ''; }
-  function contextParams(pipeline, stage) { const context = stage?.production_context || pipeline?.production_context || {}; const spec = STAGES.find(item => item.key === stage?.stage); const promptItemId = stagePromptItem(pipeline, stage); return {project_id: context.project_id || state.projectId, entity_id: context.entity_id || '', canvas_id: context.canvas_id || '', episode_pipeline_id: pipeline?.pipeline_id || '', episode_stage: stage?.stage || '', episode_stage_job_id: stage?.job_id || '', episode_prompt_library_id: pipeline?.prompt_library_id || 'episode', episode_prompt_item_id: promptItemId, episode_prompt_item_ids: (spec?.promptItems || [promptItemId]).filter(Boolean).join(',')}; }
+  // 阶段初始上下文可能为空对象，须保留流水线已有的稳定实体关联。
+  function contextParams(pipeline, stage) { const context = {...(pipeline?.production_context || {}), ...(stage?.production_context || {})}; const spec = STAGES.find(item => item.key === stage?.stage); const promptItemId = stagePromptItem(pipeline, stage); return {project_id: context.project_id || state.projectId, entity_id: context.entity_id || '', canvas_id: context.canvas_id || '', episode_pipeline_id: pipeline?.pipeline_id || '', episode_stage: stage?.stage || '', episode_stage_job_id: stage?.job_id || '', episode_prompt_library_id: pipeline?.prompt_library_id || 'episode', episode_prompt_item_id: promptItemId, episode_prompt_item_ids: (spec?.promptItems || [promptItemId]).filter(Boolean).join(',')}; }
   function promptItem(pipeline, itemId) { const library = state.libraries.find(item => item.id === (pipeline?.prompt_library_id || 'episode')) || state.libraries.find(item => item.id === 'episode'); return library?.items?.find(item => item.id === itemId) || null; }
   function promptDocument(pipeline, itemId) { const item = promptItem(pipeline, itemId); const negative = String(item?.negative || '').trim(); const legacyUserTemplate = item?.params?.source === 'legacy-code-template' ? negative : ''; return {name: String(item?.name || itemId || '剧集提示词'), positive: String(item?.positive || '').trim(), negative: legacyUserTemplate ? '' : negative, userTemplate: legacyUserTemplate}; }
   function promptMessage(documentPrompt, message) { const template = String(documentPrompt?.userTemplate || '').trim(); const content = String(message || '').trim(); if (!template) return content; return template.includes('{{message_1_content}}') ? template.replace(/\{\{message_1_content\}\}/g, content) : `${template}\n\n${content}`; }
@@ -1621,6 +1626,11 @@
 
   function videoScriptMarkup(pipeline, stage, data) {
     const scripts = data.videoScripts;
+    const selectedVideoAssets = scripts.filter(item => item.exportSelected && item.videoStatus === 'ready' && item.assetId);
+    const exportRequestKey = videoRequestKey(pipeline, '__export__');
+    const exportWaiting = videoRequests.has(exportRequestKey) || (data.videoExportStatus === 'running' && data.videoExportJobId && videoPolls.has(data.videoExportJobId));
+    const exportContentUrl = safeVideoScriptUrl(data.videoExportUrl);
+    const exportDownloadUrl = safeVideoScriptDownloadUrl(data.videoExportUrl);
     const busy = pendingFor(pipeline, 'video_scripts');
     const completed = scripts.filter(item => item.videoUrl && item.videoStatus !== 'running').length;
     const running = scripts.filter(item => item.videoStatus === 'running').length;
@@ -1628,6 +1638,7 @@
     const progress = scripts.length ? Math.round(completed / scripts.length * 100) : 0;
     const videoModel = selectedVideoModel(pipeline);
     const canRender = Boolean(videoModel.provider_id);
+    const contextReady = videoContextReady(pipeline);
     return `<section class="video-script-rack ${statusClass(stage.status)}" id="stage-video-script" aria-label="视频脚本工作区">
       <div class="vs-panel">
         <div class="vs-master-head">
@@ -1641,22 +1652,47 @@
         ${busy ? '<p role="status" aria-live="polite">提示词工程师正在生成，请稍候。</p>' : ''}
       </div>
       <div class="vs-grid"><div class="video-script-list">
-        ${scripts.length ? scripts.map((item, index) => `<article class="vs-panel video-script-card">
-          <div class="vs-card-head"><h3>镜头组 #${String(index + 1).padStart(2, '0')}</h3><span class="vs-badge">绑定 ${esc(item.shotId)}</span><span class="vs-badge">${item.videoStatus === 'running' ? '生成中' : item.videoStatus === 'failed' ? '生成失败 · 可重试' : item.videoUrl ? '已生成视频' : '待生成'}</span></div>
+        ${scripts.length ? scripts.map((item, index) => {
+          const contentUrl = safeVideoScriptUrl(item.videoUrl);
+          const downloadUrl = safeVideoScriptDownloadUrl(item.videoUrl);
+          const requestKey = videoRequestKey(pipeline, item.id);
+          const statusLabel = videoStatusLabel(item);
+          const waiting = videoRequests.has(requestKey) || (item.videoStatus === 'running' && item.videoJobId && videoPolls.has(item.videoJobId));
+          const blocked = item.videoStatus === 'unknown';
+          return `<article class="vs-panel video-script-card">
+          <div class="vs-card-head"><h3>镜头组 #${String(index + 1).padStart(2, '0')}</h3><span class="vs-badge">绑定 ${esc(item.shotId)}</span><span class="vs-badge">${esc(statusLabel)}</span></div>
           <label class="vs-field">主提示词 (POSITIVE SCRIPT PROMPT)<textarea data-video-field="prompt" data-video-id="${esc(item.id)}" rows="4">${esc(item.prompt)}</textarea></label>
           <label class="vs-field">反向提示词 (NEGATIVE PROMPT)<textarea data-video-field="negative" data-video-id="${esc(item.id)}" rows="2">${esc(item.negative)}</textarea></label>
           <div class="vs-actions"><label>资产槽 / 文本引用<input data-video-field="assets" data-video-id="${esc(item.id)}" value="${esc(item.assets)}"></label>
-            <button class="btn primary" type="button" data-video-generate="${esc(item.id)}" ${busy || item.videoStatus === 'running' || !canRender ? 'disabled' : ''}>${item.videoStatus === 'running' ? '生成中…' : item.videoUrl ? '重新生成视频' : '生成此镜头'}</button>
-            ${safeVideoScriptUrl(item.videoUrl) ? `<a class="btn" href="${esc(safeVideoScriptUrl(item.videoUrl))}" target="_blank" rel="noopener noreferrer">查看视频</a>` : ''}
+            ${item.videoStatus === 'ready' && item.assetId ? `<label class="vs-export-select"><input type="checkbox" data-video-export-select="${esc(item.id)}" ${item.exportSelected ? 'checked' : ''}><span>纳入合并导出</span></label>` : ''}
+            <button class="btn primary" type="button" data-video-generate="${esc(item.id)}" ${busy || !canRender || waiting || blocked || (!contextReady && !(item.videoStatus === 'submitting' && item.videoSubmission) && !(item.videoStatus === 'running' && item.videoJobId)) ? 'disabled' : ''}>${item.videoStatus === 'submitting' ? '恢复原请求' : item.videoStatus === 'running' ? (waiting ? '查询中…' : '继续查询') : item.videoUrl ? '重新生成视频' : '生成此镜头'}</button>
+            ${item.videoStatus === 'running' && item.videoJobId ? `<button class="btn danger" type="button" data-video-cancel="${esc(item.id)}" ${waiting ? 'disabled' : ''}>取消任务</button>` : ''}
+            ${downloadUrl ? `<a class="btn" href="${esc(downloadUrl)}" download>下载视频</a>` : ''}
           </div>
-        </article>`).join('') : `<div class="vs-panel vs-empty"><h3>等待逐镜视频脚本</h3><p>${data.storyboard.shots.length ? `已有 ${data.storyboard.shots.length} 个分镜，点击上方按钮生成详细视频脚本。` : '请先完成分镜拆分，再开始逐镜提示词编译。'}</p><button class="btn" type="button" data-goto-step="video">前往分镜脚本</button></div>`}
+          ${item.videoStatus === 'submitting' ? '<p class="vs-task-note">提交结果待确认；恢复时会使用已保存的原始参数与幂等键，不会另建请求。</p>' : ''}
+          ${item.videoStatus === 'unknown' ? '<p class="vs-task-note is-warning">服务端标记创建结果未知。为避免重复计费，已禁止自动重提；请先人工核实上游任务。</p>' : ''}
+          ${item.videoRemoteMayContinue && item.videoJobStatus !== 'succeeded' ? `<p class="vs-task-note is-warning">${item.videoStatus === 'canceled' ? '本地任务已取消，但' : '本地未确认任务成功；'}上游任务可能继续运行或计费。</p>` : ''}
+          ${item.videoError ? `<p class="vs-task-note is-warning">${esc(item.videoError)}</p>` : ''}
+          ${contentUrl ? `<video class="vs-video-preview" controls preload="metadata" src="${esc(contentUrl)}">浏览器不支持视频预览。</video>` : ''}
+        </article>`;
+        }).join('') : `<div class="vs-panel vs-empty"><h3>等待逐镜视频脚本</h3><p>${data.storyboard.shots.length ? `已有 ${data.storyboard.shots.length} 个分镜，点击上方按钮生成详细视频脚本。` : '请先完成分镜拆分，再开始逐镜提示词编译。'}</p><button class="btn" type="button" data-goto-step="video">前往分镜脚本</button></div>`}
       </div><aside class="vs-rail" aria-label="视频生成控制机架">
         <section class="vs-panel"><h3>镜头出片进度 / SHOT OUTPUT</h3><div class="vs-dial" style="--vs-progress:${progress}" role="img" aria-label="已出片 ${completed} / ${scripts.length}"><div class="vs-dial-inner"><strong>${progress}%</strong><small>已生成镜头</small></div></div><span class="vs-readout">${completed} / ${scripts.length} SHOTS</span></section>
         <section class="vs-panel"><h3>任务状态 / RENDER STATUS</h3><dl class="vs-metrics"><dt>生成中</dt><dd>${running}</dd><dt>已出片</dt><dd>${completed}</dd><dt>失败待重试</dt><dd>${failed}</dd></dl></section>
         <section class="vs-panel"><h3>出片控制 / RENDER ENGINE</h3>${modelPicker(pipeline, {stage: 'video_render', modelKind: 'video', modelLabel: '视频模型'})}
+          ${videoContextMarkup(pipeline)}
           <dl class="vs-metrics"><dt>单镜时长</dt><dd>5 秒</dd><dt>画幅</dt><dd>16:9</dd></dl>
           <p>运镜加速度、采样步数与种子锁定尚未对接，不作为生成参数提交。资产槽按文本引用随提示词发送，不自动附加参考图片。</p>
           ${!canRender ? '<p>暂无可用视频模型，请先在设置中配置。</p>' : ''}
+        </section>
+        <section class="vs-panel"><h3>合并导出 / LOCAL EXPORT</h3>
+          <p>已选 ${selectedVideoAssets.length} 个本项目已生成镜头；导出在本机 FFmpeg 执行，不调用视频 Provider。</p>
+          <button class="btn primary" type="button" data-video-export ${exportWaiting || ((!selectedVideoAssets.length || !contextReady) && !data.videoExportSubmission && !(data.videoExportStatus === 'running' && data.videoExportJobId)) ? 'disabled' : ''}>${data.videoExportStatus === 'submitting' ? '恢复原导出请求' : data.videoExportStatus === 'running' ? (exportWaiting ? '导出处理中…' : '继续查询导出') : '合并导出 720p / 30fps'}</button>
+          ${data.videoExportStatus ? `<p class="vs-task-note">导出状态：${esc(data.videoExportStatus)}${data.videoExportJobId ? ` · ${esc(data.videoExportJobId)}` : ''}</p>` : ''}
+          ${data.videoExportStatus === 'running' && data.videoExportJobId ? '<button class="btn danger" type="button" data-video-export-cancel>取消本地导出</button>' : ''}
+          ${data.videoExportError ? `<p class="vs-task-note is-warning">${esc(data.videoExportError)}</p>` : ''}
+          ${exportContentUrl ? `<video class="vs-video-preview" controls preload="metadata" src="${esc(exportContentUrl)}">浏览器不支持视频预览。</video><a class="btn" href="${esc(exportDownloadUrl)}" download>下载合并视频</a>` : ''}
+          ${data.videoExportStatus === 'submitting' ? '<p class="vs-task-note">恢复将使用已保存的原选择和幂等键。</p>' : ''}
         </section>
       </aside></div>
       <footer class="vs-panel vs-footer"><span class="vs-kicker">${esc(pipeline.title || '未命名剧集')} · ${scripts.length} 个镜头脚本</span><div class="vs-actions"><button class="btn" type="button" data-goto-step="video">上一步：分镜脚本</button><button class="btn" type="button" data-save-video-script ${busy || !scripts.length ? 'disabled' : ''}>保存脚本</button>${stage.status === 'running' && scripts.length ? `<button class="btn primary" type="button" data-complete-video-script ${busy ? 'disabled' : ''}>保存视频脚本并完成阶段</button>` : ''}</div></footer>
@@ -1665,7 +1701,18 @@
 
   function safeVideoScriptUrl(value) {
     if (!value) return '';
-    try { const url = new URL(value, location.origin); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; } catch (_) { return ''; }
+    try {
+      const url = new URL(value, location.origin);
+      return url.origin === location.origin && /^\/api\/video-tasks\/[^/]+\/content$/.test(url.pathname) ? url.href : '';
+    } catch (_) { return ''; }
+  }
+
+  function safeVideoScriptDownloadUrl(value) {
+    const safeUrl = safeVideoScriptUrl(value);
+    if (!safeUrl) return '';
+    const url = new URL(safeUrl, location.origin);
+    url.searchParams.set('download', '1');
+    return url.href;
   }
 
   function pipelineMarkup(pipeline) {
@@ -1811,6 +1858,7 @@
     if (state.activeStep === 'assets') {
       bindAssetTrackSync();
     }
+    resumeVideoPolls(currentPipeline());
   }
   // 内置示例目录：**只在**真实 /api/asset-registry/projects 不可用时作为显式降级占位，
   // 必须在 UI 上标明「未接入」，不得被读成真实项目数据。
@@ -1896,11 +1944,13 @@
     resetDegradations();
     q('#episodePipeline').innerHTML = '<div class="episode-loading panel">正在读取项目、提示词和模型配置…</div>';
     try {
-      const [projects, libraries, providers] = await Promise.all([
+      const [projects, libraries, providers, videoIdentity] = await Promise.all([
         loadWithExplicitFallback('/api/asset-registry/projects?archived=false', { projects: DEMO_PROJECTS_FALLBACK }),
         loadWithExplicitFallback('/api/prompt-libraries', { libraries: [{ id: 'episode', name: '系统剧集提示词库', items: [] }] }),
         loadWithExplicitFallback('/api/providers', { providers: [] }),
+        api('/api/asset-auth/identity-binding').catch(() => null),
       ]);
+      state.videoActorId = videoIdentity?.bound === true && typeof videoIdentity.user_id === 'string' ? videoIdentity.user_id : '';
       // 契约对齐：项目中心 API 的稳定实体 ID 字段为 project_id（见 docs/contracts/PROJECTS-HUB-INTERFACE-CATALOG.yaml，
 // 黄金夹具 docs/fixtures/projects-hub-list-active.json 不含 id 字段）；此处归一化为内部 id，
 // 否则项目下拉与项目名回退全部失效。
@@ -1912,14 +1962,13 @@ state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
       if (state.projectId && !state.projects.some(item => item.id === state.projectId)) {
         // 尝试单项目查询，若存在则加入 state.projects；绝不强制重置为 proj-01
         try {
-          // 审核发现 D3：此处原为两级静默 .catch，404/503 不登记降级；改为**串行**显式降级：
-          // 主路径失败先登记再退回兼容路径，兼容路径失败同样登记，最终仍可退到 null（可用性不变）。
+          // 只请求冻结的项目详情 GET；不得先向仅支持写操作的注册表单项路径发送请求。
           let singleP = null;
           try {
-            singleP = await api(`/api/asset-registry/projects/${encodeURIComponent(state.projectId)}`);
-          } catch (primaryError) {
-            recordDegradation(`/api/asset-registry/projects/${encodeURIComponent(state.projectId)}`, primaryError && primaryError.code);
-            singleP = await loadWithExplicitFallback(`/api/projects/${encodeURIComponent(state.projectId)}`, null);
+            singleP = await api(`/api/projects/${encodeURIComponent(state.projectId)}`);
+          } catch (detailError) {
+            // 保留失败显式登记，不把未知项目或服务错误静默吞掉。
+            recordDegradation(`/api/projects/${encodeURIComponent(state.projectId)}`, detailError && detailError.code);
           }
           const pObj = singleP?.project || singleP;
           const pObjId = pObj && (pObj.id || pObj.project_id);
@@ -2105,8 +2154,9 @@ state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
     if (!state.projectId) state.projectId = 'proj-01';
     // 显式降级（审核发现 D5 / 承接 D3）：此处原为 `try/catch` + `console.warn` 的**静默降级**，
     // 失败后把 incoming 置空，UI 会显示「尚未建立剧集或影片流水线」——读者会理解成
-    // 「我没有流水线」，而不是「后端没接」。`/api/episode-pipelines` 属 180 条未实现端点
-    // （P8-A1 缺口报告 §2.3），必须登记可见降级；回落值仍为空数组，可用性不变。
+    // 「我没有流水线」，而不是「后端读取失败」。Phase 12 已真实接入
+    // `/api/episode-pipelines`（GET/POST 实测 200 + data_status=ok），因此失败必须登记可见降级；
+    // 回落值仍为空数组，可用性不变。
     const data = await loadWithExplicitFallback(`/api/episode-pipelines?project_id=${encodeURIComponent(state.projectId)}`, { pipelines: [] });
     const incoming = data.pipelines || [];
     const activeIds = new Set(incoming.map(item => item.pipeline_id));
@@ -2117,6 +2167,7 @@ state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
     state.selected = state.pipelines.find(item => item.pipeline_id === state.selectedPipelineId) || state.pipelines.find(item => item.pipeline_id === state.selected?.pipeline_id) || state.pipelines[0] || null;
     state.selectedPipelineId = state.selected?.pipeline_id || '';
     syncAuraScope(state.selected);
+    activateVideoContext(state.selected);
     state.pipelines.forEach(item => {
       const text = stageOutput(item, stageFor(item, 'script'));
       if (text && stageFor(item, 'script').status === 'succeeded') archiveScriptAsset(item, text);
@@ -2311,8 +2362,553 @@ state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
   }
   async function completeStoryboard(pipeline) { const data = updateInputData(pipeline); if (!data.storyboard.shots.length) throw new Error('请先拆分分镜'); await completeStage('video', pipeline.pipeline_id, {text: JSON.stringify({outline: data.storyboard.outline, shots: data.storyboard.shots}), message: '分镜已确认'}); switchStep('audio_compose'); }
   async function completeVideoScript(pipeline) { const data = updateInputData(pipeline); if (!data.videoScripts.length) throw new Error('请先生成详细视频脚本'); await completeStage('audio_compose', pipeline.pipeline_id, {text: JSON.stringify(data.videoScripts), message: '视频脚本已确认'}); }
-  async function pollVideoTask(pipeline, videoId, taskId) { try { const result = await api(`/api/video-tasks/${encodeURIComponent(taskId)}`); const status = String(result.status || '').toLowerCase(); if (status === 'succeeded') { const output = result.result || {}; const data = localData(pipeline); const item = data.videoScripts.find(value => value.id === videoId); if (!item) return; item.videoUrl = String(output.videos?.[0] || output.items?.[0]?.url || ''); item.assetId = String(output.asset_ids?.[0] || output.items?.[0]?.asset_id || ''); item.videoStatus = item.videoUrl ? 'ready' : 'failed'; writeWorkspace(pipeline, data); render(); toast(item.videoUrl ? `${item.title} 视频已生成` : '视频任务完成但没有返回视频'); return; } if (['failed', 'canceled', 'interrupted'].includes(status)) throw new Error(result.error || '视频任务未成功完成'); window.setTimeout(() => pollVideoTask(pipeline, videoId, taskId), 1800); } catch (error) { const data = localData(pipeline); const item = data.videoScripts.find(value => value.id === videoId); if (item) { item.videoStatus = 'failed'; writeWorkspace(pipeline, data); render(); } toast(error.message || '视频生成失败', true); } }
-  async function generateVideo(pipeline, videoId) { const data = updateInputData(pipeline); const item = data.videoScripts.find(value => value.id === videoId); if (!item || item.videoStatus === 'running') return; if (!String(item.prompt || '').trim()) throw new Error('请先填写主提示词'); const selection = selectedVideoModel(pipeline); if (!selection.provider_id || !selection.model) throw new Error('请先选择视频模型'); item.videoStatus = 'running'; writeWorkspace(pipeline, data); render(); const context = contextParams(pipeline, stageFor(pipeline, 'audio_compose')); try { const result = await api('/api/video-tasks', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({prompt: [item.prompt, item.negative ? `避免出现：${item.negative}` : '', item.assets ? `资产文本引用：${item.assets}` : ''].filter(Boolean).join('\n\n'), provider_id: selection.provider_id, model: selection.model, duration: 5, aspect_ratio: '16:9', production_context: {project_id: context.project_id, entity_id: context.entity_id, canvas_id: context.canvas_id}})}); const taskId = String(result.task_id || result.job_id || ''); if (!taskId) throw new Error('视频任务未返回任务 ID'); pollVideoTask(pipeline, videoId, taskId); toast(`${item.title} 已提交后台生成`); } catch (error) { item.videoStatus = 'failed'; writeWorkspace(pipeline, data); render(); toast(error.message || '视频任务提交失败', true); } }
+  function videoRequestKey(pipeline, videoId) { return `${pipeline?.pipeline_id || ''}\u0000${videoId || ''}`; }
+  function videoContextProjectId(pipeline) { return String(pipeline?.project_id || state.projectId || ''); }
+  function videoContextScopeKey(pipeline, actorId = state.videoActorId) {
+    return JSON.stringify([String(actorId || ''), videoContextProjectId(pipeline), String(pipeline?.pipeline_id || '')]);
+  }
+  function videoContextPreferenceKey(actorId, projectId, pipelineId) {
+    return `${VIDEO_CONTEXT_STORAGE_PREFIX}:${encodeURIComponent(actorId)}:${encodeURIComponent(projectId)}:${encodeURIComponent(pipelineId)}`;
+  }
+  function saveVideoContextPreference() {
+    if (!videoContext.actorId || !videoContext.projectId || !videoContext.pipelineId) return;
+    try {
+      localStorage.setItem(videoContextPreferenceKey(videoContext.actorId, videoContext.projectId, videoContext.pipelineId),
+        JSON.stringify({project_id: videoContext.projectId, pipeline_id: videoContext.pipelineId,
+          canvas_id: videoContext.canvasId, entity_id: videoContext.entityId}));
+    } catch (_) {}
+  }
+  function videoContextMatches(pipeline, generation, scopeKey = videoContextScopeKey(pipeline)) {
+    return videoContext.generation === generation && videoContext.scopeKey === scopeKey &&
+      videoContext.projectId === videoContextProjectId(pipeline) &&
+      state.projectId === videoContext.projectId && currentPipeline()?.pipeline_id === pipeline?.pipeline_id;
+  }
+  function activateVideoContext(pipeline) {
+    if (!pipeline?.pipeline_id) return;
+    const projectId = videoContextProjectId(pipeline);
+    const pipelineId = String(pipeline.pipeline_id);
+    const actorId = String(state.videoActorId || '');
+    const scopeKey = videoContextScopeKey(pipeline, actorId);
+    if (videoContext.scopeKey === scopeKey) return;
+    videoContext.controller?.abort();
+    const generation = videoContext.generation + 1;
+    const production = pipeline.production_context && typeof pipeline.production_context === 'object' ? pipeline.production_context : {};
+    let canvasId = String(production.canvas_id || '');
+    let entityId = String(production.entity_id || '');
+    if (actorId) {
+      try {
+        const raw = localStorage.getItem(videoContextPreferenceKey(actorId, projectId, pipelineId));
+        if (raw !== null) {
+          const saved = JSON.parse(raw);
+          canvasId = saved?.project_id === projectId && saved?.pipeline_id === pipelineId ? String(saved.canvas_id || '') : '';
+          entityId = saved?.project_id === projectId && saved?.pipeline_id === pipelineId ? String(saved.entity_id || '') : '';
+        }
+      } catch (_) { canvasId = ''; entityId = ''; }
+    }
+    Object.assign(videoContext, {scopeKey, projectId, pipelineId, actorId, canvasId, entityId,
+      canvases: [], nodes: [], loading: 'canvases', error: '', generation, controller: null});
+    void loadVideoCanvases(pipeline, generation, scopeKey);
+  }
+  function videoContextReady(pipeline) {
+    const scopeKey = videoContextScopeKey(pipeline);
+    return videoContext.scopeKey === scopeKey && !videoContext.loading && !videoContext.error &&
+      Boolean(videoContext.canvasId && videoContext.entityId &&
+        videoContext.canvases.some(item => item.canvas_id === videoContext.canvasId && item.project_id === videoContext.projectId) &&
+        videoContext.nodes.some(item => item.entity_id === videoContext.entityId));
+  }
+  function videoContextMessage(pipeline) {
+    const sameScope = videoContext.scopeKey === videoContextScopeKey(pipeline);
+    if (!sameScope || videoContext.loading === 'canvases') return '正在读取当前项目的真实画布与节点…';
+    if (videoContext.loading === 'topology') return '正在读取所选画布拓扑…';
+    if (videoContext.error) return videoContext.error;
+    if (!videoContext.canvases.length) return '当前项目没有可选画布。请先前往项目中心创建画布与实体节点；本页不会自动修改画布。';
+    if (!videoContext.canvasId) return '请选择目标画布和实体节点后，才能提交新的生成或导出请求。';
+    if (!videoContext.canvases.some(item => item.canvas_id === videoContext.canvasId && item.project_id === videoContext.projectId)) return '已保存的画布当前不可见或已删除；请明确重新选择，不会自动切换。';
+    if (!videoContext.nodes.length) return '所选画布没有可选实体节点；请先在项目画布中创建节点。';
+    if (!videoContext.entityId) return '请选择该画布中的真实实体节点。';
+    if (!videoContext.nodes.some(item => item.entity_id === videoContext.entityId)) return '已保存的实体节点已删除或不属于此画布；请明确重新选择。';
+    return '上下文已从当前项目的画布拓扑读回；后端仍会在提交时重新校验权限与归属。';
+  }
+  function videoCanvasOptionLabel(item) { return String(item.title || item.name || item.canvas_id || '未命名画布'); }
+  function videoNodeOptionLabel(item) { return String(item.label || item.title || item.name || item.entity_id || '未命名实体'); }
+  async function loadVideoCanvases(pipeline, generation, scopeKey) {
+    const controller = new AbortController();
+    videoContext.controller = controller;
+    try {
+      const result = await api(`/api/canvases?project_id=${encodeURIComponent(videoContext.projectId)}`, {signal: controller.signal});
+      if (!videoContextMatches(pipeline, generation, scopeKey)) return;
+      videoContext.canvases = (Array.isArray(result.canvases) ? result.canvases : [])
+        .filter(item => item && item.project_id === videoContext.projectId && typeof item.canvas_id === 'string');
+      if (!videoContext.canvasId) {
+        videoContext.loading = '';
+        videoContext.nodes = [];
+        render();
+        return;
+      }
+      const selected = videoContext.canvases.find(item => item.canvas_id === videoContext.canvasId);
+      if (!selected) {
+        videoContext.loading = '';
+        videoContext.nodes = [];
+        render();
+        return;
+      }
+      await loadVideoTopology(pipeline, generation, scopeKey, videoContext.canvasId);
+    } catch (error) {
+      if (error?.name === 'AbortError' || !videoContextMatches(pipeline, generation, scopeKey)) return;
+      videoContext.loading = '';
+      videoContext.error = `画布列表读取失败：${String(error?.message || '请求失败')}`;
+      render();
+    }
+  }
+  async function loadVideoTopology(pipeline, generation, scopeKey, canvasId) {
+    videoContext.controller?.abort();
+    const controller = new AbortController();
+    videoContext.controller = controller;
+    videoContext.loading = 'topology';
+    videoContext.error = '';
+    videoContext.nodes = [];
+    render();
+    try {
+      const topology = await api(`/api/canvases/${encodeURIComponent(canvasId)}`, {signal: controller.signal});
+      if (!videoContextMatches(pipeline, generation, scopeKey) || videoContext.canvasId !== canvasId) return;
+      if (topology?.canvas_id !== canvasId || !Array.isArray(topology.nodes)) throw new Error('返回的画布拓扑与所选画布不匹配');
+      videoContext.nodes = topology.nodes.filter(item => item && typeof item.entity_id === 'string' && item.entity_id);
+      videoContext.loading = '';
+      render();
+    } catch (error) {
+      if (error?.name === 'AbortError' || !videoContextMatches(pipeline, generation, scopeKey) || videoContext.canvasId !== canvasId) return;
+      videoContext.loading = '';
+      videoContext.error = `画布拓扑读取失败：${String(error?.message || '请求失败')}`;
+      videoContext.nodes = [];
+      render();
+    }
+  }
+  async function verifiedVideoContext(pipeline) {
+    activateVideoContext(pipeline);
+    const generation = videoContext.generation;
+    const scopeKey = videoContext.scopeKey;
+    const projectId = videoContextProjectId(pipeline);
+    const canvasId = videoContext.canvasId;
+    const entityId = videoContext.entityId;
+    if (!videoContextReady(pipeline)) throw new Error(videoContextMessage(pipeline));
+    const controller = new AbortController();
+    try {
+      const list = await api(`/api/canvases?project_id=${encodeURIComponent(projectId)}`, {signal: controller.signal});
+      if (!videoContextMatches(pipeline, generation, scopeKey) || videoContext.canvasId !== canvasId || videoContext.entityId !== entityId) throw new Error('上下文已切换，请确认后重新点击');
+      const ownedCanvas = (list.canvases || []).find(item => item?.canvas_id === canvasId && item?.project_id === projectId);
+      if (!ownedCanvas) throw new Error('目标画布已删除、不可见或不属于当前项目');
+      const topology = await api(`/api/canvases/${encodeURIComponent(canvasId)}`, {signal: controller.signal});
+      if (!videoContextMatches(pipeline, generation, scopeKey) || videoContext.canvasId !== canvasId || videoContext.entityId !== entityId) throw new Error('上下文已切换，请确认后重新点击');
+      if (topology?.canvas_id !== canvasId || !Array.isArray(topology.nodes) || !topology.nodes.some(item => item?.entity_id === entityId)) {
+        throw new Error('目标实体已删除或不属于所选画布；请重新选择后再提交');
+      }
+      return {project_id: projectId, canvas_id: canvasId, entity_id: entityId};
+    } catch (error) {
+      if (videoContextMatches(pipeline, generation, scopeKey) && videoContext.canvasId === canvasId && videoContext.entityId === entityId) {
+        videoContext.error = String(error?.message || '画布或实体上下文验证失败');
+        videoContext.loading = '';
+        render();
+      }
+      throw error;
+    }
+  }
+  function changeVideoContextCanvas(canvasId) {
+    const pipeline = currentPipeline();
+    if (!pipeline) return;
+    activateVideoContext(pipeline);
+    videoContext.controller?.abort();
+    videoContext.generation += 1;
+    videoContext.canvasId = String(canvasId || '');
+    videoContext.entityId = '';
+    videoContext.nodes = [];
+    videoContext.loading = '';
+    videoContext.error = '';
+    saveVideoContextPreference();
+    if (videoContext.canvasId && videoContext.canvases.some(item => item.canvas_id === videoContext.canvasId && item.project_id === videoContext.projectId)) {
+      void loadVideoTopology(pipeline, videoContext.generation, videoContext.scopeKey, videoContext.canvasId);
+    } else {
+      render();
+    }
+  }
+  function changeVideoContextEntity(entityId) {
+    const pipeline = currentPipeline();
+    if (!pipeline) return;
+    activateVideoContext(pipeline);
+    videoContext.entityId = String(entityId || '');
+    videoContext.generation += 1;
+    videoContext.error = '';
+    saveVideoContextPreference();
+    render();
+  }
+  async function refreshVideoIdentity() {
+    const generation = ++state.videoIdentityReadGeneration;
+    let actorId = '';
+    try {
+      const identity = await api('/api/asset-auth/identity-binding');
+      actorId = identity?.bound === true && typeof identity.user_id === 'string' ? identity.user_id : '';
+    } catch (_) {}
+    if (generation !== state.videoIdentityReadGeneration) return null;
+    const changed = actorId !== state.videoActorId;
+    state.videoActorId = actorId;
+    if (changed) {
+      videoContext.controller?.abort();
+      videoContext.scopeKey = '';
+      activateVideoContext(currentPipeline());
+      render();
+    }
+    return actorId ? {actorId, generation} : null;
+  }
+  function assertCurrentVideoIdentity(identity) {
+    if (!identity?.actorId || identity.generation !== state.videoIdentityReadGeneration || identity.actorId !== state.videoActorId) {
+      throw new Error('主体身份查询未完成、已过期或发生变化；本次未提交，请确认身份后重试');
+    }
+  }
+  function videoContextMarkup(pipeline) {
+    activateVideoContext(pipeline);
+    const ready = videoContextReady(pipeline);
+    const selectedCanvasExists = videoContext.canvases.some(item => item.canvas_id === videoContext.canvasId && item.project_id === videoContext.projectId);
+    const selectedEntityExists = videoContext.nodes.some(item => item.entity_id === videoContext.entityId);
+    const canvasOptions = ['<option value=""' + (!videoContext.canvasId ? ' selected' : '') + '>请选择目标画布</option>']
+      .concat(videoContext.canvases.map(item => `<option value="${esc(item.canvas_id)}"${item.canvas_id === videoContext.canvasId ? ' selected' : ''}>${esc(videoCanvasOptionLabel(item))}</option>`));
+    if (videoContext.canvasId && !selectedCanvasExists) canvasOptions.push(`<option value="${esc(videoContext.canvasId)}" selected>已失效画布 · ${esc(videoContext.canvasId)}</option>`);
+    const entityOptions = ['<option value=""' + (!videoContext.entityId ? ' selected' : '') + '>请选择实体节点</option>']
+      .concat(videoContext.nodes.map(item => `<option value="${esc(item.entity_id)}"${item.entity_id === videoContext.entityId ? ' selected' : ''}>${esc(videoNodeOptionLabel(item))} · ${esc(item.entity_id)}</option>`));
+    if (videoContext.entityId && !selectedEntityExists) entityOptions.push(`<option value="${esc(videoContext.entityId)}" selected>已失效实体 · ${esc(videoContext.entityId)}</option>`);
+    const message = videoContextMessage(pipeline);
+    const nextStep = videoContext.canvases.length === 0 && !videoContext.loading && !videoContext.error
+      ? `<a class="btn" href="/v2/projects.html?project_id=${encodeURIComponent(videoContextProjectId(pipeline))}">前往项目中心查看画布</a>` : '';
+    return `<div class="vs-context-controls" data-video-context-scope="${esc(videoContextProjectId(pipeline))}:${esc(pipeline?.pipeline_id || '')}">
+      <label>目标画布<select data-video-context-canvas aria-label="选择目标画布" ${!videoContext.canvases.length || videoContext.loading === 'canvases' ? 'disabled' : ''}>${canvasOptions.join('')}</select></label>
+      <label>目标实体<select data-video-context-entity aria-label="选择目标实体" ${!selectedCanvasExists || videoContext.loading === 'topology' || !videoContext.nodes.length ? 'disabled' : ''}>${entityOptions.join('')}</select></label>
+      <p class="vs-task-note ${ready ? '' : 'is-warning'}" role="status" aria-live="polite">${esc(message)}</p>
+      ${!state.videoActorId ? '<p class="vs-task-note is-warning">当前身份没有稳定绑定；选择仅留在本页面，不读取或写入其他账号的本地偏好。</p>' : ''}
+      ${nextStep}
+    </div>`;
+  }
+  function videoStatusLabel(item) {
+    if (item.videoStatus === 'unknown') return '结果未知 · 禁止自动重提';
+    if (item.videoStatus === 'submitting') return '提交结果待确认';
+    if (item.videoStatus === 'running') return item.videoJobId ? '后台任务运行中' : '正在提交';
+    if (item.videoStatus === 'canceled') return '已取消';
+    if (item.videoStatus === 'failed') return '生成失败 · 可重试';
+    return item.videoUrl ? '已生成视频' : '待生成';
+  }
+  function stopVideoPolls() {
+    for (const entry of videoPolls.values()) {
+      if (entry.timer) window.clearTimeout(entry.timer);
+      entry.controller?.abort();
+    }
+    videoPolls.clear();
+  }
+  function scheduleVideoPoll(pipeline, videoId, jobId, delay = 0) {
+    if (!jobId || document.hidden || videoPolls.has(jobId)) return;
+    const entry = {timer: 0, controller: null};
+    entry.timer = window.setTimeout(() => {
+      entry.timer = 0;
+      void pollVideoTask(pipeline, videoId, jobId, entry);
+    }, delay);
+    videoPolls.set(jobId, entry);
+  }
+  function resumeVideoPolls(pipeline = currentPipeline()) {
+    if (!pipeline || document.hidden) return;
+    const data = localData(pipeline);
+    for (const item of data.videoScripts) {
+      if (item.videoStatus === 'running' && item.videoJobId) scheduleVideoPoll(pipeline, item.id, item.videoJobId, 250);
+    }
+    if (data.videoExportStatus === 'running' && data.videoExportJobId) scheduleVideoPoll(pipeline, '__export__', data.videoExportJobId, 250);
+  }
+  async function pollVideoTask(pipeline, videoId, jobId, entry = videoPolls.get(jobId)) {
+    if (!entry || videoPolls.get(jobId) !== entry || document.hidden) return;
+    const controller = new AbortController();
+    entry.controller = controller;
+    try {
+      const result = await api(`/api/video-tasks/${encodeURIComponent(jobId)}`, {signal: controller.signal});
+      if (videoPolls.get(jobId) !== entry) return;
+      const status = String(result.status || '').toLowerCase();
+      if (['succeeded', 'failed', 'canceled', 'interrupted'].includes(status)) {
+        videoPolls.delete(jobId);
+        const data = localData(pipeline);
+        if (videoId === '__export__') {
+          data.videoExportJobStatus = status;
+          data.videoExportError = String(result.error?.message || result.error?.code || '');
+          data.videoExportRemoteMayContinue = Boolean(result.remote_may_continue_or_bill);
+          if (status === 'succeeded') {
+            data.videoExportUrl = String(result.content_url || '');
+            data.videoExportAssetId = String(result.asset_id || '');
+            data.videoExportStatus = data.videoExportUrl ? 'ready' : 'failed';
+            data.videoExportError = data.videoExportUrl ? '' : '导出完成，但未返回鉴权内容地址';
+          } else {
+            data.videoExportStatus = status === 'canceled' ? 'canceled' : 'failed';
+          }
+          data.videoExportSubmission = null;
+          writeWorkspace(pipeline, data);
+          render();
+          toast(data.videoExportStatus === 'ready' ? '合并视频已导出' : data.videoExportError || '本地导出任务已结束', data.videoExportStatus !== 'ready');
+          return;
+        }
+        const item = data.videoScripts.find(value => value.id === videoId);
+        if (!item) return;
+        item.videoJobStatus = status;
+        item.videoRemoteMayContinue = Boolean(result.remote_may_continue_or_bill);
+        item.videoError = String(result.error?.message || result.error?.code || '');
+        if (status === 'succeeded') {
+          item.videoUrl = String(result.content_url || '');
+          item.assetId = String(result.asset_id || '');
+          item.videoStatus = item.videoUrl ? 'ready' : 'failed';
+          item.videoError = item.videoUrl ? '' : '任务已完成，但未返回鉴权内容地址';
+        } else if (status === 'interrupted' && result.result_unknown) {
+          item.videoStatus = 'unknown';
+          item.videoError = '创建结果未知；为避免重复计费，未自动重新提交。';
+        } else {
+          item.videoStatus = status === 'canceled' ? 'canceled' : 'failed';
+        }
+        item.videoSubmission = null;
+        writeWorkspace(pipeline, data);
+        render();
+        toast(status === 'succeeded' && item.videoUrl ? `${item.title} 视频已生成` : item.videoError || '视频任务已结束', status !== 'succeeded');
+        return;
+      }
+      entry.controller = null;
+      entry.timer = window.setTimeout(() => {
+        entry.timer = 0;
+        void pollVideoTask(pipeline, videoId, jobId, entry);
+      }, 1800);
+    } catch (error) {
+      if (videoPolls.get(jobId) !== entry || error?.name === 'AbortError' || document.hidden) return;
+      videoPolls.delete(jobId);
+      const data = localData(pipeline);
+      if (videoId === '__export__') {
+        data.videoExportError = '状态查询暂时失败，可点击“继续查询导出”恢复。';
+        writeWorkspace(pipeline, data);
+        render();
+      } else {
+        const item = data.videoScripts.find(value => value.id === videoId);
+        if (item) {
+          // 保留 job_id 与运行状态；失败只停止本页轮询，不伪报任务终态。
+          item.videoError = '状态查询暂时失败，可点击“继续查询”恢复。';
+          writeWorkspace(pipeline, data);
+          render();
+        }
+      }
+      toast(error.message || '视频任务查询暂时失败；可恢复查询', true);
+    }
+  }
+  function makeVideoIdempotencyKey() {
+    if (window.crypto?.randomUUID) return `gwb-video-${window.crypto.randomUUID()}`;
+    return `gwb-video-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  }
+  async function generateVideo(pipeline, videoId) {
+    const identity = await refreshVideoIdentity();
+    assertCurrentVideoIdentity(identity);
+    const data = updateInputData(pipeline);
+    const item = data.videoScripts.find(value => value.id === videoId);
+    if (!item || item.videoStatus === 'unknown') return;
+    if (item.videoJobId && item.videoStatus === 'running') {
+      scheduleVideoPoll(pipeline, videoId, item.videoJobId);
+      return;
+    }
+    const requestKey = videoRequestKey(pipeline, videoId);
+    if (videoRequests.has(requestKey)) return;
+    let submission = item.videoSubmission;
+    const recoveringSubmission = Boolean(submission);
+    if (submission && (!submission.actor_id || submission.actor_id !== state.videoActorId)) {
+      throw new Error('旧提交结果待确认且当前主体身份不匹配；禁止以另一账号重新提交，请回到原账号核查');
+    }
+    if (!submission) {
+      if (!String(item.prompt || '').trim()) throw new Error('请先填写主提示词');
+      const selection = selectedVideoModel(pipeline);
+      if (!selection.provider_id || !selection.model) throw new Error('请先选择视频模型');
+      videoRequests.add(requestKey);
+      let context;
+      try { context = await verifiedVideoContext(pipeline); assertCurrentVideoIdentity(identity); }
+      catch (error) { videoRequests.delete(requestKey); throw error; }
+      const prompt = [item.prompt, item.negative ? `避免出现：${item.negative}` : '', item.assets ? `资产文本引用：${item.assets}` : ''].filter(Boolean).join('\n\n');
+      submission = {
+        actor_id: String(state.videoActorId || ''),
+        idempotency_key: makeVideoIdempotencyKey(),
+        payload: {prompt, provider_id: selection.provider_id, model: selection.model, duration: 5, aspect_ratio: '16:9',
+          production_context: {project_id: context.project_id, entity_id: context.entity_id, canvas_id: context.canvas_id}}
+      };
+      item.videoSubmission = submission;
+    }
+    item.videoStatus = 'submitting';
+    item.videoJobId = '';
+    item.videoUrl = '';
+    item.assetId = '';
+    item.videoError = '';
+    item.videoRemoteMayContinue = false;
+    writeWorkspace(pipeline, data);
+    videoRequests.add(requestKey);
+    render();
+    try {
+      assertCurrentVideoIdentity(identity);
+      const result = await api('/api/video-tasks', {method: 'POST', headers: {'Content-Type': 'application/json', 'Idempotency-Key': submission.idempotency_key}, body: JSON.stringify(submission.payload)});
+      const jobId = String(result.job_id || '');
+      if (!jobId) throw new Error('视频任务未返回稳定 job_id；恢复时将沿用原幂等键');
+      const currentData = localData(pipeline);
+      const current = currentData.videoScripts.find(value => value.id === videoId);
+      if (!current) return;
+      current.videoJobId = jobId;
+      current.videoStatus = ['queued', 'running'].includes(String(result.status || '').toLowerCase()) ? 'running' : String(result.status || 'running');
+      current.videoJobStatus = String(result.status || 'queued');
+      current.videoSubmission = null;
+      current.videoError = '';
+      writeWorkspace(pipeline, currentData);
+      render();
+      scheduleVideoPoll(pipeline, videoId, jobId, 250);
+      toast(`${current.title} 已提交后台生成`);
+    } catch (error) {
+      const currentData = localData(pipeline);
+      const current = currentData.videoScripts.find(value => value.id === videoId);
+      if (current) {
+        // 本次拒绝不能证明先前未知提交未被受理，恢复请求始终保留原键与载荷。
+        const definitelyRejected = !recoveringSubmission && [400, 401, 403, 404, 422].includes(Number(error?.status));
+        current.videoStatus = definitelyRejected ? 'failed' : 'submitting';
+        current.videoSubmission = definitelyRejected ? null : submission;
+        current.videoError = String(error?.message || '视频任务提交结果待确认');
+        writeWorkspace(pipeline, currentData);
+        render();
+      }
+      toast(error.message || '视频任务提交失败；可使用原幂等键恢复', true);
+    } finally {
+      videoRequests.delete(requestKey);
+    }
+  }
+  async function generateVideoExport(pipeline) {
+    const identity = await refreshVideoIdentity();
+    assertCurrentVideoIdentity(identity);
+    const data = updateInputData(pipeline);
+    const requestKey = videoRequestKey(pipeline, '__export__');
+    if (videoRequests.has(requestKey)) return;
+    if (data.videoExportJobId && data.videoExportStatus === 'running') {
+      scheduleVideoPoll(pipeline, '__export__', data.videoExportJobId);
+      return;
+    }
+    const selected = data.videoScripts.filter(item => item.exportSelected && item.videoStatus === 'ready' && item.assetId);
+    if (!selected.length && !data.videoExportSubmission) throw new Error('请至少选择一个已生成的视频镜头');
+    let submission = data.videoExportSubmission;
+    const recoveringSubmission = Boolean(submission);
+    if (submission && (!submission.actor_id || submission.actor_id !== state.videoActorId)) {
+      throw new Error('旧导出提交结果待确认且当前主体身份不匹配；请回到原账号核查');
+    }
+    if (!submission) {
+      videoRequests.add(requestKey);
+      let context;
+      try { context = await verifiedVideoContext(pipeline); assertCurrentVideoIdentity(identity); }
+      catch (error) { videoRequests.delete(requestKey); throw error; }
+      submission = {
+        actor_id: String(state.videoActorId || ''),
+        idempotency_key: makeVideoIdempotencyKey(),
+        payload: {asset_ids: selected.map(item => item.assetId), project_id: context.project_id,
+          canvas_id: context.canvas_id, entity_id: context.entity_id, preset: 'h264_720p_30fps'}
+      };
+      data.videoExportSubmission = submission;
+    }
+    data.videoExportStatus = 'submitting';
+    data.videoExportJobId = '';
+    data.videoExportUrl = '';
+    data.videoExportAssetId = '';
+    data.videoExportError = '';
+    data.videoExportRemoteMayContinue = false;
+    writeWorkspace(pipeline, data);
+    videoRequests.add(requestKey);
+    render();
+    try {
+      assertCurrentVideoIdentity(identity);
+      const result = await api('/api/video-exports', {method: 'POST', headers: {'Content-Type': 'application/json', 'Idempotency-Key': submission.idempotency_key}, body: JSON.stringify(submission.payload)});
+      const jobId = String(result.job_id || '');
+      if (!jobId) throw new Error('导出任务未返回稳定 job_id；恢复时将沿用原幂等键');
+      const currentData = localData(pipeline);
+      currentData.videoExportJobId = jobId;
+      currentData.videoExportStatus = ['queued', 'running'].includes(String(result.status || '').toLowerCase()) ? 'running' : String(result.status || 'running');
+      currentData.videoExportJobStatus = String(result.status || 'queued');
+      currentData.videoExportSubmission = null;
+      currentData.videoExportError = '';
+      writeWorkspace(pipeline, currentData);
+      render();
+      scheduleVideoPoll(pipeline, '__export__', jobId, 250);
+      toast('本地合并导出已提交');
+    } catch (error) {
+      const currentData = localData(pipeline);
+      // 本次拒绝不能证明先前未知提交未被受理，恢复请求始终保留原键与载荷。
+      const definitelyRejected = !recoveringSubmission && [400, 401, 403, 404, 422].includes(Number(error?.status));
+      currentData.videoExportStatus = definitelyRejected ? 'failed' : 'submitting';
+      currentData.videoExportSubmission = definitelyRejected ? null : submission;
+      currentData.videoExportError = String(error?.message || '导出任务提交结果待确认');
+      writeWorkspace(pipeline, currentData);
+      render();
+      toast(error.message || '导出提交失败；可使用原幂等键恢复', true);
+    } finally {
+      videoRequests.delete(requestKey);
+    }
+  }
+  async function cancelVideoExport(pipeline) {
+    const data = localData(pipeline);
+    if (!data.videoExportJobId) return;
+    const jobId = data.videoExportJobId;
+    const active = videoPolls.get(jobId);
+    if (active?.timer) window.clearTimeout(active.timer);
+    active?.controller?.abort();
+    videoPolls.delete(jobId);
+    try {
+      const result = await api(`/api/video-tasks/${encodeURIComponent(jobId)}/cancel`, {method: 'POST'});
+      const currentData = localData(pipeline);
+      currentData.videoExportStatus = String(result.status || '') === 'canceled' ? 'canceled' : 'running';
+      currentData.videoExportJobStatus = String(result.status || '');
+      currentData.videoExportRemoteMayContinue = Boolean(result.remote_may_continue_or_bill);
+      currentData.videoExportError = '';
+      writeWorkspace(pipeline, currentData);
+      render();
+      toast('本地视频导出已取消');
+    } catch (error) {
+      const currentData = localData(pipeline);
+      currentData.videoExportStatus = 'running';
+      currentData.videoExportError = '取消请求未确认，可恢复查询导出状态。';
+      writeWorkspace(pipeline, currentData);
+      render();
+      resumeVideoPolls(pipeline);
+      toast(error.message || '本地导出取消失败', true);
+    }
+  }
+  async function cancelVideoTask(pipeline, videoId) {
+    const data = localData(pipeline);
+    const item = data.videoScripts.find(value => value.id === videoId);
+    if (!item?.videoJobId) return;
+    const jobId = item.videoJobId;
+    const active = videoPolls.get(jobId);
+    if (active?.timer) window.clearTimeout(active.timer);
+    active?.controller?.abort();
+    videoPolls.delete(jobId);
+    try {
+      const result = await api(`/api/video-tasks/${encodeURIComponent(jobId)}/cancel`, {method: 'POST'});
+      const currentData = localData(pipeline);
+      const current = currentData.videoScripts.find(value => value.id === videoId);
+      if (!current) return;
+      current.videoStatus = String(result.status || '') === 'canceled' ? 'canceled' : 'running';
+      current.videoJobStatus = String(result.status || '');
+      current.videoRemoteMayContinue = Boolean(result.remote_may_continue_or_bill);
+      current.videoError = '';
+      writeWorkspace(pipeline, currentData);
+      render();
+      toast(current.videoRemoteMayContinue ? '本地任务已取消；上游可能继续运行或计费' : '视频任务已取消');
+    } catch (error) {
+      const currentData = localData(pipeline);
+      const current = currentData.videoScripts.find(value => value.id === videoId);
+      if (current) {
+        current.videoStatus = 'running';
+        current.videoError = '取消请求未确认，可恢复查询任务状态。';
+        writeWorkspace(pipeline, currentData);
+        render();
+        resumeVideoPolls(pipeline);
+      }
+      toast(error.message || '视频任务取消失败', true);
+    }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVideoPolls(); else resumeVideoPolls(); });
+  window.addEventListener('pagehide', stopVideoPolls);
+  window.addEventListener('pageshow', () => { resumeVideoPolls(); void refreshVideoIdentity(); });
+  window.addEventListener('focus', () => { void refreshVideoIdentity(); });
+  window.addEventListener('storage', () => { void refreshVideoIdentity(); });
   function assetRecord(pipelineId, assetId) { const pipeline = pipelineFor(pipelineId); if (!pipeline) return null; const data = localData(pipeline); const item = data.assets.find(value => value.id === assetId); return item ? {pipeline, data, item} : null; }
   function openAssetDetail(pipelineId, assetId, returnFocus = null) { const record = assetRecord(pipelineId, assetId); const dialog = q('#assetDetailDialog'); if (!record || !dialog) return; state.detailReturnFocus = returnFocus || document.activeElement; dialog.dataset.pipelineId = record.pipeline.pipeline_id; dialog.dataset.assetId = record.item.id; dialog.innerHTML = `<form method="dialog" class="asset-detail-shell" data-floating-content><div class="asset-detail-head"><div><span class="asset-detail-kicker">资产设定</span><h2>${esc(record.item.name)}</h2><p>${esc(assetTypeLabel(record.item.type))} · ${esc(record.item.status === 'ready' ? '图片已生成' : '图片待生成')}</p></div><button class="icon-button" type="button" data-asset-detail-close aria-label="关闭资产详情" title="关闭">×</button></div><div class="asset-detail-body"><div class="asset-detail-media ${record.item.preview ? 'has-image' : ''}">${record.item.preview ? `<img data-detail-image src="${esc(record.item.preview)}" alt="${esc(record.item.name)}" title="双击查看大图">` : '<div class="asset-placeholder"><span>待生成图片</span><small>保存设定后可生成资产</small></div>'}</div><div class="asset-detail-fields"><label>资产名称<input data-asset-detail-field="name" value="${esc(record.item.name)}"></label><label>资产类型<select data-asset-detail-field="type"><option value="character"${record.item.type === 'character' ? ' selected' : ''}>角色</option><option value="scene"${record.item.type === 'scene' ? ' selected' : ''}>场景</option><option value="prop"${record.item.type === 'prop' ? ' selected' : ''}>道具</option><option value="other"${record.item.type === 'other' ? ' selected' : ''}>其他</option></select></label><label>资产设定提示词<textarea data-asset-detail-field="prompt" rows="9">${esc(record.item.prompt)}</textarea></label></div></div><div class="asset-detail-actions"><button class="btn" type="button" data-asset-detail-regenerate data-pipeline-id="${esc(record.pipeline.pipeline_id)}" data-asset-id="${esc(record.item.id)}">重新生成</button><span></span><button class="btn" type="button" data-asset-detail-close>取消</button><button class="btn primary" type="button" data-asset-detail-save>保存修改</button></div></form>`; if (!dialog.open) dialog.showModal(); dialog.querySelector('[data-asset-detail-field="name"]')?.focus(); }
   function openAssetImage(pipelineId, assetId) { const record = assetRecord(pipelineId, assetId); const dialog = q('#assetImageDialog'); if (!record || !record.item.preview || !dialog) return; dialog.innerHTML = `<div class="asset-image-shell" data-floating-content><div class="asset-image-head"><strong>${esc(record.item.name)}</strong><button class="icon-button" type="button" data-asset-image-close aria-label="关闭图片预览" title="关闭">×</button></div><img src="${esc(record.item.preview)}" alt="${esc(record.item.name)}"><p>双击卡片可编辑设定，点击空白关闭预览</p></div>`; if (!dialog.open) dialog.showModal(); }
@@ -2404,6 +3000,9 @@ state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
     if (target.matches('[data-storyboard-review]')) return action(() => sendReview(pipeline, 'storyboard'));
     if (target.matches('[data-video-scripts-generate]')) return action(() => generateVideoScripts(pipeline));
     if (target.matches('[data-video-generate]')) return action(() => generateVideo(pipeline, target.dataset.videoGenerate));
+    if (target.matches('[data-video-cancel]')) return action(() => cancelVideoTask(pipeline, target.dataset.videoCancel));
+    if (target.matches('[data-video-export]')) return action(() => generateVideoExport(pipeline));
+    if (target.matches('[data-video-export-cancel]')) return action(() => cancelVideoExport(pipeline));
     if (target.matches('[data-complete-storyboard]')) return action(() => completeStoryboard(pipeline));
     if (target.matches('[data-save-video-script]')) return action(() => { updateInputData(pipeline); toast('视频脚本已保存到当前工作区'); });
     if (target.matches('[data-complete-video-script]')) return action(() => completeVideoScript(pipeline));
@@ -2438,7 +3037,7 @@ state.projects = (projects.projects || DEMO_PROJECTS_FALLBACK)
     event.preventDefault();
     gotoProjectBoard();
   });
-  document.addEventListener('change', event => { if (event.target.matches('#asset-upload-input')) { const file = event.target.files?.[0]; const pipeline = pipelineFor(state.uploadPipelineId); const data = localData(pipeline); const item = data.assets.find(value => value.id === state.uploadAssetId); if (item && file) { const reader = new FileReader(); reader.onload = () => { item.preview = String(reader.result || ''); item.status = 'ready'; writeWorkspace(pipeline, data); render(); toast(`${item.name} 已替换为本地图片`); }; reader.readAsDataURL(file); } event.target.value = ''; state.uploadAssetId = ''; state.uploadPipelineId = ''; } if (event.target.matches('[data-stage-model]')) { const pipeline = currentPipeline(); if (!pipeline) return; const data = localData(pipeline); const [provider_id, model] = String(event.target.value || '').split(':::'); data.models[event.target.dataset.stageModel] = {provider_id, model}; writeWorkspace(pipeline, data); render(); toast('当前阶段模型已保存'); } if (event.target.matches('[data-script-mode]')) { const pipeline = currentPipeline(); if (!pipeline) return; const data = updateInputData(pipeline); render(); toast(`剧本输入模式已切换为：${SCRIPT_MODES.find(item => item.key === data.scriptMode)?.label || SCRIPT_MODES[0].label}`); } if (event.target.matches('[data-pipeline-select]')) { state.selected = pipelineFor(event.target.value); state.selectedPipelineId = String(event.target.value || ''); syncAuraScope(state.selected); render(); } });
+  document.addEventListener('change', event => { if (event.target.matches('[data-video-export-select]')) { const pipeline = currentPipeline(); if (!pipeline) return; const data = localData(pipeline); const item = data.videoScripts.find(value => value.id === event.target.dataset.videoExportSelect); if (item) { item.exportSelected = Boolean(event.target.checked); writeWorkspace(pipeline, data); render(); } return; } if (event.target.matches('#asset-upload-input')) { const file = event.target.files?.[0]; const pipeline = pipelineFor(state.uploadPipelineId); const data = localData(pipeline); const item = data.assets.find(value => value.id === state.uploadAssetId); if (item && file) { const reader = new FileReader(); reader.onload = () => { item.preview = String(reader.result || ''); item.status = 'ready'; writeWorkspace(pipeline, data); render(); toast(`${item.name} 已替换为本地图片`); }; reader.readAsDataURL(file); } event.target.value = ''; state.uploadAssetId = ''; state.uploadPipelineId = ''; } if (event.target.matches('[data-stage-model]')) { const pipeline = currentPipeline(); if (!pipeline) return; const data = localData(pipeline); const [provider_id, model] = String(event.target.value || '').split(':::'); data.models[event.target.dataset.stageModel] = {provider_id, model}; writeWorkspace(pipeline, data); render(); toast('当前阶段模型已保存'); } if (event.target.matches('[data-script-mode]')) { const pipeline = currentPipeline(); if (!pipeline) return; const data = updateInputData(pipeline); render(); toast(`剧本输入模式已切换为：${SCRIPT_MODES.find(item => item.key === data.scriptMode)?.label || SCRIPT_MODES[0].label}`); } if (event.target.matches('[data-video-context-canvas]')) { changeVideoContextCanvas(event.target.value); return; } if (event.target.matches('[data-video-context-entity]')) { changeVideoContextEntity(event.target.value); return; } if (event.target.matches('[data-pipeline-select]')) { state.selected = pipelineFor(event.target.value); state.selectedPipelineId = String(event.target.value || ''); syncAuraScope(state.selected); activateVideoContext(state.selected); render(); } });
   document.addEventListener('input', event => { if (event.target.matches('[data-script-draft]')) { const counter = q('#scriptDraftCharCount'); if (counter) counter.textContent = `CHARS: ${String(event.target.value.length).padStart(2, '0')}/120`; } if (event.target.matches('[data-script-pacing]')) { const label = q('[data-script-pacing-label]'); const value = SCRIPT_PACINGS[Number(event.target.value)] || '1.25x'; if (label) label.textContent = `PACING: ${value} SPEED`; } if (!event.target.matches('[data-script-draft],[data-script-output],[data-script-pacing],[data-outline],[data-outline-field],[data-outline-act],[data-shot-field],[data-video-field]')) return; const pipeline = currentPipeline(); if (pipeline) { const data = updateInputData(pipeline); if (event.target.matches('[data-outline-field],[data-outline-act]')) syncOutlineActions(data); } });
   q('#episodeStepNav')?.addEventListener('keydown', event => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) || !currentPipeline()) return; event.preventDefault(); const index = Math.max(0, STAGES.findIndex(item => item.key === state.activeStep)); const next = event.key === 'ArrowRight' ? (index + 1) % STAGES.length : event.key === 'ArrowLeft' ? (index - 1 + STAGES.length) % STAGES.length : event.key === 'Home' ? 0 : STAGES.length - 1; switchStep(STAGES[next].key); });
   document.addEventListener('submit', event => {

@@ -5,11 +5,14 @@ meta:
   cleanroom_notice: "仅记录 method/path/body/status/schema/错误/验收语义；不含旧仓源码结构或实现细节。"
 
 service: prompt_library
-version: p10c-frozen-1
-
+version: p12-a3-2
+# Phase 12 持久化修订：保持本契约原有 7 个端点与 CAS 范围；仅更新库/分类状态生命周期。
+persistence_boundary: "库、分类、活动库、目录版本及 ID 高水位存入 core.storage.JsonState 命名空间 prompt_library_tree；同一数据目录重启恢复，单实例一致性。"
+migration_boundary: "旧条目数据不删除、不猜测补造旧父库；首次升级根据遗留条目父 ID 保留序号高水位，避免新库/分类复用遗留 plib_NNNN/pcat_NNNN。遗留孤儿条目仅保留原始引用，不自动绑定。"
+child_integrity: "创建/更新条目必须引用已存在父库；分类必须存在且属于该父库。存在条目的父库/分类不可删除；错误分别使用 404 LIBRARY_NOT_FOUND/CATEGORY_NOT_FOUND 与 409 LIBRARY_NOT_EMPTY/CATEGORY_NOT_EMPTY。"
 # 冻结说明（Phase 10C，2026-09-22）
-# 本契约是「提示词库」阶段的最小实现授权范围，仅覆盖下列 7 个端点。
-# 其余 /api/prompt-libraries/* 端点（其中包括 items 条目 CRUD 与批量删除）仍属
+# 本契约授权 7 个提示词库/分类端点；Phase 12 持久化修订不扩展端点范围。
+# 条目 CRUD 与批量删除由 PROMPT-LIBRARY-B8-ITEM-INTERFACE-CATALOG.yaml 单独授权；其他 /api/prompt-libraries/* 端点仍属
 # KNOWN_UNIMPLEMENTED，未获契约授权，本模块不得顺带实现。
 # 明确禁止：本阶段不得伪造提示词内容——任何响应（含种子与空库）都不得返回
 # 演示提示词文本、随机文本或 uuid 生成的伪内容；条目 CRUD 未实现，
@@ -269,10 +272,13 @@ interfaces:
       409: "VERSION_CONFLICT"
     acceptance: "删除成功后目标分类从父库移除，父库与顶层目录 version 递增；目标分类不存在或 CAS 不一致必须失败关闭。"
 
-unimplemented:
-  note: "条目 CRUD 与批量删除属 KNOWN_UNIMPLEMENTED，未获契约授权；契约测试显式反向断言其不可用（非 2xx）。"
+implemented_in_phase12_a3:
+  note: "2026-09-26 Phase 12 A3：条目 CRUD 与批量删除已按 docs/contracts/PROMPT-LIBRARY-B8-ITEM-INTERFACE-CATALOG.yaml（p12-a3-1）真实接入并落盘；旧的「必须不可用」反向断言已被取代。"
   paths:
+    - "GET /api/prompt-libraries/items"
     - "POST /api/prompt-libraries/items"
     - "PATCH /api/prompt-libraries/items/{item_id}"
     - "DELETE /api/prompt-libraries/items/{item_id}"
     - "POST /api/prompt-libraries/items/delete"
+  item_id_format: "pitem_NNNN（复用既有前缀，不自创第二套体系）"
+  tests: "tests/contracts/test_phase11_b8_prompt_items.py"

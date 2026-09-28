@@ -34,6 +34,7 @@ from gods_workbench.settings.models import (
     StorageSettingsPatchRequest,
     StorageSettingsSnapshot,
 )
+from gods_workbench.settings import probes as provider_probes
 from gods_workbench.settings.service import (
     default_asset_structure_service,
     default_provider_service,
@@ -126,7 +127,7 @@ def replace_providers(
 
 @router.post(
     "/api/providers/fetch-models",
-    summary="拉取上游模型列表（本阶段未接入）",
+    summary="真实拉取上游模型列表",
     status_code=status.HTTP_200_OK,
 )
 def fetch_provider_models(
@@ -134,14 +135,14 @@ def fetch_provider_models(
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """本阶段无真实外网探测能力：如实 503 fail-closed，绝不返回伪造模型列表。"""
+    """真实 `GET {base_url}/v1/models`；网络失败 503，绝不返回伪造模型列表。"""
     require_edit_access(authorization, x_user_role)
-    raise_probe_not_integrated("POST /api/providers/fetch-models")
+    return provider_probes.fetch_models(payload or {})
 
 
 @router.post(
     "/api/providers/probe-async",
-    summary="探测上游协议（本阶段未接入）",
+    summary="真实探测上游协议",
     status_code=status.HTTP_200_OK,
 )
 def probe_provider_async(
@@ -149,14 +150,29 @@ def probe_provider_async(
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """本阶段无真实外网探测能力：如实 503 fail-closed，绝不伪造协议判定结果。"""
+    """真实请求后登记可回读任务，返回稳定 pjob_NNNN 与 poll_hint。"""
     require_edit_access(authorization, x_user_role)
-    raise_probe_not_integrated("POST /api/providers/probe-async")
+    return provider_probes.probe_async(payload or {})
+
+
+@router.get(
+    "/api/providers/probe-async/jobs/{job_id}",
+    summary="读取协议探测任务",
+    status_code=status.HTTP_200_OK,
+)
+def get_provider_probe_job(
+    job_id: str,
+    authorization: Optional[str] = Header(None),
+    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
+):
+    """读取 probe-async 登记的真实任务；不存在 404。"""
+    require_authenticated(authorization, x_user_role)
+    return provider_probes.get_probe_job(job_id)
 
 
 @router.post(
     "/api/providers/test-connection",
-    summary="验证上游连通性（本阶段未接入）",
+    summary="真实验证上游连通性",
     status_code=status.HTTP_200_OK,
 )
 def test_provider_connection(
@@ -164,9 +180,9 @@ def test_provider_connection(
     authorization: Optional[str] = Header(None),
     x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
 ):
-    """本阶段无真实外网探测能力：如实 503 fail-closed，绝不伪造连通性或延迟数字。"""
+    """真实往返并记录实测延迟；失败 503，绝不伪造连通性或延迟数字。"""
     require_edit_access(authorization, x_user_role)
-    raise_probe_not_integrated("POST /api/providers/test-connection")
+    return provider_probes.test_connection(payload or {})
 
 
 # ---------------------------------------------------------------------------

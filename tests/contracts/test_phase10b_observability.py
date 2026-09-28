@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Phase 10B 观测契约测试。
 
-覆盖 docs/contracts/OBSERVABILITY-INTERFACE-CATALOG.yaml（p10b-frozen-1）的 8 个 GET 端点：
+覆盖 docs/contracts/OBSERVABILITY-INTERFACE-CATALOG.yaml（p12-a4-1）的 8 个 GET 端点：
 
 - GET /api/observability             资源索引 200 形状
 - GET /api/observability/overview    真实计数 / 未接入指标为 null
@@ -61,11 +61,11 @@ ENDPOINTS = (
 CATALOG = REPO_ROOT / "docs" / "contracts" / "OBSERVABILITY-INTERFACE-CATALOG.yaml"
 
 #: 反向断言用：任何响应都不得出现的伪造遥测字段名。
+# 2026-09-26 Phase 12 A4：cpu_percent / memory_percent / disk_percent 已由真实 psutil 读数承载，
+# 不再属于伪造字段；本清单只保留**无真实来源**的字段名。
 FORBIDDEN_FAKE_FIELDS = (
     "cpu_usage",
-    "cpu_percent",
     "ram_usage",
-    "memory_percent",
     "gpu_usage",
     "fake",
     "demo",
@@ -222,25 +222,60 @@ def test_unknown_role_is_rejected(empty_client: TestClient):
 # 诚实空语义 / not_integrated
 # ---------------------------------------------------------------------------
 
-def test_series_is_empty_and_not_integrated(empty_client: TestClient):
-    """series 必须返回空序列 + not_integrated，不得伪造波形。"""
-    body = empty_client.get("/api/observability/series?metrics=asset_response_bytes", headers=AUTH).json()
+def test_series_reads_real_samples_or_degrades(empty_client: TestClient):
+    """Phase 12 A4：series 读取真实采样；不足 2 点必须 degraded 且不插值。"""
+    body = empty_client.get("/api/observability/series?metrics=cpu_percent", headers=AUTH).json()
+    assert body["data_status"] in {"ok", "degraded"}
+    assert isinstance(body["metrics"], list) and body["metrics"]
+    metric = body["metrics"][0]
+    assert metric["metric"] == "cpu_percent"
+    if metric["data_status"] != "ok":
+        assert len(metric["points"]) < 2
+        assert body["data_gaps"]
+    else:
+        assert len(metric["points"]) >= 2
+    unknown = empty_client.get("/api/observability/series?metrics=not_a_metric", headers=AUTH).json()
+    assert unknown["metrics"][0]["data_status"] == "not_integrated"
+    assert unknown["metrics"][0]["points"] == []
+
+
+def test_series_returns_two_points_after_real_sampling(empty_client: TestClient):
+    """真实采样两次后可返回 >= 2 个真实点（验证采样落盘真实生效）。"""
+    from gods_workbench.observability import telemetry
+    telemetry.record_sample()
+    telemetry.record_sample()
+    body = empty_client.get("/api/observability/series?metrics=cpu_percent", headers=AUTH).json()
+    metric = [m for m in body["metrics"] if m["metric"] == "cpu_percent"][0]
+    assert len(metric["points"]) >= 2
+    assert all("ts_ms" in p and "value" in p for p in metric["points"])
+
+
+def test_sources_now_returns_real_registry(empty_client: TestClient):
+    """Phase 12 A4：sources 返回真实登记的数据源清单（不再恒为空）。"""
+    body = empty_client.get("/api/observability/sources", headers=AUTH).json()
+    assert body["data_status"] == "ok"
+    assert body["total"] >= 1
+    assert body["items"] and all("source_id" in item and "path" in item for item in body["items"])
+
+
+def test_asset_volumes_without_allowed_roots_is_not_integrated(empty_client: TestClient, monkeypatch):
+    """未配置 GW_ALLOWED_ROOTS 时 asset-volumes 必须空 + not_integrated（不伪造条目）。"""
+    monkeypatch.delenv("GW_ALLOWED_ROOTS", raising=False)
+    body = empty_client.get("/api/observability/asset-volumes", headers=AUTH).json()
     assert body["data_status"] == "not_integrated"
-    assert body["series"] == {}
-    assert body["data_gap"]
-    assert body["metrics"][0]["points"] == []
-    assert body["metrics"][0]["data_status"] == "not_integrated"
+    assert body["items"] == [] and body["total"] == 0
+    assert body["data_gaps"]
 
 
-def test_sources_and_asset_volumes_are_empty_and_not_integrated(empty_client: TestClient):
-    """sources / asset-volumes 必须空数组 + not_integrated。"""
-    for path in ("/api/observability/sources", "/api/observability/asset-volumes"):
-        body = empty_client.get(path, headers=AUTH).json()
-        assert body["data_status"] == "not_integrated", path
-        assert body["items"] == [], path
-        assert body["total"] == 0, path
-        assert body["has_more"] is False, path
-        assert body["data_gaps"], path
+def test_asset_volumes_scans_real_root(empty_client: TestClient, monkeypatch, tmp_path):
+    """配置允许根目录后，asset-volumes 真实统计文件体积且不回显绝对路径。"""
+    sample = tmp_path / "shot.png"
+    sample.write_bytes(b"real-bytes" * 8)
+    monkeypatch.setenv("GW_ALLOWED_ROOTS", str(tmp_path))
+    body = empty_client.get("/api/observability/asset-volumes", headers=AUTH).json()
+    assert body["data_status"] == "ok"
+    assert any(item["path"] == "shot.png" and item["size_bytes"] == 80 for item in body["items"])
+    assert str(tmp_path) not in json.dumps(body)
 
 
 def test_events_are_empty_when_no_real_audit_records(empty_client: TestClient):
@@ -288,17 +323,32 @@ def test_tasks_projection_uses_stable_ids(seeded_client: TestClient):
         assert alias not in task, f"任务投影出现非稳定别名: {alias}"
 
 
-def test_health_reports_truthfully_not_blanket_ok(empty_client: TestClient):
-    """health 必须如实：未接入组件为 not_integrated，整体不得恒为 ok。"""
+def test_health_reports_real_hardware_telemetry(empty_client: TestClient):
+    """Phase 12 A4：hardware_telemetry 为真实 psutil 读数（psutil 可用时 status=ok）。"""
     body = empty_client.get("/api/observability/health", headers=AUTH).json()
     statuses = {check["name"]: check["status"] for check in body["checks"]}
-    assert body["status"] != "ok", "存在未接入组件时不得无条件返回 ok"
     assert statuses["projects"] == "ok"
     assert statuses["canvas"] == "ok"
     assert statuses["asset_library"] == "ok"
-    for name in ("hardware_telemetry", "metrics_series", "source_registry", "asset_volume_index"):
-        assert statuses[name] == "not_integrated", f"{name} 必须为 not_integrated"
-    assert all(check["status"] != "ok" for check in body["checks"] if check["name"].endswith("telemetry"))
+    telemetry_check = [c for c in body["checks"] if c["name"] == "hardware_telemetry"][0]
+    assert telemetry_check["status"] == "ok"
+    metrics = telemetry_check["metrics"]
+    for key in ("cpu_percent", "memory_percent", "disk_percent", "cpu_count"):
+        assert key in metrics and isinstance(metrics[key], (int, float))
+    assert 0 <= metrics["cpu_percent"] <= 100
+    assert 0 <= metrics["memory_percent"] <= 100
+    assert 0 <= metrics["disk_percent"] <= 100
+
+
+def test_health_degrades_without_psutil(empty_client: TestClient, monkeypatch):
+    """psutil 不可用时 hardware_telemetry 必须 not_integrated，不得编造读数。"""
+    from gods_workbench.observability import telemetry as telemetry_mod
+    monkeypatch.setattr(telemetry_mod, "_psutil", lambda: None)
+    body = empty_client.get("/api/observability/health", headers=AUTH).json()
+    check = [c for c in body["checks"] if c["name"] == "hardware_telemetry"][0]
+    assert check["status"] == "not_integrated"
+    assert check.get("metrics") in (None, {})
+    assert body["status"] != "ok"
 
 
 def test_health_never_claims_ok_when_component_fails(monkeypatch):
@@ -604,7 +654,7 @@ def test_observability_index_lists_only_implemented_endpoints(empty_client: Test
     """资源索引只能列出本阶段 8 个端点中的 7 个子资源 + 自身，不得越权声明。"""
     body = empty_client.get("/api/observability", headers=AUTH).json()
     assert body["service"] == "observability"
-    assert body["contract_version"] == "p10b-frozen-1"
+    assert body["contract_version"] == "p12-a4-1"
     paths = {item["path"] for item in body["resources"]}
     assert paths <= set(ENDPOINTS)
     assert "/api/observability/overview" in paths
@@ -627,7 +677,9 @@ def test_other_api_endpoints_remain_unimplemented(empty_client: TestClient):
         # 2026-09-22 Phase 10C：提示词库读取端点已由本阶段授权实现（p10c-frozen-1），
         # 故从观测阶段的「仍不可用」探针中移除；其范围守卫由
         # tests/contracts/test_phase10c_prompt_library.py 接管。
-        ("get", "/api/prompt-libraries/items"),
+        # 2026-09-26 Phase 12 A3：/api/prompt-libraries/items 已按新契约真实接入
+        # （PROMPT-LIBRARY-B8-ITEM-INTERFACE-CATALOG.yaml -> p12-a3-1），
+        # 故从观察阶段的「不可用」探针中移除，改由 test_phase11_b8_prompt_items.py 接管。
     ):
         res = getattr(empty_client, method)(path, headers=AUTH)
         assert res.status_code in {404, 405}, f"{method.upper()} {path} 不应可用，实际 {res.status_code}"
@@ -644,7 +696,7 @@ def test_no_randomness_or_fake_telemetry_in_service_source():
         # 只否定「真的引入随机数」，文档中说明「禁止随机数」的措辞不算违规。
         for marker in ("import random", "random.", "Math.random", "uuid4"):
             assert marker not in text, f"{relative} 不得引入随机数（伪造数据风险）: {marker}"
-        for marker in ("cpu_percent", "ram_usage", "memory_percent", "gpu_usage"):
+        for marker in ("random.uniform", "random.randint", "fake_telemetry", "demo_series"):
             assert marker not in text, f"{relative} 不得包含伪造遥测标记 {marker}"
 
 
@@ -719,3 +771,62 @@ def test_read_audit_records_distinguishes_failure_from_empty(monkeypatch):
     monkeypatch.setattr(audit_log, "list_auth_events", boom)
     assert service._read_audit_records() is None, "读取失败必须是 None，不能退化为 []"
     audit_log.reset_audit_log()
+
+
+def test_health_reports_real_gpu_telemetry_or_degrades(empty_client: TestClient):
+    """Phase 12 收口：GPU 遥测为真实 nvidia-smi 读数；无设备/无命令必须如实 not_integrated。
+
+    断言与实现同源：有 nvidia-smi 且检出设备 -> status=ok 且 metrics 含真实字段；
+    否则 status=not_integrated 且不得填任何伪造数字。
+    """
+    from gods_workbench.observability import telemetry as telemetry_mod
+
+    body = empty_client.get("/api/observability/health", headers=AUTH).json()
+    check = [c for c in body["checks"] if c["name"] == "gpu_telemetry"][0]
+    expected = telemetry_mod.gpu_telemetry()
+    if expected is None:
+        assert check["status"] == "not_integrated"
+        assert check.get("metrics") in (None, {})
+    else:
+        assert check["status"] == "ok"
+        metrics = check["metrics"]
+        assert metrics["gpu_count"] == expected["gpu_count"] >= 1
+        assert isinstance(metrics["gpu_utilization_percent"], (int, float))
+        assert 0 <= metrics["gpu_utilization_percent"] <= 100
+        devices = metrics["devices"]
+        assert len(devices) == metrics["gpu_count"]
+        for device in devices:
+            assert device["memory_total_mib"] > 0
+            assert isinstance(device["name"], str) and device["name"]
+
+
+def test_gpu_telemetry_returns_none_without_nvidia_smi(monkeypatch):
+    """nvidia-smi 缺失时必须返回 None，绝不编造 GPU 读数。"""
+    from gods_workbench.observability import telemetry as telemetry_mod
+
+    monkeypatch.setattr(telemetry_mod, "gpu_telemetry", lambda: None)
+    assert telemetry_mod.gpu_telemetry() is None
+
+
+def test_gpu_telemetry_never_fabricates_when_command_fails(monkeypatch):
+    """nvidia-smi 返回非零码时必须返回 None（fail-closed）。"""
+    import shutil
+    import subprocess
+    from gods_workbench.observability import telemetry as telemetry_mod
+
+    class _Proc:
+        returncode = 1
+        stdout = ""
+
+    monkeypatch.setattr(shutil, "which", lambda name: "C:/fake/nvidia-smi.exe")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _Proc())
+    assert telemetry_mod.gpu_telemetry() is None
+
+
+def test_gpu_metric_whitelist_and_no_fabricated_names():
+    """GPU 指标必须进白名单；且响应不得出现 FORBIDDEN_FAKE_FIELDS 中的伪造名。"""
+    from gods_workbench.observability import telemetry as telemetry_mod
+
+    assert "gpu_utilization_percent" in telemetry_mod.KNOWN_METRICS
+    assert "gpu_memory_percent" in telemetry_mod.KNOWN_METRICS
+    assert "gpu_usage" not in telemetry_mod.KNOWN_METRICS

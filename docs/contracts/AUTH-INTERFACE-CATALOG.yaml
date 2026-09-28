@@ -6,6 +6,9 @@ meta:
 
 service: asset_auth
 version: phase11-b1-1
+phase12_extensions:
+  team_messages: "详见 TEAM-MESSAGES-INTERFACE-CATALOG.yaml phase12-team-messages-1；新 GET/POST messages 路径在 /api/asset-auth/teams/{team_id}/messages"
+  authenticated_identity_binding: "local_account/OIDC 从服务端 AuthContext 精确建立身份引用，不接受客户端指定 user_id/role/subject；旧 external_subject payload 不建立身份绑定"
 
 shared:
   ids:
@@ -191,3 +194,18 @@ interfaces:
     status: [204, 401, 403, 404, 409, 422]
     response: null
     acceptance: "用户删除必须 CAS、可审计，且不得删除最后一个 owner。"
+
+  - name: get_authenticated_identity_binding
+    method: GET
+    path: /api/asset-auth/identity-binding
+    status: [200, 401, 503]
+    response: {bound: boolean, user_id: "string | null"}
+    acceptance: "仅回读当前受信 AuthContext 的身份绑定状态。"
+
+  - name: bind_authenticated_identity
+    method: POST
+    path: /api/asset-auth/identity-binding
+    body: "空对象；拒绝附加客户端字段"
+    status: [200, 201, 401, 403, 409, 422, 503]
+    response: {user_id: string, display_name: string, role: string, created: boolean}
+    acceptance: "重放同一可信身份幂等；local_account复用账户user_id，OIDC由服务端分配治理user_id；不授予团队成员资格。"

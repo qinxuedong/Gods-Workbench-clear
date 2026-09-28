@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """观测契约模型（Phase 10B，Pydantic v2）。
 
-严格对齐 docs/contracts/OBSERVABILITY-INTERFACE-CATALOG.yaml（version: p10b-frozen-1）。
+严格对齐 docs/contracts/OBSERVABILITY-INTERFACE-CATALOG.yaml（version: p12-a4-1）。
 
 字段口径：
 - 稳定 ID 一律使用 job_id / project_id / entity_id / asset_id / canvas_id；
@@ -117,7 +117,7 @@ class ObservabilityIndex(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     service: str = "observability"
-    contract_version: str = "p10b-frozen-1"
+    contract_version: str = "p12-a4-1"
     generated_at: str
     data_status: DataStatus
     data_gaps: List[str] = Field(default_factory=list)
@@ -244,13 +244,18 @@ class ObservabilityListResponse(BaseModel):
 
 
 class HealthCheck(BaseModel):
-    """单组件健康条目；未接入组件必须是 not_integrated，不得谎报 ok。"""
+    """单组件健康条目；未接入组件必须是 not_integrated，不得谎报 ok。
+
+    ``metrics`` 只在有真实读数时出现（例如 hardware_telemetry 的 psutil 数值）；
+    无真实来源的组件不得填充该字段。
+    """
 
     model_config = ConfigDict(extra="ignore")
 
     name: str
     status: str
     message_safe: str
+    metrics: Optional[Dict[str, Any]] = None
 
 
 class ObservabilityHealth(BaseModel):

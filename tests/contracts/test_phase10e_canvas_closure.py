@@ -6,11 +6,11 @@
 - GET/POST /api/canvas-assets 与 /download
 - GET/POST /api/reference-canvases
 - GET/POST /api/shared-folders、/import、/{folder_id}/tree、DELETE /{folder_id}
-- GET/POST /api/video-tasks、GET /api/video-tasks/{video_task_id}
+- 视频端点由 VIDEO-TASKS-INTERFACE-CATALOG.yaml 定义
 - POST/PATCH /api/canvases/{canvas_id}/meta、POST /touch、DELETE /purge、GET /trash
 - POST /api/canvases/assets、DELETE /api/canvases/{canvas_id}
 
-硬性口径：零伪造（空集合 + not_integrated）、视频任务与打包下载 / 目录扫描 fail-closed、
+硬性口径：零伪造（空集合 + not_integrated）；视频任务使用独立持久作业契约；打包下载 / 目录扫描 fail-closed、
 CAS 409、401/403、以及未授权相邻端点仍 404/405。
 """
 
@@ -30,8 +30,7 @@ from gods_workbench.canvas_closure.models import (
     CANVAS_ASSET_ATTACH_NOT_INTEGRATED,
     CANVAS_ASSET_DOWNLOAD_NOT_INTEGRATED,
     SHARED_FOLDER_IMPORT_NOT_INTEGRATED,
-    VIDEO_RENDERER_NOT_INTEGRATED,
-)
+    )
 from gods_workbench.canvas_closure.service import CanvasClosureService, SharedFolderService
 from gods_workbench.god_canvas.service import GodCanvasService
 
@@ -99,7 +98,7 @@ def test_catalog_declares_exact_methods():
         "/api/shared-folders/{folder_id}",
         "/api/shared-folders/{folder_id}/tree",
         "/api/video-tasks",
-        "/api/video-tasks/{video_task_id}",
+        "/api/video-tasks/{job_id}",
         "/api/canvases/{canvas_id}/meta",
         "/api/canvases/{canvas_id}/touch",
         "/api/canvases/{canvas_id}/purge",
@@ -279,42 +278,33 @@ def test_import_shared_folder_items_is_fail_closed(api_client: TestClient):
 # ---------------------------------------------------------------------------
 
 
-def test_video_tasks_start_empty(api_client: TestClient):
-    """无渲染后端时列表必须为空并如实标记，且与夹具一致。"""
+def test_video_tasks_list_is_subject_scoped(api_client: TestClient):
+    """任务列表是真实持久任务集合，不再沿用历史 not_integrated 空列表。"""
     res = api_client.get("/api/video-tasks", headers=EDITOR)
     assert res.status_code == 200, res.text
-    assert res.json() == _load_fixture("canvas-closure-video-tasks-empty.json")
+    assert res.json()["items"] == []
+    assert res.json()["data_status"] == "ok"
 
 
-def test_create_video_task_is_fail_closed(api_client: TestClient):
-    """创建视频任务必须 503，且不得返回 task_id / 进度 / 耗时 / 输出 URL。"""
-    res = api_client.post(
-        "/api/video-tasks",
-        json={"prompt": "镜头 A", "duration": 5, "aspect_ratio": "16:9"},
-        headers=EDITOR,
-    )
-    assert res.status_code == 503, res.text
-    body = res.json()
-    assert body == _load_fixture("canvas-closure-video-task-not-integrated.json")
-    assert set(body.keys()) == {"detail"}
-    assert set(body["detail"].keys()) == {"code", "message"}
-    # 禁止项按字段名判定，不用子串匹配（中文转义序列会误报）。
-    for forbidden in ("task_id", "job_id", "progress", "eta", "video_url"):
-        assert forbidden not in body["detail"], f"503 响应不得携带伪造字段 {forbidden}"
-    assert body["detail"]["code"] == VIDEO_RENDERER_NOT_INTEGRATED
-
-
-def test_get_video_task_reports_not_found(api_client: TestClient):
-    """未知视频任务必须 404，不得编造进度。"""
-    res = api_client.get("/api/video-tasks/video_task_0001", headers=EDITOR)
-    assert res.status_code == 404
-    assert res.json()["detail"]["code"] == "VIDEO_TASK_NOT_FOUND"
-
-
-def test_video_tasks_write_requires_permission(api_client: TestClient):
-    """未认证 401、只读角色 403 必须先于 503 生效。"""
-    assert api_client.post("/api/video-tasks", json={}).status_code == 401
-    assert api_client.post("/api/video-tasks", json={}, headers=READONLY).status_code == 403
+def test_video_route_has_standard_auth_and_context_checks(api_client: TestClient):
+    """匿名/只读拒绝先于任务处理，editor 不可凭全局角色冒认项目权限。"""
+    body = {
+        "prompt": "镜头 A", "provider_id": "missing", "model": "video-model",
+        "duration": 5, "aspect_ratio": "16:9",
+        "production_context": {"project_id": "prj-0001", "canvas_id": "cv-0001", "entity_id": "nd-0001"},
+    }
+    assert api_client.post("/api/video-tasks", json=body, headers={"Idempotency-Key": "anon"}).status_code == 401
+    readonly = api_client.post("/api/video-tasks", json=body, headers={**READONLY, "Idempotency-Key": "readonly"})
+    assert readonly.status_code == 403
+    # 创建具有可信owner和视频ACL的项目，不能拿无owner的黄金占位当权限成功初态。
+    other = {"Authorization": "Bearer isolated-other-project-owner", "X-User-Role": "editor"}
+    created = api_client.post("/api/asset-registry/projects", headers=other,
+                              json={"name": "视频权限隔离项目", "project_type": "film"})
+    assert created.status_code == 201, created.text
+    body["production_context"]["project_id"] = created.json()["project"]["project_id"]
+    denied = api_client.post("/api/video-tasks", json=body, headers={**EDITOR, "Idempotency-Key": "unowned"})
+    assert denied.status_code == 403, denied.text
+    assert denied.json()["detail"]["code"] == "PROJECT_ACCESS_DENIED"
 
 
 # ---------------------------------------------------------------------------

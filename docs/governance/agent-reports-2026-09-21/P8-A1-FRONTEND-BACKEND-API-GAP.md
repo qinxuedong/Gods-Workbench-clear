@@ -798,3 +798,42 @@ gh run view 35564655226 --json conclusion,headSha,event,workflowName,status
 - 读回：`git rev-parse HEAD` == `git rev-parse origin/master` == `da80cb46730a42d65bdc68a345dc40afa6e2b3dc`。
 
 > 仍为：本地通过 != 远端 CI != 生产验收；仓库仍为 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。
+
+## 2026-09-26 本地数据库账户登录增补
+
+用户明确要求恢复本地账户登录，本轮新增两条归一化路径及对应前端调用：
+
+- `POST /api/asset-auth/local/setup`：本机首次创建管理员（SQLite事务，禁止重复初始化）。
+- `POST /api/asset-auth/local/login`：验证本地密码哈希并建立数据库会话。
+
+契约见 `LOCAL-ACCOUNT-INTERFACE-CATALOG.yaml` 与 `LOCAL-ACCOUNT-AUTH-2026-09-26.md`。
+这两条属于新增功能，不更改历史140条接入统计，也不替代OIDC接口。
+前后端缺口基线仅显式增加这两条已实现路径；不放宽任何差集断言。
+
+## 2026-09-27｜三项新增授权的接口基线增补（实施中）
+
+- 用户已授权团队消息、Provider tokens/s、视频生成/导出。下述只登记已落地方法，不以路由注册证明业务验收。
+- 新增已引用且已注册 `GET /api/chat/config`；首页和agents加载时只读服务端配置，不发计费ping。来源 `CHAT-METRICS-INTERFACE-CATALOG.yaml`，已纳入Phase8契约解析列表。
+- 历史 `getRegistryProject` 的GET误打注册表写路径已修正到冻结的 `GET /api/projects/{project_id}`；PATCH/DELETE仍走原注册表路径，未创建重复GET别名。
+- 团队消息与视频相关基线须待对应前端/后端真正接线后继续增补；开发中缺少调用方按真实失败暴露，不添加宽泛错误白名单。
+
+## 2026-09-27｜Phase 12 视频路由接线与 Phase 8 基线增补（本地验证）
+
+- 视频任务已由 `src/gods_workbench/video_tasks/routes.py` 单独挂载；Phase 8 静态路由扫描同步纳入该模块，并解析 `VIDEO-TASKS-INTERFACE-CATALOG.yaml`。前端基线新增 `/api/video-exports` 与 `/api/video-tasks/{p}/cancel`；视频 `content_url` 为运行时返回路径，不是缺失调用方。
+- 新进程读取 OpenAPI：205 个路径、无重复 `operationId`、无重复 operation 警告。探针将视频变更操作记为 `NOT_EXECUTED_SAFETY`，不调用真实付费 Provider；只声明仍需专门契约审计，不宣称生产验收。
+- 定点测试：视频任务、项目 ACL、画布闭环、Phase 8 与 Phase 12 探针合计 **66 passed**；视频任务与 ACL/画布闭环子集 **47 passed**。真实媒体验证仅使用 loopback Provider、临时目录和本机 FFmpeg/ffprobe。
+- 按仓库门禁执行全量 `pytest -v`：**778 passed / 5 failed / 8 skipped**（107.97 秒）。5 个失败全部来自独立新增的 `tests/contracts/test_phase12_output_boundary.py`，涉及通用下载/删除端点可访问内部状态；该阻塞不属于视频变更，本轮未改动其失败或放宽断言，待独立安全修复。
+- 此记录仅是当前本地工作树证据；没有远端 CI、真实商业 Provider 或生产环境验收，不改变发布授权状态。
+
+## Phase 12 分享媒体路径增补（本地实施，待最终审核）
+
+- 分享负责人已接线 `GET /api/public/shares/{share_token}/assets/{asset_id}/media`，访客票据通过请求头提交；前端通过fetch/Blob预览或下载，非公开静态直链。
+- Phase8仅在已实现/前端引用基线增加精确归一化路径 `/api/public/shares/{p}/assets/{p}/media`。不修改差集断言、扫描规则或错误码白名单。
+- 此处仅证明路径接线；分享到期、限流、评论审批读回、媒体隔离仍需对应专项及真实浏览器独立审核。不把新增路径或中间全量等同于项目完成。
+
+## 2026-09-27｜项目持久化阶段门前端路径增补（本地契约复核）
+
+- 立项表单创建含阶段门项目后新增 `GET /api/asset-registry/projects/{project_id}/gates` 回读；该路径归一化为 `/api/asset-registry/projects/{p}/gates`，并由 `routes_asset_registry.py` 提供受权集合接口。
+- Phase 8 只在 `KNOWN_IMPLEMENTED` 与后端路由保留基线登记该精确路径；`KNOWN_UNIMPLEMENTED` 不变，因为前端引用与后端实现均已存在。未调整扫描器或差集断言。
+- 复核差集：前端扫描新增项恰为上述路径，且在后端路由集合中；未产生新的未实现前端路径。契约门状态/版本由项目持久化门专项契约及HTTP测试覆盖。
+- 本地专项验证：Phase 8 + 持久化门契约测试 **14 passed**；隔离本地账户、临时数据根、仅回环网络的真实 Chrome 立项表单验证 **1 passed**（项目 POST、门 GET 回读、pending/v1 展示及请求键清理）；不代表全量门禁、远端CI或生产验收。

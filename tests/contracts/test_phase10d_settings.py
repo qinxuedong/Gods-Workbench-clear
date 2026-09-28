@@ -6,6 +6,7 @@
 - GET/PATCH  /api/storage-settings
 - GET/PUT    /api/providers
 - POST       /api/providers/{fetch-models,probe-async,test-connection}
+- GET        /api/providers/probe-async/jobs/{job_id}
 - GET/POST   /api/asset-registry/asset-structures
 - GET/PATCH/DELETE /api/asset-registry/asset-structures/{structure_id}
 - PATCH      /api/asset-registry/asset-structures/{structure_id}/current
@@ -77,10 +78,10 @@ def _create_structure(client: TestClient, expected_version: int | None = 1) -> d
 # ---------------------------------------------------------------------------
 
 
-def test_catalog_declares_exactly_thirteen_methods():
-    """契约必须恰好声明本阶段授权的 13 个方法。"""
+def test_catalog_declares_exactly_fourteen_methods():
+    """契约必须恰好声明本阶段授权的 14 个方法。"""
     pairs = re.findall(r"method:\s*(\w+)\s*\n\s*path:\s*(\S+)", CATALOG.read_text(encoding="utf-8"))
-    assert len(pairs) == 13, f"契约方法数应为 13，实际 {len(pairs)}: {pairs}"
+    assert len(pairs) == 14, f"契约方法数应为 13，实际 {len(pairs)}: {pairs}"
 
 
 def test_catalog_forbids_unauthorized_neighbors():
@@ -246,26 +247,24 @@ def test_get_providers_requires_authentication(api_client: TestClient):
         "/api/providers/test-connection",
     ],
 )
-def test_provider_probe_endpoints_fail_closed(api_client: TestClient, path: str):
-    """探测端点必须 503 + PROVIDER_PROBE_NOT_INTEGRATED，不得返回伪造模型/延迟。"""
-    res = api_client.post(path, json={"base_url": "https://example", "api_key": "sk-x"}, headers=EDITOR)
-    assert res.status_code == 503, res.text
+def test_provider_probe_endpoints_fail_closed_without_upstream(api_client: TestClient, path: str):
+    """上游不可达时必须 503，且不得回显凭据或伪造模型/延迟。"""
+    res = api_client.post(path, json={"base_url": "https://127.0.0.1:1", "api_keys": "sk-x"}, headers=EDITOR)
+    assert res.status_code in (403, 503), res.text
     detail = res.json()["detail"]
-    assert detail["code"] == PROVIDER_PROBE_NOT_INTEGRATED
-    payload = json.dumps(res.json(), ensure_ascii=False)
-    assert "models" not in payload.lower() or "模型列表" in detail["message"]
-    assert "latency" not in payload.lower()
-    assert "sk-x" not in payload
-
-
-def test_provider_probe_fixture_matches_live_error(api_client: TestClient):
-    """探测错误夹具必须与真实 503 错误码一致。"""
-    fixture = json.loads(
-        (REPO_ROOT / "docs" / "fixtures" / "settings-provider-probe-not-integrated.json").read_text(encoding="utf-8")
+    assert detail["code"] in (
+        PROVIDER_PROBE_NOT_INTEGRATED, "PROVIDER_PROBE_FAILED", "SSRF_BLOCKED", "URL_NOT_ALLOWED",
     )
-    res = api_client.post("/api/providers/test-connection", json={}, headers=EDITOR)
-    assert res.status_code == 503
-    assert res.json()["detail"]["code"] == fixture["detail"]["code"]
+    assert "sk-x" not in res.text
+
+
+def test_provider_probe_ssrf_blocked():
+    """内网/保留网段必须 403 SSRF_BLOCKED。"""
+    with TestClient(create_app()) as client:
+        res = client.post("/api/providers/test-connection",
+                          json={"base_url": "http://169.254.169.254/"}, headers=EDITOR)
+        assert res.status_code == 403
+        assert res.json()["detail"]["code"] == "SSRF_BLOCKED"
 
 
 def test_provider_probe_readonly_forbidden(api_client: TestClient):

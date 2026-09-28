@@ -272,7 +272,7 @@
 
         <!-- 在线状态胶囊 (放大1.2倍) -->
         <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-[#0a0c10] border border-white/10 shadow-inner">
-          <span class="text-[9px] font-mono text-amber-300 font-semibold" data-gw-degradation="not_integrated" title="本切片无任何真实在线状态探针，未读取任何服务在线数">未接入</span>
+          <span class="text-[9px] font-mono text-amber-300 font-semibold" id="gwOnlineStatus" data-gw-degradation="not_integrated" title="读取真实探针 GET /api/observability/health">探测中…</span>
             <span class="relative flex h-2 w-2">
               <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse shadow-[0_0_6px_#f59e0b]"></span>
             </span>
@@ -405,7 +405,7 @@
             <div class="hw-fader-glow-bar" style="width: 0%;"></div>
             <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[10px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实算力/GPU 遥测数据源，未读取任何指标">未接入</span>
+          <span class="text-[10px] font-mono text-amber-300 font-bold" id="gpuUtilReadout" data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health 的 gpu_telemetry 检查项">未接入</span>
         </div>
 
         <div class="flex items-center space-x-2">
@@ -414,7 +414,7 @@
             <div class="hw-fader-glow-bar" style="width: 0%; background: linear-gradient(90deg, #38bdf8 0%, #2dd4bf 100%)"></div>
             <div class="hw-fader-thumb-3d" style="left: 0%;"></div>
           </div>
-          <span class="text-[10px] font-mono text-amber-300 font-bold" data-gw-degradation="not_integrated" title="本切片无任何真实显存遥测数据源，未读取任何指标">未接入</span>
+          <span class="text-[10px] font-mono text-amber-300 font-bold" id="gpuVramReadout" data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health 的 gpu_telemetry 检查项">未接入</span>
         </div>
       </div>
 
@@ -505,7 +505,7 @@
                 <div class="w-full tree-node-card px-2.5 py-1.5 flex items-center justify-between text-[9.5px]">
                   <div class="card-connector-pin"></div>
                   <span class="text-slate-300 truncate">1.1 概念剧照调色</span>
-                  <span class="text-[8px] font-mono text-amber-300 shrink-0" data-gw-degradation="not_integrated" title="本切片无真实项目进度数据源，未读取任何指标">未接入</span>
+                  <span class="text-[8px] font-mono text-amber-300 shrink-0" id="projStageAssets" data-gw-degradation="not_integrated" title="真实数据源：/api/episode-pipelines 的 assets 阶段状态">读取中…</span>
                 </div>
               </div>
               <div class="relative space-y-3">
@@ -514,7 +514,7 @@
                   <div class="w-full tree-node-card px-2.5 py-1.5 flex items-center justify-between text-[9.5px]">
                     <div class="card-connector-pin"></div>
                     <span class="text-[#eddab3] font-medium truncate">1.2 故事板分镜矩阵</span>
-                    <span class="text-[8px] font-mono text-amber-300 shrink-0" data-gw-degradation="not_integrated" title="本切片无真实项目进度数据源，未读取任何指标">未接入</span>
+                    <span class="text-[8px] font-mono text-amber-300 shrink-0" id="projStageVideo" data-gw-degradation="not_integrated" title="真实数据源：/api/episode-pipelines 的 video 阶段状态">读取中…</span>
                   </div>
                 </div>
               </div>
@@ -638,35 +638,15 @@
                 <i data-lucide="server" class="w-3.5 h-3.5 text-[#dfc384]"></i>
                 <h3 class="text-xs font-semibold text-slate-100">GPU 算力集群状态</h3>
               </div>
-              <!-- 显式降级：无硬件遥测端点时明说「未接入」，不得静态谎称集群全在线 -->
-              <span class="text-[8.5px] font-mono text-amber-300 flex items-center" data-gw-degradation="not_integrated">
+              <!-- 真实数据源：GET /api/observability/health 的 gpu_telemetry；不可用才显式降级。 -->
+              <span class="text-[8.5px] font-mono text-amber-300 flex items-center" id="gpuClusterStatus" data-gw-degradation="not_integrated" title="真实数据源：GET /api/observability/health">
                 <span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 animate-pulse"></span>
-                硬件遥测未接入
+                GPU 遥测读取中…
               </span>
             </div>
 
-            <!-- 2x2 GPU Nodes Grid -->
-            <div class="grid grid-cols-2 gap-1 mb-1">
-              <div class="bay-inset py-0.5 px-1.5 rounded-md flex items-center justify-between text-[8px] font-mono">
-                <span class="text-slate-300 truncate">4090 #1</span>
-                <span class="text-amber-300 font-bold">未接入</span>
-                <span class="text-slate-500">—</span>
-              </div>
-              <div class="bay-inset py-0.5 px-1.5 rounded-md flex items-center justify-between text-[8px] font-mono">
-                <span class="text-slate-300 truncate">4090 #2</span>
-                <span class="text-amber-300 font-bold">未接入</span>
-                <span class="text-slate-500">—</span>
-              </div>
-              <div class="bay-inset py-0.5 px-1.5 rounded-md flex items-center justify-between text-[8px] font-mono">
-                <span class="text-slate-300 truncate">A100 #1</span>
-                <span class="text-amber-300 font-bold">未接入</span>
-                <span class="text-slate-500">—</span>
-              </div>
-              <div class="bay-inset py-0.5 px-1.5 rounded-md flex items-center justify-between text-[8px] font-mono">
-                <span class="text-slate-400 truncate">A100 #2</span>
-                <span class="text-amber-300 font-bold">未接入</span>
-                <span class="text-slate-500">—</span>
-              </div>
+            <!-- GPU 设备列表：由真实 gpu_telemetry.devices 渲染，无真实设备时明说未接入 -->
+            <div class="grid grid-cols-2 gap-1 mb-1" id="gpuDeviceGrid"></div>
             </div>
 
             <!-- 旋钮微调显存保护与自动降载 -->
@@ -679,7 +659,7 @@
                   </div>
                 </div>
                 <div class="text-[8.5px] font-mono text-slate-300 font-semibold">
-                  <span data-gw-degradation="not_integrated" title="本切片无任何真实显存占用量数据源，未读取任何指标">VRAM 上限未接入</span>
+                  <span id="gpuVramCapReadout" data-gw-degradation="not_integrated" title="真实数据源：gpu_telemetry.devices[].memory_total_mib">VRAM 上限未接入</span>
                 </div>
               </div>
 
@@ -702,39 +682,12 @@
                 <i data-lucide="layers" class="w-3.5 h-3.5 text-[#dfc384]"></i>
                 <h3 class="text-xs font-semibold text-slate-100">渲染批处理流水线</h3>
               </div>
-              <button class="text-[8.5px] font-mono text-amber-300 hover:underline cursor-pointer" data-gw-degradation="not_integrated" onclick="HardwareDeck.openDrawer('taskCenterDrawer')">任务中心未接入 &rarr;</button>
+              <button class="text-[8.5px] font-mono font-bold text-cyan-300 hover:underline cursor-pointer" id="activeTasksCountBadge" onclick="HardwareDeck.openDrawer('taskCenterDrawer')" title="真实作业队列 /api/observability/tasks">读取中…</button>
             </div>
 
-            <div class="space-y-1">
-              <!-- Task 1 -->
-              <div class="bay-inset py-1 px-1.5 rounded-lg border-l-2 border-[#dfc384] cursor-pointer" onclick="HardwareDeck.openDrawer('taskCenterDrawer')">
-                <div class="flex items-center justify-between mb-0.5">
-                  <span class="text-[9.5px] font-bold text-slate-200 truncate">暂无真实渲染任务</span>
-                  <span class="text-[7.5px] font-mono text-amber-300 shrink-0" data-gw-degradation="not_integrated">未接入</span>
-                </div>
-                <div class="hw-fader-track-horizontal w-full h-1 mb-0.5">
-                  <div class="hw-fader-glow-bar" style="width: 0%;"></div>
-                </div>
-                <div class="flex items-center justify-between text-[7px] font-mono text-slate-400">
-                  <span>无真实作业数据源</span>
-                  <span class="text-amber-300">未接入</span>
-                </div>
-              </div>
-
-              <!-- Task 2 -->
-              <div class="bay-inset py-1 px-1.5 rounded-lg border-l-2 border-cyan-400 cursor-pointer" onclick="HardwareDeck.openDrawer('taskCenterDrawer')">
-                <div class="flex items-center justify-between mb-0.5">
-                  <span class="text-[9.5px] font-bold text-slate-200 truncate">任务中心未纳入当前切片</span>
-                  <span class="text-[7.5px] font-mono text-amber-300 shrink-0" data-gw-degradation="not_integrated">未接入</span>
-                </div>
-                <div class="hw-fader-track-horizontal w-full h-1 mb-0.5">
-                  <div class="hw-fader-glow-bar" style="width: 0%; background: #38bdf8;"></div>
-                </div>
-                <div class="flex items-center justify-between text-[7px] font-mono text-slate-400">
-                  <span>无真实作业数据源</span>
-                  <span class="text-amber-300">未接入</span>
-                </div>
-              </div>
+            <!-- 真实作业队列容器：内容由 /api/observability/tasks 驱动，不含静态示例任务。 -->
+            <div class="space-y-1" id="v2ActiveTasksContainer">
+              <div class="bay-inset p-3 rounded-xl border border-white/10 text-center text-[9px] font-mono text-slate-400" role="status">读取真实作业队列…</div>
             </div>
           </section>
         </div>
@@ -745,9 +698,9 @@
             <div>
               <div class="text-xs font-bold text-slate-200">智能体立项助理</div>
               <div class="text-[8px] font-mono text-slate-500 mt-0.5">自动装配剧本与分镜模组</div>
-              <div class="text-[7.5px] font-mono text-amber-300 mt-1 flex items-center" data-gw-degradation="not_integrated">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 animate-pulse"></span>
-                <span>调度端点未接入</span>
+              <div class="text-[7.5px] font-mono text-slate-400 mt-1 flex items-center">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-500 mr-1" id="projectDispatchLed"></span>
+                <span id="projectDispatchStatus" title="真实数据源：POST /api/asset-registry/projects">待命</span>
               </div>
             </div>
             <!-- 彩虹 AI 微球发射按钮 -->
@@ -816,6 +769,12 @@
           <textarea id="newProjectDescInput" rows="2" placeholder="输入世界观设定与初版叙事方向..." class="w-full bg-[#0a0c10] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#dfc384]"></textarea>
         </div>
 
+        <div>
+          <label class="block text-[10px] font-mono text-slate-400 mb-1" for="newProjectGatesInput">初始阶段门（可选）</label>
+          <textarea id="newProjectGatesInput" rows="2" placeholder="每行一项，格式：code|阶段名称；例如：script|剧本评审" class="w-full bg-[#0a0c10] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#dfc384]"></textarea>
+          <p class="mt-1 text-[9px] text-slate-500">门只在本次立项事务中创建；最多32项。重试相同内容会复用同一请求键。</p>
+        </div>
+
         <div class="project-date-range-field" data-project-date-range>
           <label class="block text-[10px] font-mono text-slate-400 mb-1">项目排期</label>
           <button type="button" class="tactile-keycap project-date-range-trigger" data-date-range-trigger aria-haspopup="dialog" aria-expanded="false"><i data-lucide="calendar-days" class="w-4 h-4"></i><span class="project-date-range-label" data-date-range-label>选择项目排期</span></button>
@@ -846,34 +805,9 @@
     </div>
 
     <div class="p-3 overflow-y-auto space-y-2 flex-1 text-xs">
-      <!-- Task 1 -->
-      <div class="bay-inset p-2.5 rounded-xl border-l-2 border-[#dfc384]">
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-bold text-slate-200">暂无真实渲染任务</span>
-          <span class="text-[8px] font-mono text-amber-300" data-gw-degradation="not_integrated">未接入</span>
-        </div>
-        <div class="hw-fader-track-horizontal w-full h-1 mb-1.5">
-          <div class="hw-fader-glow-bar" style="width: 0%;"></div>
-        </div>
-        <div class="flex items-center justify-between text-[8px] font-mono text-slate-500">
-          <span>无真实作业数据源</span>
-          <span class="text-amber-300">未接入</span>
-        </div>
-      </div>
-
-      <!-- Task 2 -->
-      <div class="bay-inset p-2.5 rounded-xl border-l-2 border-cyan-400">
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-bold text-slate-200">任务中心未纳入当前切片</span>
-          <span class="text-[8px] font-mono text-amber-300" data-gw-degradation="not_integrated">未接入</span>
-        </div>
-        <div class="hw-fader-track-horizontal w-full h-1 mb-1.5">
-          <div class="hw-fader-glow-bar" style="width: 0%; background: #38bdf8;"></div>
-        </div>
-        <div class="flex items-center justify-between text-[8px] font-mono text-slate-500">
-          <span>无真实作业数据源</span>
-          <span class="text-amber-300">未接入</span>
-        </div>
+      <!-- 任务中心抽屉内容：由 /api/observability/tasks 真实驱动。 -->
+      <div class="space-y-2" id="v2TaskCenterDrawerList">
+        <div class="bay-inset p-2.5 rounded-xl border border-white/10 text-center text-[10px] font-mono text-slate-400" role="status">读取真实作业队列…</div>
       </div>
     </div>
   </aside>
@@ -1019,6 +953,12 @@
           </div>
         </div>
 
+        <div>
+          <label class="block text-[10px] font-mono text-slate-400 mb-1" for="newProjectGatesInput">初始阶段门（可选）</label>
+          <textarea id="newProjectGatesInput" rows="2" placeholder="每行一项，格式：code|阶段名称；例如：script|剧本评审" class="w-full bg-[#0a0c10] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#dfc384]"></textarea>
+          <p class="mt-1 text-[9px] text-slate-500">门只在本次立项事务中创建；最多32项。重试相同内容会复用同一请求键。</p>
+        </div>
+
         <div class="project-date-range-field" data-project-date-range>
           <label class="block text-[10px] font-mono text-slate-400 mb-1">项目排期</label>
           <button type="button" class="tactile-keycap project-date-range-trigger" data-date-range-trigger aria-haspopup="dialog" aria-expanded="false"><i data-lucide="calendar-days" class="w-4 h-4"></i><span class="project-date-range-label" data-date-range-label>选择项目排期</span></button>
@@ -1104,6 +1044,7 @@
   <!-- Scripts -->
   <script src="/static/js/degradation.js?v=v0.0.1-alpha-2026"></script>
   <script src="/static/js/hardware-telemetry.js"></script>
+<script src="/static/js/v2-task-queue.js"></script>
   <script src="/static/v2/js/project-date-range.js"></script>
   <script src="/static/v2/js/projects-controller.js"></script>
 <script src="/static/v2/js/v2-shell.js"></script>

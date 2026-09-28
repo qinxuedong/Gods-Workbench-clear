@@ -8,12 +8,12 @@
 - 画布素材索引与打包下载（``/api/canvas-assets*``）
 - 参考画布（``/api/reference-canvases``）
 - 共享文件夹登记与浏览（``/api/shared-folders*``）
-- 视频任务（``/api/video-tasks*``）
+- 视频任务改由 ``video_tasks`` 契约路由提供（不属于本模块）
 - 画布元信息 / 归档 / 回收站 / 素材挂接（``/api/canvases*``）
 
 硬口径：
 
-- 视频渲染、打包下载、素材挂接、共享文件夹目录扫描与导入**均无真实后端**，
+- 画布素材打包下载、素材挂接、共享文件夹目录扫描与导入**均无真实后端**，
   一律 503 + 固定 ``NOT_INTEGRATED`` 错误码，绝不返回假成功 / 假进度；
 - 无来源的集合一律空数组 + ``data_status: not_integrated`` + ``data_gaps``；
 - 写操作校验 ``expected_version``，冲突 409；读需认证，写需写权限；
@@ -216,55 +216,6 @@ def delete_shared_folder(
     require_edit_access(authorization, x_user_role)
     return shared_folders.delete_folder(folder_id)
 
-
-# ---------------------------------------------------------------------------
-# 视频任务（本阶段无渲染后端，fail-closed）
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/api/video-tasks",
-    response_model=VideoTaskListResponse,
-    summary="读取视频任务列表",
-    status_code=status.HTTP_200_OK,
-)
-def list_video_tasks(
-    authorization: Optional[str] = Header(None),
-    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
-):
-    """无真实渲染后端：列表恒为空并如实标记缺口，绝不返回假任务。"""
-    require_authenticated(authorization, x_user_role)
-    return closure.list_video_tasks()
-
-
-@router.post(
-    "/api/video-tasks",
-    summary="创建视频任务",
-    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-)
-def create_video_task(
-    payload: dict = Body(default_factory=dict),
-    authorization: Optional[str] = Header(None),
-    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
-):
-    """无渲染后端：如实 503 VIDEO_RENDERER_NOT_INTEGRATED，绝不返回假 task_id/假进度。"""
-    require_edit_access(authorization, x_user_role)
-    closure.create_video_task()
-
-
-@router.get(
-    "/api/video-tasks/{video_task_id}",
-    summary="查询视频任务",
-    status_code=status.HTTP_200_OK,
-)
-def get_video_task(
-    video_task_id: str,
-    authorization: Optional[str] = Header(None),
-    x_user_role: str = Header("editor", alias="X-User-Role", description="用户角色权限"),
-):
-    """任务不存在必须 404 VIDEO_TASK_NOT_FOUND，绝不编造进度。"""
-    require_authenticated(authorization, x_user_role)
-    return closure.get_video_task(video_task_id)
 
 
 # ---------------------------------------------------------------------------

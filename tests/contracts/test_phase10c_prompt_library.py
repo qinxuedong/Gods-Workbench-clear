@@ -578,12 +578,18 @@ def test_delete_category_readonly_role_forbidden(seeded_client: TestClient):
 
 
 # ---------------------------------------------------------------------------
-# 范围守卫：未授权端点必须仍不可用
+# 范围变更：条目 CRUD 已由 Phase 12 A3 真实接入
 # ---------------------------------------------------------------------------
 
 
-def test_unauthorized_items_endpoints_still_unavailable(seeded_client: TestClient):
-    """未获契约授权的 /api/prompt-libraries/items* 必须仍然不可用（非 2xx）。"""
+def test_items_endpoints_now_implemented_with_real_auth_semantics(seeded_client: TestClient):
+    """2026-09-26 Phase 12 A3：items* 已按 p12-a3-1 真实接入。
+
+    旧的「一律 503 / 必须不可用」断言已被取代：
+    - 未认证 -> 401；
+    - 只读角色写操作 -> 403；
+    - 编辑角色写入可被读回（详见 test_phase11_b8_prompt_items.py）。
+    """
     probes = [
         ("post", "/api/prompt-libraries/items", {"library_id": "plib_default", "name": "x"}),
         ("patch", "/api/prompt-libraries/items/pitem_0001", {"name": "x"}),
@@ -592,9 +598,11 @@ def test_unauthorized_items_endpoints_still_unavailable(seeded_client: TestClien
     ]
     for method, path, body in probes:
         request = getattr(seeded_client, method)
-        res = request(path, json=body, headers=EDITOR) if body is not None else request(path, headers=EDITOR)
-        assert res.status_code >= 400, f"{method.upper()} {path} 不应可用，实际 {res.status_code}"
-        assert res.status_code == 503, f"{method.upper()} {path} 应由 B8 显式失败关闭，实际 {res.status_code}"
+        unauth = request(path, json=body) if body is not None else request(path)
+        assert unauth.status_code == 401, "%s %s 未认证应 401，实际 %s" % (method.upper(), path, unauth.status_code)
+        forbidden = request(path, json=body, headers=READONLY) if body is not None else request(path, headers=READONLY)
+        assert forbidden.status_code == 403, "%s %s 只读应 403，实际 %s" % (method.upper(), path, forbidden.status_code)
+        assert forbidden.status_code != 503, "items* 不应再返回 503 未接入"
 
 
 # ---------------------------------------------------------------------------
