@@ -25,6 +25,7 @@ EVENT_SESSION_ESTABLISHED = "auth.session.established"
 EVENT_CALLBACK_REJECTED = "auth.callback.rejected"
 EVENT_TOKEN_REJECTED = "auth.token.rejected"
 EVENT_ROLE_REJECTED = "auth.role.rejected"
+EVENT_SESSION_REVOKED = "auth.session.revoked"
 EVENT_LOGOUT = "auth.logout"
 
 # B1 管理写操作事件。事件只保存资源标识与脱敏主体，不接收令牌原文。
@@ -48,6 +49,7 @@ AUTH_EVENT_NAMES = frozenset(
         EVENT_CALLBACK_REJECTED,
         EVENT_TOKEN_REJECTED,
         EVENT_ROLE_REJECTED,
+        EVENT_SESSION_REVOKED,
         EVENT_LOGOUT,
     }
 )

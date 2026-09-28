@@ -419,14 +419,30 @@ def test_forged_token_is_audited_and_rejected(clean_env):
 
 
 def test_unknown_session_role_is_audited(clean_env):
-    """会话角色不在已知集合时必须拒绝并留痕。"""
+    """会话角色不在已知集合时必须拒绝并留痕。
+
+    S-01（2026-09-28）更新：``oidc_session_trust_failure_reason`` 已把
+    "会话未绑定发行者与配置代际" 收口为**确定性失效**，并且它先于角色校验执行。
+    因此本用例改为给出**就绪且已绑定**的信任根，只把角色置为未知值，
+    以便继续专门验证"未知角色必须留痕"这一条，而不是被信任根判定抢先拒绝。
+    """
     clean_env.setenv(gw_config.AUTH_MODE_ENV, gw_config.AUTH_MODE_OIDC)
+    clean_env.setenv(gw_config.ISSUER_ENV, "https://idp.example.test")
+    clean_env.setenv(gw_config.AUDIENCE_ENV, "gods-workbench")
+    clean_env.setenv(gw_config.JWKS_URL_ENV, "https://idp.example.test/jwks.json")
     gw_config.reset_runtime_auth_config_cache()
 
     from gods_workbench.core.errors import ForbiddenException
     from gods_workbench.core.auth import require_authenticated
 
-    token = session_store.set_current_principal({"username": "user-x", "role": "root"})
+    token = session_store.set_current_principal(
+        {
+            "username": "user-x",
+            "role": "root",
+            "issuer": "https://idp.example.test",
+            "config_generation": gw_config.auth_config_generation(),
+        }
+    )
     try:
         with pytest.raises(ForbiddenException):
             require_authenticated(None, None)
@@ -436,6 +452,34 @@ def test_unknown_session_role_is_audited(clean_env):
     rejected = _events(audit_log.EVENT_ROLE_REJECTED)
     assert rejected, "角色未授权必须留痕"
     assert rejected[-1]["role"] == "root"
+
+
+def test_unbound_session_is_rejected_before_role_check(clean_env):
+    """S-01 追加：未绑定信任根的会话必须在**角色校验之前**就失败关闭。
+
+    与上一条互为正反面证据：未绑定 -> 信任根失效拒绝（401）；
+    已绑定但角色未知 -> 角色拒绝（403）。
+    """
+    clean_env.setenv(gw_config.AUTH_MODE_ENV, gw_config.AUTH_MODE_OIDC)
+    clean_env.setenv(gw_config.ISSUER_ENV, "https://idp.example.test")
+    clean_env.setenv(gw_config.AUDIENCE_ENV, "gods-workbench")
+    clean_env.setenv(gw_config.JWKS_URL_ENV, "https://idp.example.test/jwks.json")
+    gw_config.reset_runtime_auth_config_cache()
+
+    from gods_workbench.core.errors import UnauthorizedException
+    from gods_workbench.core.auth import require_authenticated
+
+    # 缺 issuer / config_generation：即使配置就绪也必须拒绝。
+    token = session_store.set_current_principal({"username": "user-y", "role": "admin"})
+    try:
+        with pytest.raises(UnauthorizedException):
+            require_authenticated(None, None)
+    finally:
+        session_store.reset_current_principal(token)
+
+    revoked = _events(audit_log.EVENT_SESSION_REVOKED)
+    assert revoked, "未绑定信任根的会话必须留下撤销审计"
+    assert revoked[-1]["reason"] in {"issuer_mismatch", "trust_root_changed", "oidc_not_ready"}
 
 
 # ---------------------------------------------------------------------------

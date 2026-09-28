@@ -196,7 +196,7 @@
 - `runninghub/thumbnails/workflow-2058818588181622785.jpg` — **需裁决** — 与用户源一致；但违反 §1.2「严禁提交图片」，且 4/5 仅被 `runninghub/api_providers.json` 引用（`workflow-2064542485938008065.jpg` 无任何文本引用）
 - `runninghub/thumbnails/workflow-2058824859437850625.jpg` — **需裁决** — 与用户源一致；但违反 §1.2「严禁提交图片」，且 4/5 仅被 `runninghub/api_providers.json` 引用（`workflow-2064542485938008065.jpg` 无任何文本引用）
 - `runninghub/thumbnails/workflow-2064542485938008065.jpg` — **需裁决** — 与用户源一致；但违反 §1.2「严禁提交图片」，且在**全工作区无任何文本引用**（`runninghub/api_providers.json` 只登记其余 4 张），属孤儿资源
-- `system-prompts/infinite-canvas-prompt-templates.md` — **需裁决** — 与用户源一致；属『无限画布』隔离区（分类表 DO_NOT_MIGRATE），且运行期无引用方
+- `system-prompts/infinite-canvas-prompt-templates.md` — **需裁决** — 与用户源一致；属『无限画布』隔离区（分类表 DO_NOT_MIGRATE），且运行期无引用方；2026-09-28 已移出静态挂载目录并继续隔离
 - `vendor/MANIFEST.md` — **需裁决** — 字体本地化配套改动；§1.2 红线与用户『字体全部替换为思源黑体』指令互相冲突（见 TASKS.md §2.1）
 - `vendor/css/fonts.css` — **需裁决** — 字体本地化配套改动；§1.2 红线与用户『字体全部替换为思源黑体』指令互相冲突（见 TASKS.md §2.1）
 - `vendor/fonts/SourceHanSansCN-Bold.otf` — **需裁决** — 与用户源一致；本地 .otf 违反 §1.2「严禁本地字体文件」，与 AGENTS.md 首选 CDN 方案冲突（见 TASKS.md §2.1）
@@ -239,7 +239,7 @@
 | 5 | `vendor/js/**` | 2 | `lucide.js`、`three-0.160.0.module.js`；§1.2 要求 Lucide 走 CDN | 保留本地 vendor 化，还是改用 CDN？ |
 | 6 | `runninghub/thumbnails/*.jpg` | 5 | 与用户源一致；但违反 §1.2 图片红线，且运行期仅被 `runninghub/api_providers.json` 自身引用 | 删除图片并接受缩略图缺省，还是保留并豁免红线？ |
 | 7 | `images/logo.png` | 1 | 与用户源一致，被 11 个文件引用（10 个 `.html` + 1 个 `.js`）；但违反 §1.2 图片红线 | 保留（豁免）还是替换为内联 SVG/CSS？ |
-| 8 | `system-prompts/infinite-canvas-prompt-templates.md` | 1 | 属『无限画布』隔离区（分类表 DO_NOT_MIGRATE），运行期无引用方 | 删除还是移出仓库？ |
+| 8 | `system-prompts/infinite-canvas-prompt-templates.md` | 1 | 属『无限画布』隔离区（分类表 DO_NOT_MIGRATE），运行期无引用方；2026-09-28 已移出静态挂载目录，裁决为继续隔离 | 删除还是移出仓库？（2026-09-28 已按“继续隔离”收口） |
 | 9 | `js/asset-auth/**` | 2 | 与用户源一致；后端无任何 `/api/asset-auth/*` 路由，运行时必然 404 | 补后端路由，还是删除并清理 V2 中的幻影引用？ |
 | — | **合计** | **57** | — | — |
 

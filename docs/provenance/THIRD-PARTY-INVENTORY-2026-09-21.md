@@ -4,6 +4,7 @@
 
 ## 1. 范围、方法与口径
 
+- 2026-09-28 追加：主表新增 `pillow==12.3.0`（MIT-CMU）、`psutil==7.2.2`（BSD-3-Clause）、`python-multipart==0.0.32`（Apache-2.0）。Windows wheel 哈希已写入 `requirements.lock.hashes`；Linux wheel 哈希本机未生成，未伪造。系统 FFmpeg 与浏览器属于验收工具边界，不进入 Python 锁。
 - 输入：`requirements.lock` 主表 30 条、平台差异登记中的 `uvloop==0.22.1`、Phase 4 CycloneDX SBOM、`static/vendor/MANIFEST.md`、prompt-registry 的 `manifest.json`/`NOTICE.md`/6 个源 JSON。
 - 依赖许可证以 `docs/provenance/SBOM-2026-09-20.cdx.json` 的逐组件记录为主；该 SBOM 共记录 31 个 Python library（30 条主表 + uvloop）。
 - 每个本地文件均使用 SHA-256 实测；复算命令：
@@ -149,3 +150,58 @@ Line |
 - 清点条目总数 47（Python 31 + vendor 7 + prompt-registry 8 + Tailwind 1），另列排除项 1；
 - 发布义务闭环 **0 项**；许可证/通知正文、Tailwind CDN 固定版本与 SRI、内容权利链仍**待用户/法务裁决**；
 - 未创建根级 `LICENSE` / `THIRD_PARTY_NOTICES.md`。
+
+
+---
+
+## 10. A-04 增补：现行依赖闭包许可清点（2026-09-28）
+
+本节为**追加**，不改写上文任何一行。上文绑定 2026-09-20/21 的 30+1 条 Python 闭包；本节记录 A-04 复算后的**现行**闭包与许可判定。
+
+### 10.1 闭包范围变化（现行 = 33 个 Python 组件）
+
+在干净 venv（CPython 3.11.9 / Windows）按 `requirements-dev.txt` 联网安装后 `pip freeze`，现行闭包为 **33 条**（原 30 条 + 本轮新增 3 条）。
+
+**本轮新增（此前 `requirements.txt` 已声明但未入锁）：**
+
+| 组件 | 版本 | 许可（2026-09-28 元数据实测） | 运行期依赖 | 闭环 |
+|---|---|---|---|---|
+| `pillow` | `12.3.0` | `License-Expression: MIT-CMU` | 无强制依赖（仅 extras） | 否（缺发布包许可正文） |
+| `psutil` | `7.2.2` | `License: BSD-3-Clause` | 无强制依赖（仅 extras） | 否（同上） |
+| `python-multipart` | `0.0.32` | `License-Expression: Apache-2.0` | 无强制依赖 | 否（同上） |
+
+三者的 PyPI `requires_dist` 均**无强制运行期依赖**，故闭包增量为 3 个组件，不引入新的传递依赖。
+
+**版本漂移（上游推进，区间约束仍满足）：**
+
+| 组件 | 原登记 | 现行 | 许可 |
+|---|---|---|---|
+| `starlette` | `1.6.0` | `1.7.0` | BSD-3-Clause |
+| `uvicorn` | `0.53.0` | `0.54.0` | BSD-3-Clause |
+| `watchfiles` | `1.2.0` | `1.3.0` | MIT |
+
+- **不得把旧「39 组件」数字当作当前闭包。** 上文 `## 8` 的 47 条目 = Python 31 + vendor 7 + prompt-registry 8 + Tailwind 1，是 2026-09-21 的口径；现行 SBOM 为 **42 组件** = Python 33 + uvloop 1 + vendor 7 + Tailwind 1。
+
+### 10.2 哈希锁与平台边界
+
+- `requirements.lock`（版本锁，33 条）与 `requirements.lock.hashes`（哈希锁，33 条 + 1 条 uvloop 平台项）已同步为现行闭包。
+- 哈希锁为**跨平台双段**：Windows 段由本机 CPython 3.11.9 实测生成；Linux 段由本机 **Docker `python:3.11-slim`（CPython 3.11.16 / x86_64）** 实测生成。两段哈希均来自 `pip download --only-binary=:all:` 后按 wheel 实测计算，**非伪造、非引用他处数字**。
+- 因两平台 wheel 不同的条目共 **9 个**（cffi / cryptography / httptools / pillow / psutil / pydantic_core / PyYAML / watchfiles / websockets），已合并为同一行的多个 `--hash`，pip 按平台择一校验。
+- 哈希锁为**哈希锁**，不是签名或来源证明（无 SLSA / in-toto）。
+- `uvloop==0.22.1` 为平台差异登记项（仅非 Windows 安装），带环境标记 `; sys_platform != "win32"`，其 Linux 哈希已登记。
+- **未覆盖**：macOS / aarch64。
+- 实测：Windows 干净 venv `--require-hashes` 安装 33 包通过；Linux 容器 `--require-hashes` 安装 34 包（含 uvloop）通过；两平台 `pip check` 均无破损；Linux 段 33 个 wheel 哈希经重下复算 **0 处不一致**。
+
+### 10.3 验收工具边界（不进 Python 锁）
+
+- **系统 FFmpeg**（`ffmpeg` / `ffprobe`）：媒体转码与时长探测的**本机验收工具**，非 Python 依赖，不以 pip 安装，不写入锁与 SBOM 组件表。
+- **系统浏览器**（端到端验收驱动）：同上，属**验收工具边界**。
+- 二者缺失只影响本机媒体/端到端验收，不影响 Python 运行期依赖闭包。
+
+### 10.4 本节边界声明
+
+- 本轮仅在**当前 Windows 环境**完成解析与复算；**未宣称已完成干净环境重装收口**（哈希锁已在独立 venv 实测 `--require-hashes` 安装通过，但未做跨平台重装验收）。
+- 上文 `## 6` 的 9 条未闭环项**仍然成立**，本节不改变其状态：Python 依赖仍缺随发布包提供的完整许可正文与不可变来源证明。
+- **不声称这些包不安全**；本节只登记版本、哈希与许可识别的边界。
+- 未创建根级 `LICENSE` / `NOTICE` / `THIRD_PARTY_NOTICES.md`。
+- 发布状态未变：仍 **NOT AUTHORIZED FOR PUBLIC DISTRIBUTION**。

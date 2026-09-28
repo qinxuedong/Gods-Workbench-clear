@@ -104,7 +104,7 @@
 | 77 | `src/gods_workbench/static/prompt-registry/sources/freestylefly-gpt-image-2.json` | 1195361 | ③ | 第三方提示词快照（MIT / CC BY 4.0，见 NOTICE.md） |
 | 78 | `src/gods_workbench/static/prompt-registry/sources/youmind-gpt-image-2.json` | 346446 | ③ | 第三方提示词快照（MIT / CC BY 4.0，见 NOTICE.md） |
 | 79 | `src/gods_workbench/static/prompt-registry/sources/youmind-nano-banana-pro.json` | 281937 | ③ | 第三方提示词快照（MIT / CC BY 4.0，见 NOTICE.md） |
-| 80 | `src/gods_workbench/static/system-prompts/infinite-canvas-prompt-templates.md` | 24488 | ④ | 无限画布旧提示词，隔离不迁移 |
+| 80 | `src/gods_workbench/static/system-prompts/infinite-canvas-prompt-templates.md` | 24488 | ④ | 无限画布旧提示词，隔离不迁移；2026-09-28 已移出静态挂载目录（本行为 2026-09-20 历史清点记录） |
 | 81 | `src/gods_workbench/static/task-center.html` | 18109 | ② | 按 docs/behavior 契约与 docs/fixtures 夹具自行重写 |
 | 82 | `src/gods_workbench/static/update-notes.json` | 486 | ② | 按 docs/behavior 契约与 docs/fixtures 夹具自行重写 |
 | 83 | `src/gods_workbench/static/v2/agents.html` | 21178 | ② | 按 docs/behavior 契约与 docs/fixtures 夹具自行重写 |

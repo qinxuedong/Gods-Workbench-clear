@@ -105,13 +105,36 @@ class OidcFlowFailedException(CleanroomException):
         super().__init__(status_code=400, code="OIDC_FLOW_INVALID", message=message)
 
 
-def _principal_from_identity(identity) -> Dict[str, Any]:
-    """把校验通过的身份压成最小会话主体（不保留令牌原文与完整 claims）。"""
+def _oidc_session_still_bound(principal: Dict[str, Any], runtime) -> bool:
+    """会话是否仍绑定当前发行者、受众与配置代际。
+
+    判定口径统一收口在 ``core.auth.oidc_session_trust_failure_reason``：
+    发行者或受众为空、运行期未就绪、绑定发行者不一致、配置代际变化，
+    都视为信任根失效。不把「内存里还有一条会话」当成已认证。
+
+    保留本薄封装是为了让 ``/status`` 与 ``/login`` 的语义与本模块既有调用点不变，
+    同时避免在两处各写一套漂移的判据。
+    """
+    from gods_workbench.core.auth import oidc_session_trust_failure_reason
+
+    return oidc_session_trust_failure_reason(dict(principal), runtime) is None
+
+
+def _principal_from_identity(identity, runtime) -> Dict[str, Any]:
+    """把校验通过的身份压成最小会话主体（不保留令牌原文与完整 claims）。
+
+    会话绑定当时的发行者与配置代际。信任根变更后，旧会话不得继续使用。
+    """
+    from gods_workbench.core.config import auth_config_generation
+
     return {
         "username": identity.subject,
         "display_name": identity.subject,
         "role": identity.role,
         "groups": list(identity.groups),
+        "issuer": str(getattr(runtime.oidc, "issuer", "") or ""),
+        "audience": str(getattr(runtime.oidc, "audience", "") or ""),
+        "config_generation": auth_config_generation(),
     }
 
 
@@ -166,6 +189,10 @@ def auth_status(gw_session: Optional[str] = Cookie(None)):
         }, headers={"Cache-Control": "no-store"})
     principal = session_store.get_session(gw_session)
     is_oidc = runtime.mode == AUTH_MODE_OIDC
+    if is_oidc and principal is not None and not _oidc_session_still_bound(principal, runtime):
+        # 配置失效或信任根已变：撤销旧会话，状态如实显示未认证。
+        session_store.delete_session(gw_session)
+        principal = None
     login_available = bool(is_oidc and runtime.ready and runtime.login_ready)
     if is_oidc and not runtime.ready:
         reason = runtime.reason or "外部 IdP 配置不可用"
@@ -212,7 +239,11 @@ def auth_login(gw_session: Optional[str] = Cookie(None)):
             auth_mode=runtime.mode,
         )
         raise OidcNotConfiguredException("授权码流程配置缺失（client_id / redirect_uri）")
-    if session_store.get_session(gw_session) is not None:
+    existing = session_store.get_session(gw_session)
+    if existing is not None and not _oidc_session_still_bound(existing, runtime):
+        session_store.delete_session(gw_session)
+        existing = None
+    if existing is not None:
         audit_log.record_auth_event(
             audit_log.EVENT_LOGIN_ALREADY_AUTHENTICATED,
             outcome=audit_log.OUTCOME_DENIED,
@@ -341,7 +372,7 @@ def auth_callback(
     except _OidcUnauthorized:
         return fail("id_token_rejected")
 
-    session_id = session_store.create_session(_principal_from_identity(identity))
+    session_id = session_store.create_session(_principal_from_identity(identity, runtime))
     audit_log.record_auth_event(
         audit_log.EVENT_SESSION_ESTABLISHED,
         outcome=audit_log.OUTCOME_SUCCEEDED,

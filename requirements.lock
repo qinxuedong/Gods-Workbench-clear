@@ -1,23 +1,29 @@
 # -*- coding: utf-8 -*-
-# Gods-Workbench 依赖版本锁（版本锁，非哈希锁）
+# Gods-Workbench 依赖版本锁（版本锁；哈希锁见 requirements.lock.hashes）
 #
-# 生成：2026-09-20（Asia/Shanghai），Windows
+# 生成：2026-09-28（Asia/Shanghai），Windows
 # 解释器：CPython 3.11.9 (MSC v.1938 64-bit)
 # 来源：requirements-dev.txt（-r requirements.txt + pytest + httpx 及其传递依赖）
 #
 # 口径说明（重要）：
-#   * 主表 = **干净 venv 真实联网安装后 pip freeze** 的结果，已在该环境跑通全量 pytest。
-#   * 附表 = 本机开发环境快照（版本较旧，同样满足区间约束），供对照，不作为交付口径。
-#   * 本文件是**版本锁，不是哈希锁**；未绑定 wheel/sdist 哈希，未做签名与来源证明。
+#   * 本表 = **干净 venv 真实联网安装** requirements-dev.txt 后 `pip freeze` 的结果。
+#   * 与 2026-09-20 版相比，因上游发布推进，以下条目版本变化（区间约束均仍满足）：
+#       starlette 1.6.0 → 1.7.0、uvicorn 0.53.0 → 0.54.0、watchfiles 1.2.0 → 1.3.0。
+#   * 新增 3 个运行期依赖（requirements.txt 已声明但此前未入锁）：
+#       pillow==12.3.0、psutil==7.2.2、python-multipart==0.0.32。
+#     三者的 requires_dist 在 PyPI 元数据中**均无强制运行期依赖**（只有 extras），
+#     故本次闭包增量为 3 个组件，不引入新的传递依赖。
+#   * 本文件是**版本锁**；wheel 哈希见 requirements.lock.hashes（pip --require-hashes 消费）。
 #   * 平台差异：uvicorn[standard] 的 uvloop 仅非 Windows 平台安装，见文末登记。
+#   * 边界：本轮在**当前 Windows 环境**复算，未宣称完成干净环境重装验收。
 #
 # 复现命令（干净环境）：
 #   python -m venv <venv>
 #   <venv>\Scripts\python -m pip install -r requirements-dev.txt
 #   <venv>\Scripts\python -m pip freeze
-#   <venv>\Scripts\python -m pytest -q --no-header -p no:cacheprovider
+#   <venv>\Scripts\python -m pip install --require-hashes -r requirements.lock.hashes
 #
-# ---- 主表：干净环境实测锁定（30 条）----
+# ---- 主表：干净 venv 实测锁定（33 条）----
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
@@ -34,58 +40,35 @@ httpx==0.28.1
 idna==3.20
 iniconfig==2.3.0
 packaging==26.3
+pillow==12.3.0
 pluggy==1.6.0
+psutil==7.2.2
 pycparser==3.0
 pydantic==2.13.5
 pydantic_core==2.46.5
 Pygments==2.21.0
 pytest==9.1.1
 python-dotenv==1.2.3
+python-multipart==0.0.32
 PyYAML==6.0.3
-starlette==1.6.0
-typing-inspection==0.4.4
+starlette==1.7.0
 typing_extensions==4.16.0
-uvicorn==0.53.0
-watchfiles==1.2.0
+typing-inspection==0.4.4
+uvicorn==0.54.0
+watchfiles==1.3.0
 websockets==17.1
 
-# ---- 附表：本机开发环境快照（31 条，对照用）----
-# annotated-doc==0.0.4
-# annotated-types==0.7.0
-# anyio==4.12.1
-# certifi==2026.7.22
-# cffi==2.1.1
-# click==8.3.1
-# colorama==0.4.6
-# cryptography==46.0.5
-# fastapi==0.140.0
-# h11==0.16.0
-# httpcore==1.0.9
-# httptools==0.8.0
-# httpx==0.28.1
-# idna==3.11
-# iniconfig==2.3.0
-# packaging==25.0
-# pluggy==1.6.0
-# pycparser==3.0
-# pydantic==2.12.5
-# pydantic_core==2.41.5
-# Pygments==2.20.0
-# pytest==9.1.1
-# python-dotenv==1.0.0
-# PyYAML==6.0.3
-# sniffio==1.3.1
-# starlette==0.52.1
-# typing-inspection==0.4.2
-# typing_extensions==4.15.0
-# uvicorn==0.41.0
-# watchfiles==1.2.0
-# websockets==16.1.1
-
 # ---------------------------------------------------------------------------
-# 平台差异登记（2026-09-20 实测）
+# 平台差异登记（2026-09-28 复核）
 #   uvicorn[standard] 的 uvloop 依赖带环境标记：
 #     uvloop>=0.15.1; (sys_platform != 'win32' and (sys_platform != 'cygwin'
 #                     and platform_python_implementation != 'PyPy')) and extra == 'standard'
 #   → Windows 本机与上方干净 venv 均不含 uvloop；Linux（GitHub Actions CI 与生产容器）会安装。
-#   跨平台交付锁必须补登 uvloop 版本并复核。
+#   跨平台交付锁必须补登 uvloop 版本并复核（见 requirements.lock.hashes 的平台边界声明）。
+#
+# ---- 附：验收工具边界（不进 Python 锁）----
+#   * 系统 FFmpeg（ffmpeg/ffprobe）：媒体转码与时长探测的**本机验收工具**，
+#     不属于 Python 依赖闭包，不以 pip 安装、不写入本锁与 SBOM 组件表。
+#   * 系统浏览器（如 Playwright 驱动的真实浏览器）：端到端验收工具，
+#     同上，属于**验收工具边界**，不进 Python 锁。
+#   二者缺失只影响本机媒体/端到端验收，不影响 Python 运行期依赖闭包。

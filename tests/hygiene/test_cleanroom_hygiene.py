@@ -200,6 +200,150 @@ def test_static_layer_has_no_legacy_integration_markers(repo_root: Path):
     )
 
 
+# A-01：无限画布旧提示词继续隔离。用户 2026-09-28 裁决为“继续隔离，不准入运行链路”。
+# 登记只保存原路径、字节数与哈希；提示词正文仅存在于 docs/provenance/quarantine/ 之下，
+# 绝不允许出现在任何可被 /static 提供的路径中。
+QUARANTINED_PROMPT_ORIGINAL_PATH = "src/gods_workbench/static/system-prompts/infinite-canvas-prompt-templates.md"
+QUARANTINED_PROMPT_URL = "/static/system-prompts/infinite-canvas-prompt-templates.md"
+QUARANTINED_PROMPT_REGISTRY = (
+    "docs/provenance/quarantine/INFINITE-CANVAS-PROMPT-QUARANTINE-2026-09-28.md"
+)
+QUARANTINED_PROMPT_COPY = "docs/provenance/quarantine/infinite-canvas-prompt-templates.md"
+
+
+def test_quarantined_prompt_is_absent_from_static_tree(repo_root: Path):
+    """隔离文件必须不在静态挂载目录内，原路径也不得再被 Git 跟踪。
+
+    A-01 的物理边界：只要文件还在 `static/**` 下，`StaticFiles` 就会把它当运行制品
+    提供出去，应用层即使返回 403 也只是第二道防线。此处钉死第一道防线。
+    """
+    static_dir = repo_root / "src" / "gods_workbench" / "static"
+    original = repo_root / QUARANTINED_PROMPT_ORIGINAL_PATH
+    assert not original.exists(), (
+        f"隔离文件仍在静态挂载目录内，会被 /static 作为运行制品提供: {QUARANTINED_PROMPT_ORIGINAL_PATH}"
+    )
+
+    # 整个 static/ 树里不得有任何同名或同内容副本（防止换个目录再放回来）。
+    quarantine_sha = _canonical_sha256(repo_root / QUARANTINED_PROMPT_COPY)
+    leaked = []
+    for path in static_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        if path.name == "infinite-canvas-prompt-templates.md":
+            leaked.append(path.relative_to(repo_root).as_posix())
+        elif path.suffix.lower() == ".md" and _canonical_sha256(path) == quarantine_sha:
+            leaked.append(path.relative_to(repo_root).as_posix())
+    assert not leaked, f"隔离提示词正文出现在静态挂载目录内: {leaked}"
+
+    # 原路径不得再被 Git 跟踪（.git 不可用时跳过，不伪造结论）。
+    git_dir = repo_root / ".git"
+    if git_dir.exists():
+        import subprocess
+
+        tracked = subprocess.run(
+            ["git", "ls-files", "--", QUARANTINED_PROMPT_ORIGINAL_PATH],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert tracked.returncode == 0, (
+            f"无法确认 Git 跟踪状态: {tracked.stderr.strip()}"
+        )
+        assert tracked.stdout.strip() == "", (
+            f"隔离文件原路径仍被 Git 跟踪: {tracked.stdout.strip()}"
+        )
+
+
+def test_quarantined_prompt_url_is_rejected_by_real_http(client):
+    """真实 HTTP 必须对隔离 URL 返回非 200，且不得回落到 StaticFiles。
+
+    这是应用层防线：静态挂载兜底返回 200 就等于把隔离失效。只断言状态码非 200
+    和响应体不含提示词正文，不断言具体错误码，避免把实现细节写死进卫生用例。
+    """
+    for url in (
+        QUARANTINED_PROMPT_URL,
+        QUARANTINED_PROMPT_URL + "?download=1",
+        QUARANTINED_PROMPT_URL.upper().replace("/STATIC/", "/static/"),
+    ):
+        for method in ("GET", "HEAD"):
+            response = client.request(method, url)
+            assert response.status_code != 200, (
+                f"{method} {url} 返回 200，隔离静态资源仍可被运行访问"
+            )
+            if method == "GET":
+                body = response.content.decode("utf-8", errors="replace")
+                assert "无限画布" not in body and "v2.0" not in body, (
+                    f"{method} {url} 响应体疑似回放了隔离提示词正文"
+                )
+
+
+def test_quarantine_registry_records_metadata_without_prompt_body(repo_root: Path):
+    """隔离登记必须登记原路径、字节数、哈希与裁决，但不得复制提示词正文。
+
+    登记是“不含内容的登记”：它证明隔离发生了，同时自身不构成新的正文副本。
+    """
+    registry = repo_root / QUARANTINED_PROMPT_REGISTRY
+    assert registry.is_file(), f"缺少隔离登记: {QUARANTINED_PROMPT_REGISTRY}"
+    text = registry.read_text(encoding="utf-8")
+
+    quarantine_copy = repo_root / QUARANTINED_PROMPT_COPY
+    assert quarantine_copy.is_file(), f"缺少隔离副本: {QUARANTINED_PROMPT_COPY}"
+    expected_bytes = str(quarantine_copy.stat().st_size)
+    expected_sha = hashlib.sha256(quarantine_copy.read_bytes()).hexdigest()
+
+    for token, label in (
+        (QUARANTINED_PROMPT_ORIGINAL_PATH, "原路径"),
+        (QUARANTINED_PROMPT_URL, "原 URL"),
+        (expected_bytes, "字节数"),
+        (expected_sha, "SHA-256"),
+        (QUARANTINED_PROMPT_COPY, "新位置"),
+    ):
+        assert token in text, f"隔离登记缺少{label}: {token}"
+
+    # 登记文件本身不得内嵌提示词正文（正文只允许在 quarantine 副本中）。
+    copy_text = quarantine_copy.read_text(encoding="utf-8")
+    significant_lines = [
+        line.strip()
+        for line in copy_text.splitlines()
+        if len(line.strip()) >= 24
+    ]
+    inlined = [line for line in significant_lines if line in text]
+    assert not inlined, (
+        f"隔离登记内嵌了提示词正文，登记应只含元数据: {inlined[:3]}"
+    )
+
+
+def test_quarantined_prompt_excluded_from_delivery_export_manifest(repo_root: Path):
+    """交付导出清单必须排除隔离提示词，且复核范围不得覆盖静态目录内的同名文件。
+
+    交付导出目前没有清单制品；因此本用例守住两条可核查事实：
+      1) 隔离副本位于 quarantine 之下，不属于 `src/**` 运行/交付范围；
+      2) 仓库内不存在把隔离文件列入交付的清单条目。
+    不伪造一个不存在的清单文件。
+    """
+    assert not (repo_root / QUARANTINED_PROMPT_COPY).is_relative_to(
+        repo_root / "src"
+    ), "隔离副本不得落在 src/ 运行范围内"
+
+    # 交付相关清单若存在，不得列出隔离路径。
+    manifest_candidates = (
+        repo_root / "docs" / "provenance" / "AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt",
+        repo_root / "docs" / "provenance" / "AUTHORIZED-MIGRATION-MANIFEST-2026-09-17.txt",
+        repo_root / "docs" / "provenance" / "STATIC-SCOPE-REGISTRY-2026-09-20.md",
+    )
+    listed = []
+    for manifest in manifest_candidates:
+        if manifest.is_file() and QUARANTINED_PROMPT_ORIGINAL_PATH in manifest.read_text(
+            encoding="utf-8"
+        ):
+            # STATIC-SCOPE-REGISTRY 是历史静态层清点，允许留作历史证据，
+            # 但授权迁移清单出现隔离路径即视为隔离升级为交付。
+            if manifest.name.startswith("AUTHORIZED-MIGRATION-MANIFEST"):
+                listed.append(manifest.relative_to(repo_root).as_posix())
+    assert not listed, f"隔离提示词被列入授权迁移/交付清单: {listed}"
+
+
 def test_accepted_non_canvas_slices_match_migration_manifest(repo_root: Path):
     """确保登记为可迁移的两个非画布切片没有被无意改写。"""
     manifest = repo_root / "docs" / "provenance" / "AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt"
@@ -224,6 +368,80 @@ def test_accepted_non_canvas_slices_match_migration_manifest(repo_root: Path):
         path = repo_root / relative_path
         actual[relative_path] = _canonical_sha256(path)
     assert actual == expected, "接受迁移切片的目标哈希与来源登记不一致"
+
+
+def _parse_classification_slice_hashes(classification_text: str) -> dict:
+    """解析分类表类别①两行，返回 {目标相对路径: (来源 SHA, 目标 SHA)}。
+
+    只接受类别①表格中的两个日期选择器路径。来源列是历史原始字节，
+    目标列必须是 LF 规范化哈希，且二者不得相同。
+    """
+    parsed = {}
+    row_pattern = re.compile(
+        r"^\|\s*`(src/gods_workbench/static/v2/(?:js/project-date-range\.js|css/project-date-range\.css))`\s*"
+        r"\|\s*`([0-9A-Fa-f]{64})`\s*"
+        r"\|\s*`([0-9A-Fa-f]{64})`\s*"
+        r"\|\s*([^|]+?)\s*\|$"
+    )
+    for line in classification_text.splitlines():
+        match = row_pattern.match(line)
+        if not match:
+            continue
+        relative_path, source_sha, target_sha, result = match.groups()
+        parsed[relative_path] = (source_sha.lower(), target_sha.lower(), result.strip())
+    return parsed
+
+
+def test_classification_target_hashes_match_manifest_and_files(repo_root: Path):
+    """分类表目标哈希、授权清单目标哈希、当前文件 LF 规范化哈希必须三者一致。
+
+    2026-09-28 审计发现分类表把来源 SHA 重复写入目标 SHA。本守卫钉死：
+    目标列不得再等于来源列；变换原因只允许是行尾规范化，不得靠改写切片源码造 MATCH。
+    """
+    classification = (
+        repo_root / "docs" / "provenance" / "CLEANROOM-CODE-CLASSIFICATION-2026-09-17.md"
+    )
+    manifest = repo_root / "docs" / "provenance" / "AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt"
+    classified = _parse_classification_slice_hashes(classification.read_text(encoding="utf-8"))
+    assert set(classified) == {
+        "src/gods_workbench/static/v2/js/project-date-range.js",
+        "src/gods_workbench/static/v2/css/project-date-range.css",
+    }
+
+    manifest_targets = {}
+    target_path = None
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        target_match = re.match(r"^目标：(.+)$", line)
+        hash_match = re.match(r"^目标 SHA-256：([0-9A-Fa-f]{64})$", line)
+        if target_match:
+            target_path = target_match.group(1).strip()
+        elif hash_match and target_path:
+            manifest_targets[target_path] = hash_match.group(1).lower()
+            target_path = None
+
+    expected_targets = {
+        "src/gods_workbench/static/v2/js/project-date-range.js": (
+            "1ae7a24062af580a95b54802cd95a3027db83266993f67f9f407e750d082232c"
+        ),
+        "src/gods_workbench/static/v2/css/project-date-range.css": (
+            "1ca8a32367ea5402d7b60a9975ed82555ac450a231dcfeb2395f4f6775b0bf22"
+        ),
+    }
+    for relative_path, expected_sha in expected_targets.items():
+        source_sha, classified_sha, result = classified[relative_path]
+        actual_sha = _canonical_sha256(repo_root / relative_path)
+        manifest_sha = manifest_targets[relative_path]
+        assert source_sha != classified_sha, (
+            f"分类表把来源 SHA 写入了目标 SHA: {relative_path}"
+        )
+        assert result == "NORMALIZED", (
+            f"分类表结果必须标明行尾规范化而非整文件 MATCH: {relative_path} -> {result}"
+        )
+        assert classified_sha == manifest_sha == actual_sha == expected_sha, (
+            f"跨清单目标哈希漂移: {relative_path}"
+            f"（分类表 {classified_sha}，清单 {manifest_sha}，"
+            f"文件 {actual_sha}，期望 {expected_sha}）"
+        )
 
 
 def test_phase2_input_hashes_match_current_files(repo_root: Path):

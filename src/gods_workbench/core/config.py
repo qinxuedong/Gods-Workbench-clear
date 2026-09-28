@@ -325,6 +325,19 @@ class RuntimeAuthConfig:
     login_ready: bool = False
 
 
+def auth_config_generation() -> str:
+    """返回当前认证环境指纹的稳定代际标识。
+
+    发行者、受众、JWKS、端点主机等信任根相关变量任一变化都会改变该值。
+    会话在建立时绑定它；读取时不一致即视为信任根已变更。
+    只暴露摘要，不把环境变量原文写入会话或响应。
+    """
+    import hashlib
+
+    material = "\n".join(_environment_fingerprint())
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 def _environment_fingerprint() -> Tuple[str, ...]:
     """采集与认证配置相关的环境变量快照，用作运行期配置缓存键。"""
     return (

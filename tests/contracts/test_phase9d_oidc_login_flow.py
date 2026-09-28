@@ -353,10 +353,12 @@ def test_callback_happy_path_establishes_session_and_role_from_idp(clean_env, lo
         assert "id_token" not in json.dumps(status_body)
 
         # 会话即可授权写操作，且**请求头 X-User-Role 不能提权**。
+        # S-01：携带会话 Cookie 的写请求现在要求同源 Origin（与 local_account 同口径），
+        # 这里补上与真实页面一致的 Origin，以继续验证"Cookie 会话授权写操作"这一条。
         created = api.post(
             "/api/asset-registry/projects",
             json={"name": "会话授权项目", "project_type": "film"},
-            headers={"X-User-Role": "governor"},
+            headers={"X-User-Role": "governor", "Origin": "http://testserver"},
         )
         assert created.status_code == 201, created.text
         project_id = created.json()["project"]["project_id"]
@@ -366,7 +368,7 @@ def test_callback_happy_path_establishes_session_and_role_from_idp(clean_env, lo
             "DELETE",
             f"/api/asset-registry/projects/{project_id}",
             json={"expected_version": created.json()["project"]["version"]},
-            headers={"X-User-Role": "governor"},
+            headers={"X-User-Role": "governor", "Origin": "http://testserver"},
         )
         assert archived.status_code == 403, archived.text
 

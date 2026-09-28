@@ -17,7 +17,7 @@
 
 import hashlib
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 from gods_workbench.core import audit as audit_log
 from gods_workbench.core.config import AUTH_MODE_LOCAL, AUTH_MODE_OIDC, AUTH_MODE_LOCAL_ACCOUNT, load_runtime_auth_config
@@ -37,6 +37,62 @@ class AuthContext:
     mode: str = AUTH_MODE_LOCAL
     identity_domain: Optional[str] = None
     display_name: Optional[str] = None
+
+
+def oidc_session_trust_failure_reason(principal: Mapping[str, Any], runtime: Any) -> Optional[str]:
+    """判定一条 OIDC 服务端会话当前是否仍处在可用信任根之内。
+
+    返回 ``None`` 表示会话仍绑定当前信任根、可以继续使用；否则返回**封闭集合**内的
+    失效原因，调用方必须撤销该会话并失败关闭。
+
+    判定口径（任一条不成立即失效）：
+
+    - 运行期配置必须就绪（``runtime.ready``，即 mode=oidc 且 issuer/audience/JWKS 齐备）；
+    - 发行者与受众都不得为空（空值不得被当作"宽松匹配"）；
+    - 会话建立时绑定的 ``issuer`` 必须与当前运行期 issuer 逐字相同；
+    - 会话建立时绑定的 ``config_generation`` 必须与当前配置代际相同，
+      即信任根相关环境变量（issuer / audience / jwks / 端点主机等）任一变化都会作废旧会话。
+
+    S-01 证据边界：本函数只把"未就绪配置下仍返回可用 AuthContext"这一**观察**收口为
+    失败关闭，不主张已证实的外部攻击链。会话记录缺失绑定字段（例如攻击者或旧版本
+    直接注入的内存会话）一律按失效处理，不放行。
+    """
+    from gods_workbench.core.config import auth_config_generation  # 延迟导入，避免循环依赖
+
+    if not getattr(runtime, "ready", False):
+        return "oidc_not_ready"
+    oidc_config = getattr(runtime, "oidc", None)
+    issuer = str(getattr(oidc_config, "issuer", "") or "").strip()
+    audience = str(getattr(oidc_config, "audience", "") or "").strip()
+    if not issuer or not audience:
+        return "oidc_not_ready"
+    if str(principal.get("issuer") or "").strip() != issuer:
+        return "issuer_mismatch"
+    bound_generation = str(principal.get("config_generation") or "").strip()
+    if not bound_generation or bound_generation != auth_config_generation():
+        return "trust_root_changed"
+    return None
+
+
+def revoke_oidc_session(principal: Mapping[str, Any], reason: str) -> None:
+    """撤销一条已失效的 OIDC 会话：删除记录、清空请求身份，并留下脱敏审计。
+
+    ``reason`` 由调用方从封闭集合给出；审计只落事件类别与主体标识，
+    绝不记录 Cookie 值、令牌原文或授权码。
+    """
+    from gods_workbench.core import session as session_store  # 延迟导入，避免循环依赖
+
+    session_id = str(principal.get("session_id") or "").strip()
+    if session_id:
+        session_store.delete_session(session_id)
+    session_store.set_current_principal(None)
+    audit_log.record_auth_event(
+        audit_log.EVENT_SESSION_REVOKED,
+        outcome=audit_log.OUTCOME_DENIED,
+        reason=reason,
+        subject=str(principal.get("username") or "") or None,
+        auth_mode=AUTH_MODE_OIDC,
+    )
 
 
 def _extract_bearer_token(authorization: Optional[str]) -> str:
@@ -81,6 +137,13 @@ def require_authenticated(
 
         principal = session_store.get_current_principal()
         if principal:
+            # S-01：会话必须绑定发行者与配置代际。issuer/audience 为空或 oidc_ready=false 时，
+            # **不得**仅因内存里仍有一条存活会话就返回可用 AuthContext；
+            # 信任根变更或配置失效时撤销旧会话并失败关闭。
+            trust_failure = oidc_session_trust_failure_reason(principal, runtime)
+            if trust_failure is not None:
+                revoke_oidc_session(principal, trust_failure)
+                raise UnauthorizedException(message="外部 IdP 会话已失效，已拒绝请求")
             role = str(principal.get("role") or "").strip().lower()
             if role not in KNOWN_ROLES:
                 audit_log.record_auth_event(
@@ -99,7 +162,7 @@ def require_authenticated(
                 role=role,
                 subject=subject,
                 mode=AUTH_MODE_OIDC,
-                identity_domain=f"oidc:{issuer}" if issuer else None,
+                identity_domain=f"oidc:{issuer}",
                 display_name=str(principal.get("display_name") or subject or ""),
             )
 

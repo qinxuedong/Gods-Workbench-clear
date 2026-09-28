@@ -37,6 +37,25 @@ from gods_workbench.core.errors import CleanroomException
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
+# A-01：无限画布旧提示词已移出静态挂载目录，继续隔离。
+# 只登记被拒绝的 URL，不在应用层保存或回放提示词正文。
+QUARANTINED_STATIC_PATHS = frozenset({
+    "system-prompts/infinite-canvas-prompt-templates.md",
+})
+
+# S-01：**OIDC** Cookie 写操作 Origin 门禁的豁免路径（OIDC 认证端点自身）。
+# OIDC 登录发起/登出/首次引导不以现有 Cookie 会话为前提，必须能在缺失 Origin 时工作，
+# 否则 OIDC 会话一旦失效就无法登出、也无法重新登录。
+#
+# 注意：本豁免**只适用于 OIDC 分支**。``local_account`` 分支的写路径门禁是既有行为
+# （其登录/登出/初始化端点同样要求同源，见 tests/contracts/test_local_account_login.py），
+# 不得被本集合放宽。业务写接口在两种模式下都不豁免。
+CSRF_ORIGIN_EXEMPT_PATHS = frozenset({
+    "/api/asset-auth/login",
+    "/api/asset-auth/logout",
+    "/api/asset-auth/bootstrap",
+})
+
 
 @asynccontextmanager
 async def _app_lifespan(app: FastAPI):
@@ -107,6 +126,28 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/static/v2/projects.html", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     @app.middleware("http")
+    async def quarantined_static_guard(request: Request, call_next):
+        """在任何挂载之前拦下已隔离的静态 URL，大小写不敏感。
+
+        A-01：精确路由只能拦住逐字匹配的 URL；在大小写不敏感的平台上
+        `StaticFiles` 仍会把 `/static/SYSTEM-PROMPTS/…MD` 解析到同一文件。
+        因此这里按「规范化路径后缀」判断，确保任何大小写、重复斜杠或
+        `./` 变体都返回非 200，而不是回落到静态挂载。
+        """
+        if request.url.path.startswith("/static/"):
+            normalized = request.url.path[len("/static/"):].lower().replace("//", "/")
+            while normalized.startswith("./"):
+                normalized = normalized[2:]
+            normalized = normalized.rstrip("/")
+            if any(
+                normalized == quarantined.lower()
+                or normalized.endswith("/" + quarantined.lower())
+                for quarantined in QUARANTINED_STATIC_PATHS
+            ):
+                return _reject_quarantined_static()
+        return await call_next(request)
+
+    @app.middleware("http")
     async def observability_http_middleware(request: Request, call_next):
         """把真实 /api 请求的响应字节数与耗时计入观测采样（只测量真实值）。
 
@@ -145,13 +186,38 @@ def create_app() -> FastAPI:
         只在 OIDC 或数据库账户模式下解析；未知/过期会话等价于未认证（不拒绝请求本身，
         由各路由的权限检查决定 401/403）。上下文变量在响应后必须重置，
         避免跨请求泄漏。
+
+        Cookie 写操作的 **Origin 门禁**（S-01）：与 ``local_account`` 同口径，
+        OIDC 模式的写接口要求 ``Origin`` 与本站点一致且不得带跨站标记。
+
+        例外（``CSRF_ORIGIN_EXEMPT_PATHS``）：认证端点本身**不依赖** Cookie 会话，
+        它们的写操作必须能在无 ``Origin`` 时工作，否则会把「重新登录 / 登出」
+        自己锁死（用户会话一旦失效就再也发不出登出与再次登录请求）：
+
+        - ``POST /api/asset-auth/login``  登录发起：此时本就无有效 Cookie 会话；
+        - ``POST /api/asset-auth/logout`` 登出：会话可能已失效，仍必须可幂等清除；
+        - ``POST /api/asset-auth/bootstrap`` 首次建管理员：尚无任何会话。
+
+        真正依赖 Cookie 会话的业务写接口（项目、画布、素材等）**不放行**该例外。
+
+        **门禁只在请求真的携带会话 Cookie 时生效**：门禁保护的是"用受害者的
+        Cookie 会话发起跨站写操作"这一路径；未携带会话 Cookie 的请求没有任何
+        可被滥用的身份，此时必须让路由自身的 401 契约生效，而不是提前用 403
+        顶掉它（否则 401/403 契约语义会被本中间件改写）。
         """
         token = None
         mode = load_runtime_auth_config().mode
         if request.url.path.startswith("/api/"):
+            # 仅 OIDC 分支使用：写方法 + 非豁免路径。是否真的施加门禁还要看请求有没有
+            # 携带会话 Cookie（见 OIDC 分支内的 principal is not None 判断）。
+            oidc_origin_gate_eligible = (
+                request.method not in {"GET", "HEAD", "OPTIONS"}
+                and request.url.path not in CSRF_ORIGIN_EXEMPT_PATHS
+            )
             if mode == AUTH_MODE_LOCAL_ACCOUNT:
                 if request.method not in {"GET", "HEAD", "OPTIONS"}:
                     # Cookie 登录的全部写接口要求同源，拒绝跨站请求及缺失来源。
+                    # 既有行为：不套用 OIDC 的豁免集合（local/setup 与 local 登出同样受门禁约束）。
                     origin = request.headers.get("origin")
                     expected = str(request.base_url).rstrip("/")
                     if origin != expected or request.headers.get("sec-fetch-site") == "cross-site":
@@ -160,7 +226,21 @@ def create_app() -> FastAPI:
                 principal = local_accounts.get_session(request.cookies.get(session_store.SESSION_COOKIE_NAME))
                 token = session_store.set_current_principal(principal)
             elif mode == AUTH_MODE_OIDC:
-                principal = session_store.get_session(request.cookies.get(session_store.SESSION_COOKIE_NAME))
+                # 先解析会话身份，再按"是否真的带会话"决定门禁。
+                session_id = request.cookies.get(session_store.SESSION_COOKIE_NAME)
+                principal = session_store.get_session(session_id)
+                if oidc_origin_gate_eligible and principal is not None:
+                    # 与本地账户写路径同一口径：OIDC Cookie 写操作也要求同源，
+                    # 缺失来源或跨站标记一律拒绝。SameSite=Lax 是否足以挡住
+                    # 未实证的跨站请求，只作为条件性观察，不在此放宽门禁。
+                    origin = request.headers.get("origin")
+                    expected = str(request.base_url).rstrip("/")
+                    if origin != expected or request.headers.get("sec-fetch-site") == "cross-site":
+                        return JSONResponse(status_code=403, content={"detail": {
+                            "code": "CSRF_ORIGIN_REJECTED", "message": "请从当前应用页面执行操作（请求来源校验失败）"}})
+                if principal is not None:
+                    principal = dict(principal)
+                    principal["session_id"] = session_id
                 token = session_store.set_current_principal(principal)
         try:
             return await call_next(request)
@@ -231,7 +311,28 @@ def create_app() -> FastAPI:
         query = urlencode(params)
         return RedirectResponse(f"{target}?{query}" if query else target, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
-    # 挂载静态文件目录
+    def _reject_quarantined_static():
+        """明确拒绝已隔离的静态路径；不得回落到 StaticFiles 返回 200。"""
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "detail": {
+                    "code": "STATIC_ASSET_QUARANTINED",
+                    "message": "该静态资源已隔离，不提供运行访问",
+                }
+            },
+        )
+
+    for _quarantined_path in sorted(QUARANTINED_STATIC_PATHS):
+        app.add_api_route(
+            "/static/" + _quarantined_path,
+            _reject_quarantined_static,
+            methods=["GET", "HEAD"],
+            include_in_schema=False,
+            name="reject_quarantined_static_" + _quarantined_path.replace("/", "_").replace(".", "_"),
+        )
+
+    # 挂载静态文件目录。隔离路径已由上方显式路由拦截，不会进入本挂载。
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 

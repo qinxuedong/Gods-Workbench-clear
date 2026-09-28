@@ -102,7 +102,12 @@ def reset_stores() -> None:
 # ---------------------------------------------------------------------------
 
 def create_session(principal: Mapping[str, Any]) -> str:
-    """创建服务端会话并返回不透明会话标识。"""
+    """创建服务端会话并返回不透明会话标识。
+
+    ``principal`` 中的 ``issuer`` 与 ``config_generation`` 由调用方在登录成功时
+    写入，表示该会话绑定的发行者与信任根代际。读取时由认证层核对，
+    不一致则撤销；本函数不自行发明缺省信任根。
+    """
     now = time.time()
     _prune(now)
     session_id = secrets.token_urlsafe(32)

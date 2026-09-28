@@ -26,12 +26,14 @@
 
 ## 类别①：用户自有原创切片（2 个）
 
-| 目标相对路径 | 来源 SHA-256 | 目标 SHA-256 | 结果 |
+| 目标相对路径 | 来源 SHA-256（历史原始字节） | 目标 SHA-256（LF 规范化） | 结果 |
 |---|---|---|---|
-| `src/gods_workbench/static/v2/js/project-date-range.js` | `3607B19926040C0F40590781451964003616AA3BC436D7E8674E055C5378A593` | `3607B19926040C0F40590781451964003616AA3BC436D7E8674E055C5378A593` | MATCH |
-| `src/gods_workbench/static/v2/css/project-date-range.css` | `794B0E20B8DAC4A48BD1E3ACEE1C1F4D7087B1EAC412B9F34D69DE5F0563197A` | `794B0E20B8DAC4A48BD1E3ACEE1C1F4D7087B1EAC412B9F34D69DE5F0563197A` | MATCH |
+| `src/gods_workbench/static/v2/js/project-date-range.js` | `3607B19926040C0F40590781451964003616AA3BC436D7E8674E055C5378A593` | `1AE7A24062AF580A95B54802CD95A3027DB83266993F67F9F407E750D082232C` | NORMALIZED |
+| `src/gods_workbench/static/v2/css/project-date-range.css` | `794B0E20B8DAC4A48BD1E3ACEE1C1F4D7087B1EAC412B9F34D69DE5F0563197A` | `1CA8A32367EA5402D7B60A9975ED82555AC450A231DCFEB2395F4F6775B0BF22` | NORMALIZED |
 
-哈希登记与授权决定：`docs/provenance/AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt`。
+目标 SHA-256 必须与 `docs/provenance/AUTHORIZED-MIGRATION-MANIFEST-2026-09-17-v2.txt` 的目标 SHA-256，以及当前文件经 CRLF/CR→LF 规范化后的 SHA-256 三者一致。来源 SHA-256 保留历史原始字节登记，不得再写入目标列。
+
+来源与目标不同不是内容改写：两个切片源码未为追求 MATCH 而改写；差异只来自行尾规范化（CRLF/CR 归一为 LF）。授权决定仍见上述清单。
 
 ## 类别②：按契约/夹具自行重写
 
@@ -47,7 +49,7 @@
 
 | 范围 | 判定依据 | 当前状态 |
 |---|---|---|
-| `src/gods_workbench/static/system-prompts/infinite-canvas-prompt-templates.md` | 无限画布旧提示词，属于明确隔离范围 | 工作树保留为隔离登记，不进入运行迁移链路 |
+| `src/gods_workbench/static/system-prompts/infinite-canvas-prompt-templates.md` | 无限画布旧提示词，属于明确隔离范围 | 工作树保留为隔离登记，不进入运行迁移链路；2026-09-28 已移出静态挂载目录，原路径不再由 `/static` 提供且应用层返回 403（登记见 `docs/provenance/quarantine/INFINITE-CANVAS-PROMPT-QUARANTINE-2026-09-28.md`） |
 | comfyui 专属页面/脚本/样式 | 用户 2026-09-20 裁决不迁移 | 工作树已删除，卫生用例禁止重现 |
 | `static/runninghub/` 与 RunningHub 专属实现 | 用户 2026-09-20 裁决不迁移 | 工作树已删除并清除保留层引用 |
 | 旧无限画布/智能画布实现、连接器及插件协议 | 根 `AGENTS.md` 排除项与洁净室边界 | 不迁移；不得由静态层隐式引入 |
